@@ -187,6 +187,10 @@ func public(r *http.Request) bool {
 	if rest, ok := strings.CutPrefix(r.URL.Path, "/api/v1/plugin-page-files/"); ok && r.Method == http.MethodGet && strings.Contains(rest, "/") {
 		return true
 	}
+	// Direct torrent streaming media/HLS/VTT routes: protected by an unguessable per-session token.
+	if (r.Method == http.MethodGet || r.Method == http.MethodHead) && streamPublicPath(r.URL.Path) {
+		return true
+	}
 	// The sign-in page's pictures (the handler serves only its own art).
 	if r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/v1/public/signin-pic/t/p/") {
 		return true
@@ -314,3 +318,20 @@ func wantsPage(r *http.Request) bool {
 
 // mcpPath is the AI connection route, the only one a bearer key reaches.
 func mcpPath(p string) bool { return p == "/api/v1/mcp" || p == "/mcp" }
+
+func streamPublicPath(p string) bool {
+	rest, ok := strings.CutPrefix(p, "/api/v1/stream/")
+	if !ok {
+		return false
+	}
+	parts := strings.Split(rest, "/")
+	switch {
+	case len(parts) == 3 && parts[1] == "media" && parts[0] != "" && parts[2] != "":
+		return true
+	case len(parts) == 4 && parts[1] == "sub" && parts[0] != "" && parts[2] != "" && parts[3] != "":
+		return true
+	case len(parts) == 5 && parts[1] == "hls" && parts[0] != "" && parts[2] != "" && parts[3] != "" && parts[4] != "":
+		return true
+	}
+	return false
+}

@@ -42,6 +42,7 @@ import (
 	"github.com/HolyArrs/holyarrs/app/backend/internal/core/database"
 
 	"github.com/HolyArrs/holyarrs/app/backend/internal/sources"
+	"github.com/HolyArrs/holyarrs/app/backend/internal/stream"
 	"github.com/HolyArrs/holyarrs/app/backend/internal/subtitles"
 
 	"github.com/HolyArrs/holyarrs/app/backend/internal/core/files"
@@ -701,11 +702,13 @@ func serve(ctx context.Context, c config, o runOpts) error {
 	pluginEvents.Store(pe)
 	defer pe.StopAll()
 	langs := newLanguages(c, pe, func() bool { return accounts.HasOwner(ctx, s.Read()) })
+	streamer := stream.NewManager(s, vault, c.ConfigDir, func() string { return ln.Addr().String() })
+	defer streamer.Close()
 	a := buildHandlers(services{Plugins: pe, PluginHooks: phooks, Languages: langs, Bridges: bridges, Packages: pkgs, Library: lib, Lists: ol, Store: s, Queue: q, Live: hub, Metadata: md, Version: version, Auth: au, Backups: bm, Restart: restart,
 		Secrets: vault, TraktBase: os.Getenv("HOLYARRS_TRAKT_URL"), MetadataUp: metadataUp(hosted), MetadataModes: hosted.Modes, MetadataTest: hosted.TestKey, MetadataEnvKey: hosted.OwnKey, ServiceTop: hosted.Service.ServiceTop, TrailerPick: func(ctx context.Context, kind, id, lang string) (string, error) {
 			t, err := hosted.Service.TrailerPick(ctx, kind, id, lang)
 			return t.Key, err
-		}, AnimeMap: hosted.Service.AnimeMap, ExtraArt: metadata.ModeArt(hosted.Modes, hosted.Service.Art, own.Art), ImageBase: hosted.Service.Base() + "/v1/img", MusicControl: hosted.Service.Control, ArtistVideos: hosted.Service.ArtistVideos, ExtraRatings: phooks.WithPluginRatings(metadata.ModeRatings(hosted.Modes, hosted.Service.Ratings, own.Ratings)), CountryCount: hosted.Gate.SetCountryCount, WikiTitle: hosted.Service.WikiTitle, WikiPerson: hosted.Service.WikiPerson, AwardWinners: hosted.Service.AwardWinners, Alerts: sender, Asks: requestsSvc, Watchlists: plexWatch, Search: sr, Downloads: dm, DLSync: dls, Health: he, Updates: uc, Media: media, Subtitles: subs, States: reg, SafeMode: c.SafeMode, Parts: pc, ExitApp: exitApp, Mover: mover,
+		}, AnimeMap: hosted.Service.AnimeMap, ExtraArt: metadata.ModeArt(hosted.Modes, hosted.Service.Art, own.Art), ImageBase: hosted.Service.Base() + "/v1/img", MusicControl: hosted.Service.Control, ArtistVideos: hosted.Service.ArtistVideos, ExtraRatings: phooks.WithPluginRatings(metadata.ModeRatings(hosted.Modes, hosted.Service.Ratings, own.Ratings)), CountryCount: hosted.Gate.SetCountryCount, WikiTitle: hosted.Service.WikiTitle, WikiPerson: hosted.Service.WikiPerson, AwardWinners: hosted.Service.AwardWinners, Alerts: sender, Asks: requestsSvc, Watchlists: plexWatch, Search: sr, Streamer: streamer, Downloads: dm, DLSync: dls, Health: he, Updates: uc, Media: media, Subtitles: subs, States: reg, SafeMode: c.SafeMode, Parts: pc, ExitApp: exitApp, Mover: mover,
 		Log: applogs, ConfigDir: c.ConfigDir, SavePath: c.SavePath, URLBase: c.URLBase, Deps: ownPictures(musicDeps(hosted.Service, serverDeezer, serverDeezerAlbum, serverBio), hosted, version)})
 	// "Count this install" rides on every request to the metadata server.
 	a.ApplyCountryCount(ctx)

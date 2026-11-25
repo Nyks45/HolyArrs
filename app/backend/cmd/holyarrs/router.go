@@ -33,6 +33,7 @@ import (
 	"github.com/HolyArrs/holyarrs/app/backend/internal/metadata"
 
 	"github.com/HolyArrs/holyarrs/app/backend/internal/sources"
+	"github.com/HolyArrs/holyarrs/app/backend/internal/stream"
 	"github.com/HolyArrs/holyarrs/app/backend/internal/subtitles"
 )
 
@@ -143,6 +144,9 @@ func (a *handlers) Routes(rt *webserver.Router) {
 	(&requests.AskedByHandlers{Store: a.s.Store, KidMax: a.kidMax, AllowedTitleIDs: a.allowedTitleIDs}).Routes(m)
 	(&requests.FollowHandlers{Svc: a.s.Asks, Person: a.person, Title: a.titleID, Changed: a.mh().FollowsChanged}).Routes(m)
 	a.controls.Routes(m)
+	if a.s.Streamer != nil {
+		(&stream.Handlers{Mgr: a.s.Streamer}).Routes(m)
+	}
 	m.HandleFunc("GET /api/v1/openapi.json", a.openapi)
 	m.HandleFunc("GET /api/v1/health", a.health)
 	m.HandleFunc("GET /healthz", a.healthz)

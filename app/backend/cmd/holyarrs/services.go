@@ -32,6 +32,7 @@ import (
 	"github.com/HolyArrs/holyarrs/app/backend/internal/migrate"
 
 	"github.com/HolyArrs/holyarrs/app/backend/internal/sources"
+	"github.com/HolyArrs/holyarrs/app/backend/internal/stream"
 	"github.com/HolyArrs/holyarrs/app/backend/internal/subtitles"
 
 	"github.com/HolyArrs/holyarrs/app/backend/internal/core/jobs"
@@ -135,6 +136,8 @@ type services struct {
 	// Search runs searches, hand choices and the Held and Turned down
 	// lists; New makes one (choices queue a grab Job) when nil.
 	Search *sources.Searcher
+	// Streamer runs direct torrent streaming sessions (nil in tests that omit it).
+	Streamer *stream.Manager
 	// Health runs the health checks; New makes one when nil.
 	Health *health.Engine
 	// Updates is the update check; New makes one when nil and hands it to

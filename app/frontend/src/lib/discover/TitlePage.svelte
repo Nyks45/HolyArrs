@@ -52,6 +52,7 @@
 	import type { MenuItem } from '#lib/ui/Menu.svelte';
 	import HideSheet from './HideSheet.svelte';
 	import CheckReleasesSheet from './CheckReleasesSheet.svelte';
+	import StreamSheet from '#lib/stream/StreamSheet.svelte';
 	import { chosenToast } from '#lib/mediafiles/index.ts';
 	import type { Choice, ReleaseView } from '#lib/core/types.ts';
 	import { hiddenPill, type Hide } from './hidden.ts';
@@ -153,6 +154,14 @@
 	let askShow: ReturnType<typeof AskShowDialog> | undefined = $state();
 	// Cast and Similar are one row each; See all opens the whole list.
 	let allCast = $state(false);
+	let streamOpen = $state(false);
+	let streamSeason = $state(1);
+	let streamEpisode = $state(1);
+	function openStream(s = 1, e = 1) {
+		streamSeason = s;
+		streamEpisode = e;
+		streamOpen = true;
+	}
 	let askMovieDialog: ReturnType<typeof AskMovieDialog> | undefined = $state();
 	let loadedSettings = false;
 	async function load(k: string, id: string) {
@@ -496,6 +505,16 @@
 						<ActionButton icon="wish" label={d.ask ? t('discover.titlePage.askForToo', { name: d.name }) : t('discover.titlePage.askFor', { name: d.name })} caption={d.ask ? t('discover.titlePage.requestToo') : t('discover.titlePage.request')} primary onclick={() => askShow?.open(d.show as LookupShow)} />
 					{/if}
 				{/if}
+				{#if d.kind === 'movie' || d.kind === 'show'}
+					<ActionButton
+						icon="play"
+						pill
+						label={`Stream ${d.name}`}
+						caption="Stream"
+						onclick={() => openStream(seasons.find((s) => s.number > 0)?.number ?? 1, 1)}
+						data-testid="hero-stream"
+					/>
+				{/if}
 				{#if d.kind === 'show' || d.kind === 'movie'}<FollowButton titleId={owned?.id} tmdb={d.tmdb} kind={d.kind} />{/if}
 				{#if mayHide && !owned}<ActionMenu label={t('discover.titlePage.moreActions')} caption={t('discover.titlePage.more')} icon="more" items={[hideItem]} />{/if}
 			{/snippet}
@@ -568,7 +587,7 @@
 			</dl>
 		</div>
 		{@render trailers()}
-		{#if d.kind === 'show'}<SeasonFolds tmdb={d.tmdb} {seasons} fallback={d.backdrop} />{/if}
+		{#if d.kind === 'show'}<SeasonFolds tmdb={d.tmdb} {seasons} fallback={d.backdrop} onstream={(s, e) => openStream(s, e)} />{/if}
 		{@render castRow()}
 		<PluginCards cards={pluginSections} testid="title-plugin-sections" />
 		<TitleRows kind={d.kind} tmdb={d.tmdb} bind:info band={false} quickAsk={QuickAsk} ownAsk={d.kind === 'movie' && d.ask?.mine ? d.ask.state : undefined} onasked={(a) => { if (details && !a.four_k) details = { ...details, ask: { id: a.id, state: a.state, state_label: a.state_label, mine: true, people: a.people.length } }; }} onadded={ownAdded} />
@@ -616,6 +635,20 @@
 
 		{/if}
 		{#if mayHide}<HideSheet bind:open={hideOpen} kind={d.kind} tmdb={d.tmdb} name={d.name} genres={d.genres} hides={d.hides ?? []} {people} onchange={hidesChanged} />{/if}
+		{#if d.kind === 'movie' || d.kind === 'show'}
+			{@const extIds = (d.kind === 'movie' ? d.movie?.ids : d.show?.ids) as Record<string, string | undefined> | undefined}
+			<StreamSheet
+				bind:open={streamOpen}
+				kind={d.kind}
+				title={d.name}
+				year={d.year}
+				tmdb={d.tmdb}
+				imdb={extIds?.imdb ?? ''}
+				{seasons}
+				initialSeason={streamSeason}
+				initialEpisode={streamEpisode}
+			/>
+		{/if}
 		<Sheet bind:open={allCast} title={t('discover.titlePage.castAndCrew')} size="lg">
 			<ul class="all-grid people">
 				{#each d.cast as p, i (p.name + i)}

@@ -224,7 +224,7 @@ func TestCustomScraperLifecycle(t *testing.T) {
 	}
 
 	mc := NewSearchMatchContext("movie", "Fight Club", "", 1999, 0, 0, []string{"Drama"}, "en", []string{"US"}, false)
-	cands, warns := ps.SearchStreams(context.Background(), "movie", "550", 0, 0, "", mc)
+	cands, warns := ps.SearchStreams(context.Background(), "movie", "550", 0, 0, "", mc, false, nil)
 	if len(cands) != 1 || cands[0].StreamURL != "https://cdn.example.com/hls/550/master.m3u8" {
 		t.Fatalf("expected custom scraper to execute in SearchStreams, got cands=%+v warns=%v", cands, warns)
 	}

@@ -254,7 +254,7 @@ func buildFFmpegArgs(mediaURL, outDir string, probe *MediaProbe, quality string,
 	if copyVideo {
 		args = append(args, "-c:v", "copy")
 	} else {
-		args = append(args, "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p", "-g", "48", "-sc_threshold", "0")
+		args = append(args, "-c:v", "libx264", "-preset", "superfast", "-crf", "23", "-pix_fmt", "yuv420p", "-g", "48", "-sc_threshold", "0")
 		switch quality {
 		case "1080p":
 			args = append(args, "-vf", "scale=-2:'min(1080,ih)'")
@@ -268,7 +268,7 @@ func buildFFmpegArgs(mediaURL, outDir string, probe *MediaProbe, quality string,
 	args = append(args,
 		"-c:a", "aac", "-ac", "2", "-b:a", "192k",
 		"-f", "hls",
-		"-hls_time", "3",
+		"-hls_time", "2",
 		"-hls_list_size", "0",
 		"-hls_playlist_type", "event",
 		"-hls_flags", "independent_segments",
@@ -382,7 +382,7 @@ func (m *Manager) EnsureHLS(ctx context.Context, id, quality string, audioIdx in
 	m3u8Path := filepath.Join(outDir, "index.m3u8")
 	deadline := time.NewTimer(25 * time.Second)
 	defer deadline.Stop()
-	tick := time.NewTicker(250 * time.Millisecond)
+	tick := time.NewTicker(100 * time.Millisecond)
 	defer tick.Stop()
 	for {
 		if b, rerr := os.ReadFile(m3u8Path); rerr == nil {

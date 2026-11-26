@@ -1,6 +1,7 @@
 package stream
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/HolyArrs/holyarrs/app/backend/internal/core/webserver"
 	"github.com/HolyArrs/holyarrs/app/backend/internal/mediafiles"
@@ -93,6 +95,9 @@ func (h *Handlers) search(w http.ResponseWriter, r *http.Request) {
 		OriginalLanguage string   `json:"original_language"`
 		OriginCountry    []string `json:"origin_country"`
 		Anime            bool     `json:"anime"`
+		Mode             string   `json:"mode"`
+		NoCache          bool     `json:"no_cache"`
+		PreferredQuality string   `json:"preferred_quality"`
 	}
 	if !webserver.Decode(w, r, &in, "send {query, kind, year, season, episode, imdb, tmdb, source_ids}") {
 		return
@@ -107,6 +112,30 @@ func (h *Handlers) search(w http.ResponseWriter, r *http.Request) {
 	}
 	imdbID := strings.TrimSpace(in.IMDb)
 	prefs := h.Mgr.Prefs.Get()
+	if strings.TrimSpace(in.PreferredQuality) != "" {
+		prefs.PreferredQuality = strings.TrimSpace(in.PreferredQuality)
+	}
+	mode := "full"
+	if strings.EqualFold(strings.TrimSpace(in.Mode), "fast") {
+		mode = "fast"
+	}
+	canCache := !in.LocalOnly && len(in.SourceIDs) == 0 && h.Mgr.SearchCache != nil
+	if canCache && !in.NoCache {
+		fullKey := SearchCacheKey(kind, tmdbStr, imdbID, in.Season, in.Episode, in.Query, "full")
+		if cached, ok := h.Mgr.SearchCache.Get(fullKey); ok {
+			ranked := FilterAndRankCandidates(cached.Candidates, prefs)
+			writeSearchCandidates(w, h.Mgr.CandCache, ranked, cached.Sources, cached.Warnings)
+			return
+		}
+		if mode == "fast" {
+			fastKey := SearchCacheKey(kind, tmdbStr, imdbID, in.Season, in.Episode, in.Query, "fast")
+			if cached, ok := h.Mgr.SearchCache.Get(fastKey); ok {
+				ranked := FilterAndRankCandidates(cached.Candidates, prefs)
+				writeSearchCandidates(w, h.Mgr.CandCache, ranked, cached.Sources, cached.Warnings)
+				return
+			}
+		}
+	}
 	mc := NewSearchMatchContext(kind, in.Query, in.OriginalTitle, in.Year, in.Season, in.Episode, in.Genres, in.OriginalLanguage, in.OriginCountry, in.Anime)
 
 	var mu sync.Mutex
@@ -155,7 +184,9 @@ func (h *Handlers) search(w http.ResponseWriter, r *http.Request) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				cands, warns := h.Mgr.Addons.SearchStreams(r.Context(), kind, imdbID, tmdbStr, in.Season, in.Episode)
+				aCtx, aCancel := context.WithTimeout(r.Context(), 4*time.Second)
+				defer aCancel()
+				cands, warns := h.Mgr.Addons.SearchStreams(aCtx, kind, imdbID, tmdbStr, in.Season, in.Episode)
 				mu.Lock()
 				rawCands = append(rawCands, cands...)
 				warnings = append(warnings, warns...)
@@ -169,7 +200,7 @@ func (h *Handlers) search(w http.ResponseWriter, r *http.Request) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				cands, warns := h.Mgr.Plugins.SearchStreams(r.Context(), kind, tmdbStr, in.Season, in.Episode, tmdbKey, mc)
+				cands, warns := h.Mgr.Plugins.SearchStreams(r.Context(), kind, tmdbStr, in.Season, in.Episode, tmdbKey, mc, mode == "fast", h.Mgr.Health)
 				mu.Lock()
 				rawCands = append(rawCands, cands...)
 				warnings = append(warnings, warns...)
@@ -177,12 +208,14 @@ func (h *Handlers) search(w http.ResponseWriter, r *http.Request) {
 			}()
 		}
 
-		// 4. Prowlarr / Torznab Torrent Sources.
-		if h.Mgr.Store != nil && strings.TrimSpace(in.Query) != "" {
+		// 4. Prowlarr / Torznab Torrent Sources (deferred to background full pass in fast mode).
+		if mode != "fast" && h.Mgr.Store != nil && strings.TrimSpace(in.Query) != "" {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				tCands, srcChecks, err := sources.SearchForStream(r.Context(), h.Mgr.Store.Read(), h.Mgr.Secrets, in.StreamSearchReq)
+				tCtx, tCancel := context.WithTimeout(r.Context(), 10*time.Second)
+				defer tCancel()
+				tCands, srcChecks, err := sources.SearchForStream(tCtx, h.Mgr.Store.Read(), h.Mgr.Secrets, in.StreamSearchReq)
 				mu.Lock()
 				defer mu.Unlock()
 				if err != nil {
@@ -262,12 +295,26 @@ func (h *Handlers) search(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rawCands = FilterVerifiedCandidates(rawCands, mc)
+	rawCands = PreflightAndMeasureCandidates(r.Context(), h.Mgr.Proxy, rawCands, h.Mgr.Health)
 	ranked := FilterAndRankCandidates(rawCands, prefs)
-	stored := h.Mgr.CandCache.Put(ranked)
+	if canCache {
+		h.Mgr.SearchCache.Set(SearchCacheKey(kind, tmdbStr, imdbID, in.Season, in.Episode, in.Query, mode), CachedSearchResult{
+			Candidates: ranked,
+			Sources:    checks,
+			Warnings:   warnings,
+		})
+	}
+	writeSearchCandidates(w, h.Mgr.CandCache, ranked, checks, warnings)
+}
+
+func writeSearchCandidates(w http.ResponseWriter, cc *CandidateCache, ranked []UnifiedCandidate, checks any, warnings []string) {
+	stored := cc.Put(ranked)
 	if stored == nil {
 		stored = []UnifiedCandidate{}
 	}
-
+	if checks == nil {
+		checks = []any{}
+	}
 	counts := map[string]int{"local": 0, "instant": 0, "debrid": 0, "torrent": 0}
 	for _, c := range stored {
 		switch c.Kind {
@@ -283,7 +330,6 @@ func (h *Handlers) search(w http.ResponseWriter, r *http.Request) {
 			counts["torrent"]++
 		}
 	}
-
 	webserver.WriteJSON(w, http.StatusOK, map[string]any{
 		"candidates": stored,
 		"sources":    checks,

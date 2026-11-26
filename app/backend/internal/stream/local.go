@@ -117,9 +117,18 @@ func (m *Manager) StartRemote(ctx context.Context, userID int64, streamURL strin
 	if !isHLS && looksLikeHLSURL(streamURL) {
 		isHLS = true
 	}
+	t0 := time.Now()
 	ct, detectedHLS, err := m.Proxy.Preflight(ctx, streamURL, headers)
+	elapsed := time.Since(t0)
+	provKey := fallbackString(provider, req.SourceName)
 	if err != nil {
+		if m.Health != nil {
+			m.Health.RecordFailure(provKey)
+		}
 		return SessionStatus{}, err
+	}
+	if m.Health != nil {
+		m.Health.RecordSuccess(provKey, elapsed)
 	}
 	if detectedHLS {
 		isHLS = true

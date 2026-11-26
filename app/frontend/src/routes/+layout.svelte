@@ -269,7 +269,9 @@
 	const intoSearch = (n: { from: { url: URL } | null; to: { url: URL } | null }) => !!n.to && n.to.url.pathname.endsWith('/search') && !n.from?.url.pathname.endsWith('/search');
 	// Leaving the sign-in page is covered by the Orbit hand-off, so no cross-fade under it.
 	const fromLogin = (n: { from: { url: URL } | null }) => !!n.from?.url.pathname.endsWith('/login');
-	onNavigate((navigation) => (theater.landing || intoSearch(navigation) || fromLogin(navigation) ? undefined : navigateWithTransition(navigation)));
+	// Only run View Transitions when entering or leaving a title/person detail page so sidebar tab switches never stretch.
+	const isDetailMove = (n: { from: { url: URL } | null; to: { url: URL } | null }) => !!((n.from && /^\/(?:title|people)\//.test(n.from.url.pathname)) || (n.to && /^\/(?:title|people)\//.test(n.to.url.pathname)));
+	onNavigate((navigation) => (theater.landing || intoSearch(navigation) || fromLogin(navigation) || !isDetailMove(navigation) ? undefined : navigateWithTransition(navigation)));
 	// The loading screen from app.html leaves once the session is known; slow page changes get a small one.
 	$effect(() => {
 		if (session.s.state !== 'unknown') void tick().then(loaderReady);

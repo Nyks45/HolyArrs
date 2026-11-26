@@ -160,7 +160,11 @@ func (p *ProxyManager) Preflight(ctx context.Context, targetURL string, storedHe
 	if err != nil {
 		return "", false, errors.New("invalid stream URL")
 	}
-	applyProxyHeaders(req, storedHeaders, http.Header{"Range": []string{"bytes=0-1023"}})
+	var reqHdr http.Header
+	if !looksLikeHLSURL(targetURL) {
+		reqHdr = http.Header{"Range": []string{"bytes=0-1023"}}
+	}
+	applyProxyHeaders(req, storedHeaders, reqHdr)
 
 	resp, err := p.hls.Do(req)
 	if err != nil {
@@ -172,10 +176,18 @@ func (p *ProxyManager) Preflight(ctx context.Context, targetURL string, storedHe
 		return "", false, fmt.Errorf("source link unavailable (HTTP %d)", resp.StatusCode)
 	}
 	ct := strings.ToLower(strings.TrimSpace(resp.Header.Get("Content-Type")))
-	if strings.Contains(ct, "mpegurl") {
+	peek, _ := io.ReadAll(io.LimitReader(resp.Body, 256))
+	if strings.Contains(ct, "mpegurl") || bytes.Contains(peek, []byte("#EXTM3U")) {
 		return ct, true, nil
 	}
-	if strings.Contains(ct, "text/html") || strings.Contains(ct, "application/xml") || strings.Contains(ct, "text/xml") {
+	sample := strings.ToLower(strings.TrimSpace(string(peek)))
+	if strings.Contains(ct, "text/html") || strings.Contains(ct, "application/xml") ||
+		strings.Contains(ct, "text/xml") || strings.Contains(ct, "application/json") ||
+		strings.Contains(ct, "text/plain") ||
+		strings.HasPrefix(sample, "<!doctype") || strings.HasPrefix(sample, "<html") ||
+		strings.HasPrefix(sample, "<head") || strings.HasPrefix(sample, "<?xml") ||
+		strings.HasPrefix(sample, `{"error"`) || strings.HasPrefix(sample, `{"code"`) ||
+		strings.HasPrefix(sample, "unable to get") {
 		return ct, false, errors.New("source returned a web page instead of a playable stream")
 	}
 	return ct, false, nil

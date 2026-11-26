@@ -41,6 +41,9 @@ type UnifiedCandidate struct {
 	DebridProvider string            `json:"debrid_provider,omitempty"`
 	Headers        map[string]string `json:"-"`
 	Filename       string            `json:"filename,omitempty"`
+	FastStart      bool              `json:"fast_start,omitempty"`
+	ProbeMS        int               `json:"probe_ms,omitempty"`
+	Verified       bool              `json:"verified,omitempty"`
 	Score          int               `json:"score"`
 }
 
@@ -235,6 +238,10 @@ func FilterAndRankCandidates(cands []UnifiedCandidate, prefs StreamPrefs) []Unif
 		if c.Kind == "local" || c.Kind == "http" || c.Kind == "hls" || c.Kind == "debrid_cached" {
 			c.Instant = true
 		}
+		if !c.Verified {
+			c.FastStart = c.Kind == "local" || c.Kind == "hls" ||
+				(c.Kind == "http" && !looksIncompatibleForDirectPlay(metaText, c.StreamURL, ""))
+		}
 		c.Score = scoreCandidate(c, prefQ)
 		out = append(out, c)
 	}
@@ -289,19 +296,29 @@ func scoreCandidate(c UnifiedCandidate, prefQ string) int {
 	case "debrid_cached":
 		score += 65000
 	case "http", "hls":
-		score += 50000
+		if c.FastStart {
+			score += 52000
+		} else {
+			score += 50000
+		}
 	case "torrent":
 		score += 1000
 	}
 	ql := strings.ToLower(c.Quality)
 	if prefQ != "" && ql == prefQ {
-		score += 3000
+		score += 8000
+	}
+	if (c.Kind == "http" || c.Kind == "hls") && c.Verified && c.ProbeMS > 0 {
+		latBoost := 2000 - c.ProbeMS
+		if latBoost > 0 {
+			score += latBoost
+		}
 	}
 	switch ql {
 	case "2160p":
 		score += 400
 	case "1080p":
-		score += 300
+		score += 350
 	case "720p":
 		score += 200
 	case "480p":

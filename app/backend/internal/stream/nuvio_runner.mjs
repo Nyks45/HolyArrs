@@ -965,7 +965,10 @@ async function main() {
 		TMDB_API_KEY: String(input.tmdbApiKey || '')
 	};
 	sandbox.globalThis = sandbox;
+	sandbox.global = sandbox;
 	sandbox.window = sandbox;
+	sandbox.crypto = crypto.webcrypto;
+	sandbox.process = { env: {} };
 
 	const ctx = vm.createContext(sandbox, { codeGeneration: { strings: false, wasm: false } });
 	const wrapped = `${code}\n;(typeof getStreams === 'function' ? getStreams : (module.exports && (module.exports.getStreams || module.exports.default)) || null);`;

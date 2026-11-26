@@ -29,6 +29,9 @@ export interface StreamSearchReq {
 	original_language?: string;
 	origin_country?: string[];
 	anime?: boolean;
+	mode?: 'fast' | 'full';
+	no_cache?: boolean;
+	preferred_quality?: string;
 	source_ids?: number[];
 	local_only?: boolean;
 }
@@ -39,6 +42,9 @@ export interface StreamCandidate {
 	id?: string;
 	kind?: CandidateKind;
 	instant?: boolean;
+	fast_start?: boolean;
+	probe_ms?: number;
+	verified?: boolean;
 	provider?: string;
 	provider_type?: string;
 	release_name?: string;

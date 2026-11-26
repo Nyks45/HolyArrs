@@ -64,9 +64,11 @@ type Manager struct {
 	Addons     *AddonStore
 	Plugins    *PluginStore
 	Debrid     *DebridService
-	Proxy      *ProxyManager
-	CandCache  *CandidateCache
-	Skip       *SkipService
+	Proxy       *ProxyManager
+	CandCache   *CandidateCache
+	SearchCache *SearchCache
+	Health      *ProviderHealth
+	Skip        *SkipService
 	Scrobble   *ScrobbleService
 	ConfigDir  string
 	KeepDir    string
@@ -99,9 +101,11 @@ func NewManager(store *database.Store, sr sources.SecretReader, configDir string
 		Addons:     NewAddonStore(configDir),
 		Plugins:    NewPluginStore(configDir),
 		Debrid:     NewDebridService(vault),
-		Proxy:      NewProxyManager(),
-		CandCache:  NewCandidateCache(),
-		Skip:       NewSkipService(),
+		Proxy:       NewProxyManager(),
+		CandCache:   NewCandidateCache(),
+		SearchCache: NewSearchCache(),
+		Health:      NewProviderHealth(),
+		Skip:        NewSkipService(),
 		Scrobble:   NewScrobbleService(vault, nil, prefs),
 		ConfigDir:  configDir,
 		ListenAddr: listenAddr,

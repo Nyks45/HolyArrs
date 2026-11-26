@@ -8,71 +8,36 @@
 	import { sized } from '#lib/core/tmdb-image.ts';
 	import { detailPath, loadDetails, type TitleDetails } from '#lib/metadata/index.ts';
 	import {
-		ensureStreamHLS,
-		fetchStreamSubtitle,
-		formatEndsAt,
-		formatTimeLeft,
-		getStreamStatus,
-		getTitleWatchHistory,
-		launchStreamMPV,
-		listStreamSources,
-		saveWatchProgress,
-		searchStreamReleases,
-		searchStreamSubtitles,
-		selectStreamFile,
-		setStreamKeep,
-		startStream,
-		stopStream,
-		uploadStreamSubtitle,
-		type SessionStatus,
-		type StreamCandidate,
-		type StreamSubCandidate,
-		type SubPref,
-		type WatchEntry
+		ensureStreamHLS, formatEndsAt, formatTimeLeft, getStreamStatus, getTitleWatchHistory,
+		launchStreamMPV, listStreamSources, saveWatchProgress, searchStreamReleases, searchStreamSubtitles,
+		selectStreamFile, setStreamKeep, startStream, stopStream,
+		type SessionStatus, type StreamCandidate, type StreamSubCandidate, type SubPref, type WatchEntry
 	} from './stream-api.ts';
 	import {
-		getSkipSegments,
-		getStreamingPrefs,
-		postScrobble,
-		saveStreamingPrefs,
-		type SkipSegment,
-		type StreamPrefs,
-		type SubStylePrefs
+		getStreamingPrefs, saveStreamingPrefs,
+		type SkipSegment, type StreamPrefs, type SubStylePrefs
 	} from './streaming-config-api.ts';
-	import { attachHlsMedia, buildWatchEntryPayload } from './player-media.ts';
+	import {
+		attachHlsMedia, buildEpisodeProgressMap, buildResumeCandidate, buildSearchReq,
+		buildWatchEntryPayload, candidateKey, canSeekInLocalHlsBuffer, clearPlayerTimers,
+		countCandidateKinds, DEFAULT_SUB_STYLE, extractRegularSeasons, fetchTitleSkips,
+		findNextEpisodeTarget, matchPlayerHotkey, mergeCandidateLists, mergeWatchHistory,
+		normQualityChoice, parseSavedPlayerPrefs, postWatchScrobble, prefetchStreamSources,
+		resolveEmbeddedSub, resolveSiteSub, resolveUploadedSub, sortCandidatesForQuality,
+		type HlsQualityLevel, type SeasonEp
+	} from './player-media.ts';
 	import { resolveSubtitleStyle, stripSdhCueLines } from './subtitle-style.ts';
-	import { activeCuesAt, parseWebVTT, type VTTCue } from './vtt.ts';
+	import { activeCuesAt, type VTTCue } from './vtt.ts';
 	import PlayerHud from './PlayerHud.svelte';
 	import PlayerLandingOverlay from './PlayerLandingOverlay.svelte';
 	import PlayerSourcesDrawer from './PlayerSourcesDrawer.svelte';
 	import PlayerSubsDrawer from './PlayerSubsDrawer.svelte';
 	import PlayerEpisodesDrawer from './PlayerEpisodesDrawer.svelte';
 
-	interface SeasonEp {
-		number: number;
-		name?: string;
-		overview?: string;
-		runtime?: number;
-		still?: string;
-		air_day?: string;
-	}
-
 	let {
-		kind,
-		tmdb,
-		initialSeason = 1,
-		initialEpisode = 1,
-		autoResume = true,
-		initialDrawer = 'none',
-		backHref = ''
+		kind, tmdb, initialSeason = 1, initialEpisode = 1, autoResume = true, initialDrawer = 'none', backHref = ''
 	}: {
-		kind: 'movie' | 'show';
-		tmdb: string;
-		initialSeason?: number;
-		initialEpisode?: number;
-		autoResume?: boolean;
-		initialDrawer?: 'none' | 'sources';
-		backHref?: string;
+		kind: 'movie' | 'show'; tmdb: string; initialSeason?: number; initialEpisode?: number; autoResume?: boolean; initialDrawer?: 'none' | 'sources'; backHref?: string;
 	} = $props();
 
 	let stageEl = $state<HTMLElement | undefined>(undefined);
@@ -89,17 +54,7 @@
 	let historyLatest = $state<WatchEntry | null>(null);
 	let historyEpisodes = $state<WatchEntry[]>([]);
 	let prefs = $state<StreamPrefs | null>(null);
-	let subStyle = $state<SubStylePrefs>({
-		color: '#ffffff',
-		bg_color: '#000000',
-		bg_opacity: 0.65,
-		size: 1.0,
-		offset_pct: 6,
-		hdr_dimmed: true,
-		hdr_brightness: 40,
-		strip_sdh: false,
-		font_family: 'sans'
-	});
+	let subStyle = $state<SubStylePrefs>({ ...DEFAULT_SUB_STYLE });
 
 	let mpvAvailable = $state(false);
 	let ffmpegAvailable = $state(false);
@@ -139,9 +94,15 @@
 	let scrubValue = $state(0);
 	let pipelineMode = $state<'none' | 'direct' | 'hls'>('none');
 	let loadingMedia = $state(false);
+	let loadingMoreSources = $state(false);
+	let seamlessStatus = $state('');
+	let stalled = $state(false);
+	let hlsLevels = $state<HlsQualityLevel[]>([]);
+	let hlsLevelIdx = $state(-1);
+	let isPiP = $state(false);
 	let playerError = $state('');
 
-	let drawer = $state<'none' | 'sources' | 'audioSubs' | 'episodes'>('none');
+	let drawer = $state<'none' | 'sources' | 'quality' | 'audioSubs' | 'episodes'>('none');
 	let hudVisible = $state(true);
 	let feedbackText = $state('');
 
@@ -173,38 +134,27 @@
 	let skipTimer: ReturnType<typeof setInterval> | null = null;
 	let hudTimer: ReturnType<typeof setTimeout> | null = null;
 	let feedbackTimer: ReturnType<typeof setTimeout> | null = null;
+	let waitingTimer: ReturnType<typeof setTimeout> | null = null;
 	let nextTimer: ReturnType<typeof setInterval> | null = null;
 	let attachedSessionKey = '';
 	let loadReqSeq = 0;
+	let searchSeq = 0;
 	let didInitialResumeDecision = false;
 	let destroyed = false;
 
+	const pipAvailable = $derived(typeof document !== 'undefined' && !!document.pictureInPictureEnabled);
+
 	const extIds = $derived((details as unknown as { external_ids?: { imdb?: string } } | null)?.external_ids);
 	const imdbId = $derived(extIds?.imdb ?? '');
-	const regularSeasons = $derived.by(() => {
-		const raw = details && 'seasons' in details && Array.isArray(details.seasons) ? (details.seasons as { number: number; name?: string }[]) : [];
-		const nonZero = raw.filter((s) => s.number > 0);
-		return nonZero.length > 0 ? nonZero : raw;
-	});
+	const regularSeasons = $derived(extractRegularSeasons(details));
 	const curSeasonEps = $derived(seasonEpisodes[season] ?? []);
 	const drawerEps = $derived(seasonEpisodes[drawerSeason] ?? []);
 	const curEpObj = $derived(curSeasonEps.find((e) => e.number === episode));
 	const activeSaved = $derived.by(() =>
 		kind === 'show' ? (historyEpisodes.find((h) => (h.season ?? 0) === season && (h.episode ?? 0) === episode) ?? null) : historyLatest
 	);
-	const episodeProgressMap = $derived.by(() => {
-		const map: Record<string, WatchEntry> = {};
-		for (const h of historyEpisodes) map[`${h.season ?? 0}:${h.episode ?? 0}`] = h;
-		return map;
-	});
-	const nextEpisodeTarget = $derived.by(() => {
-		if (kind !== 'show') return null;
-		const idx = curSeasonEps.findIndex((e) => e.number === episode);
-		if (idx >= 0 && idx + 1 < curSeasonEps.length) return { season, episode: curSeasonEps[idx + 1].number };
-		const sIdx = regularSeasons.findIndex((s) => s.number === season);
-		if (sIdx >= 0 && sIdx + 1 < regularSeasons.length) return { season: regularSeasons[sIdx + 1].number, episode: 1 };
-		return null;
-	});
+	const episodeProgressMap = $derived(buildEpisodeProgressMap(historyEpisodes));
+	const nextEpisodeTarget = $derived(findNextEpisodeTarget(kind, season, episode, curSeasonEps, regularSeasons));
 	const backdropUrl = $derived(details?.backdrop ? sized(details.backdrop, 'backdrop') : activeSaved?.backdrop ? sized(activeSaved.backdrop, 'backdrop') : '');
 	const headerTitle = $derived(details?.name || activeSaved?.title || 'Watch');
 	const headerSub = $derived(kind === 'show' ? `S${String(season).padStart(2, '0')}E${String(episode).padStart(2, '0')}${curEpObj?.name ? ` · ${curEpObj.name}` : ''}` : '');
@@ -223,7 +173,6 @@
 	const activeSkip = $derived(pipelineMode === 'none' ? null : (skipSegments.find((s) => currentPos >= s.start && currentPos < s.end - 1) ?? null));
 	const nearEpisodeEnd = $derived(kind === 'show' && !!nextEpisodeTarget && pipelineMode !== 'none' && totalDuration > 180 && totalDuration - currentPos <= 25 && currentPos > 30);
 
-	function candKey(c: StreamCandidate): string { return c.id || `${c.source_id}:${c.link}`; }
 	function showFeedback(text: string) {
 		feedbackText = text;
 		if (feedbackTimer) clearTimeout(feedbackTimer);
@@ -251,25 +200,26 @@
 			const saved = await saveWatchProgress(entry, keepalive);
 			if (destroyed) return;
 			if (kind === 'movie') historyLatest = saved;
-			else {
-				const idx = historyEpisodes.findIndex((h) => h.key === saved.key);
-				historyEpisodes = idx >= 0 ? historyEpisodes.map((h, i) => (i === idx ? saved : h)) : [saved, ...historyEpisodes];
-			}
+			else historyEpisodes = mergeWatchHistory(historyEpisodes, saved);
 		} catch { /* Ignore transient progress save failures. */ }
 	}
 
 	async function sendScrobble(action: 'start' | 'pause' | 'stop') {
-		const idNum = Number(tmdb);
-		if (!idNum) return;
-		const pct = totalDuration > 0 ? Math.min(100, Math.max(0, (currentPos / totalDuration) * 100)) : 0;
-		try {
-			await postScrobble({ action, kind, tmdb: idNum, imdb: imdbId, season: kind === 'show' ? season : 0, episode: kind === 'show' ? episode : 0, progress: pct });
-		} catch { /* Non-fatal telemetry. */ }
+		await postWatchScrobble({ action, kind, tmdb, imdbId, season, episode, currentPos, totalDuration });
 	}
 
+	function clearStall() {
+		if (waitingTimer) { clearTimeout(waitingTimer); waitingTimer = null; }
+		stalled = false;
+		seamlessStatus = '';
+	}
+	function onVideoWaiting() {
+		if (pipelineMode === 'none') return;
+		if (waitingTimer) clearTimeout(waitingTimer);
+		waitingTimer = setTimeout(() => { if (!paused && pipelineMode !== 'none') stalled = true; }, 500);
+	}
 	function destroyVideoPipeline() {
-		loadingMedia = false;
-		videoDuration = 0;
+		loadingMedia = false; clearStall(); hlsLevels = []; hlsLevelIdx = -1; videoDuration = 0;
 		if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
 		if (videoEl) { videoEl.pause(); videoEl.removeAttribute('src'); videoEl.load(); }
 		pipelineMode = 'none';
@@ -278,11 +228,8 @@
 	function startPolling(id: string) { stopPolling(); pollTimer = setInterval(() => void pollSession(id), 1200); }
 
 	async function fetchSkips(sessId = '') {
-		const animeHint = (details?.genres ?? []).some((g) => g.toLowerCase().includes('anim'));
-		try {
-			const res = await getSkipSegments({ kind, imdb: imdbId, tmdb, season: kind === 'show' ? season : 0, episode: kind === 'show' ? episode : 0, title: headerTitle, anime: animeHint, session_id: sessId });
-			if (!destroyed) skipSegments = res.segments ?? [];
-		} catch { /* Optional skip segments. */ }
+		const segs = await fetchTitleSkips({ kind, imdb: imdbId, tmdb, season, episode, title: headerTitle, genres: details?.genres, sessionId: sessId });
+		if (segs && !destroyed) skipSegments = segs;
 	}
 
 	async function pollSession(id: string) {
@@ -306,11 +253,11 @@
 						return;
 					}
 					pendingFileIdx = null;
-					await attachPlayback(pendingStartSec);
+					await attachPlayback(pendingStartSec, false, pipelineMode !== 'none');
 					if (st.chapters?.length) void fetchSkips(st.id);
 					if (subMode === 'embedded' && st.probe?.subtitle_tracks.some((t) => t.index === subIndex)) await loadEmbeddedSubtitle(subIndex, true);
 				} else if (pipelineMode === 'direct' && st.probe && !st.probe.direct_playable && ffmpegAvailable) {
-					await attachPlayback(currentPos, true);
+					await attachPlayback(currentPos, true, true, 'Transcoding stream...');
 				}
 			}
 		} catch { /* Transient poll error. */ }
@@ -374,63 +321,77 @@
 
 	function applySavedPrefs(sv: WatchEntry | null) {
 		if (!sv) return;
-		if (sv.quality === '1080p' || sv.quality === '720p' || sv.quality === '480p' || sv.quality === 'original') browserQuality = sv.quality;
-		audioIdx = sv.audio_index ?? 0;
-		playbackRate = sv.playback_rate && sv.playback_rate > 0 ? sv.playback_rate : 1;
+		const p = parseSavedPlayerPrefs(sv);
+		if (p.browserQuality) browserQuality = p.browserQuality;
+		audioIdx = p.audioIdx; playbackRate = p.playbackRate;
 		if (sv.subtitle) {
-			subDelayMS = sv.subtitle.delay_ms ?? 0;
-			if (sv.subtitle.size === 'sm' || sv.subtitle.size === 'md' || sv.subtitle.size === 'lg' || sv.subtitle.size === 'xl') subSize = sv.subtitle.size;
-			subLang = sv.subtitle.language ?? ''; subLabel = sv.subtitle.label ?? '';
-			subSiteId = sv.subtitle.site_id ?? ''; subSiteKey = sv.subtitle.site_key ?? '';
-			subIndex = sv.subtitle.index ?? 0;
-			subMode = sv.subtitle.mode === 'embedded' ? 'embedded' : 'off';
+			subDelayMS = p.subDelayMS; if (p.subSize) subSize = p.subSize;
+			subLang = p.subLang; subLabel = p.subLabel; subSiteId = p.subSiteId;
+			subSiteKey = p.subSiteKey; subIndex = p.subIndex; subMode = p.subMode;
 		}
 	}
 
-	async function runSearch() {
-		const q = (queryText || details?.name || activeSaved?.title || '').trim();
-		if (!q && !imdbId && !tmdb) return;
-		searching = true; searchError = '';
-		try {
-			const res = await searchStreamReleases({
-				query: q,
-				kind,
-				year: details?.year || activeSaved?.year || 0,
-				season: kind === 'show' ? season : 0,
-				episode: kind === 'show' ? episode : 0,
-				imdb: imdbId,
-				tmdb: Number(tmdb) || 0,
-				original_title: details?.original_title,
-				genres: details?.genres,
-				original_language: details?.original_language,
-				origin_country: details?.origin_country
-			});
-			if (destroyed) return;
-			candidates = res.candidates ?? [];
-			counts = res.counts ?? { local: 0, instant: 0, debrid: 0, torrent: candidates.length };
-		} catch (e) { searchError = message(e); candidates = []; } finally { searching = false; }
+	function warmNextEpisode() {
+		if (kind !== 'show' || !nextEpisodeTarget || !details?.name) return;
+		prefetchStreamSources(buildSearchReq({
+			query: details.name, kind: 'show', year: details.year || 0, season: nextEpisodeTarget.season, episode: nextEpisodeTarget.episode,
+			imdb: imdbId, tmdb: Number(tmdb) || 0, details, preferredQuality: prefs?.preferred_quality
+		}));
 	}
 
-	function pickBestCandidate(): StreamCandidate | null { return candidates.length > 0 ? candidates[0] : null; }
+	async function runSearch(noCache = false) {
+		const q = (queryText || details?.name || activeSaved?.title || '').trim();
+		if (!q && !imdbId && !tmdb) return;
+		const seq = ++searchSeq;
+		searching = true; loadingMoreSources = false; searchError = '';
+		const baseReq = buildSearchReq({
+			query: q, kind, year: details?.year || activeSaved?.year || 0, season, episode,
+			imdb: imdbId, tmdb: Number(tmdb) || 0, details, preferredQuality: prefs?.preferred_quality
+		});
+		try {
+			const res = await searchStreamReleases({ ...baseReq, mode: 'fast', no_cache: noCache });
+			if (destroyed || seq !== searchSeq) return;
+			candidates = res.candidates ?? [];
+			counts = res.counts ?? countCandidateKinds(candidates);
+		} catch (e) { if (seq === searchSeq) { searchError = message(e); candidates = []; } } finally { if (seq === searchSeq) searching = false; }
+
+		if (destroyed || seq !== searchSeq) return;
+		loadingMoreSources = true;
+		void searchStreamReleases({ ...baseReq, mode: 'full', no_cache: noCache })
+			.then((fullRes) => {
+				if (destroyed || seq !== searchSeq) return;
+				candidates = mergeCandidateLists(candidates, fullRes.candidates ?? []);
+				counts = countCandidateKinds(candidates);
+				if (!session && !activeCandidate && drawer === 'none' && pipelineMode === 'none' && prefs?.auto_play_fastest) {
+					const b = pickBestCandidate();
+					if (b && b.instant) void startCandidate(b, 'browser', 0, true);
+				}
+			})
+			.catch(() => {})
+			.finally(() => { if (seq === searchSeq) loadingMoreSources = false; });
+	}
+
+	function pickBestCandidate(): StreamCandidate | null {
+		return sortCandidatesForQuality(candidates, resFilter !== 'all' ? resFilter : normQualityChoice(prefs?.preferred_quality))[0] ?? null;
+	}
 
 	async function resumeFromSaved(sv: WatchEntry, startAt: number) {
 		if (!sv.release_link) return;
-		const synthetic: StreamCandidate = {
-			source_id: sv.source_id ?? 0, source_name: sv.source_name || 'Saved Source', title: sv.release_title || sv.title,
-			link: sv.release_link, info_hash: sv.info_hash || '', protocol: 'torrent', size: 0, seeders: 1, peers: 0,
-			resolution: sv.resolution || '', resolution_num: 0, source_tag: '', codec: '', hdr: '', audio: '', languages: []
-		};
 		pendingFileIdx = typeof sv.file_index === 'number' && sv.file_index > 0 ? sv.file_index : null;
-		await startCandidate(synthetic, 'browser', startAt, true);
+		await startCandidate(buildResumeCandidate(sv), 'browser', startAt, true);
 		if (sv.subtitle?.mode === 'site' && sv.subtitle.site_id) await loadSiteSubtitleById(sv.subtitle.site_id, sv.subtitle.language ?? '', sv.subtitle.label ?? '', true);
 	}
 
 	async function startCandidate(c: StreamCandidate, mode: 'browser' | 'mpv', startAt = 0, keepExternalSubs = true) {
 		if (pipelineMode !== 'none' && currentPos > 5) await persistProgress(currentPos);
-		destroyVideoPipeline(); stopPolling();
-		session = null; attachedSessionKey = ''; activeCandidate = c; triedCandKeys.add(candKey(c));
+		const keepLiveFrame = mode === 'browser' && pipelineMode !== 'none';
+		if (!keepLiveFrame) destroyVideoPipeline(); else seamlessStatus = 'Switching source...';
+		stopPolling();
+		const prevSession = session;
+		attachedSessionKey = ''; activeCandidate = c; triedCandKeys.add(candidateKey(c));
 		playMode = mode; pendingMPV = mode === 'mpv'; pendingStartSec = Math.max(0, startAt);
-		starting = true; playerError = ''; seekOffset = pendingStartSec; videoTime = pendingStartSec;
+		starting = true; playerError = '';
+		if (!keepLiveFrame) { session = null; seekOffset = pendingStartSec; videoTime = pendingStartSec; }
 		if (!keepExternalSubs || subMode === 'embedded') { subMode = 'off'; parsedCues = []; subFile = ''; }
 
 		try {
@@ -442,11 +403,12 @@
 				tmdb: Number(tmdb) || 0, imdb: imdbId
 			});
 			if (destroyed) return;
+			if (prevSession && prevSession.id !== st.id && !prevSession.mpv_running) void stopStream(prevSession.id).catch(() => {});
 			session = st; startPolling(st.id);
 			if (st.state === 'ready' || (pendingMPV && st.state !== 'resolving')) void pollSession(st.id);
-			wakeHud();
+			wakeHud(); warmNextEpisode();
 		} catch (e) {
-			pendingMPV = false; playerError = message(e);
+			pendingMPV = false; seamlessStatus = ''; playerError = message(e);
 			toasts.push('Could not start stream', 'fail', { body: playerError });
 			tryFallbackSource();
 		} finally { starting = false; }
@@ -454,18 +416,25 @@
 
 	function tryFallbackSource() {
 		if ((prefs && !prefs.auto_fallback) || autoFallbacks >= 5) return;
-		const next = candidates.find((c) => !triedCandKeys.has(candKey(c)) && (c.instant || c.seeders > 0));
+		const pool = sortCandidatesForQuality(candidates, resFilter !== 'all' ? resFilter : normQualityChoice(prefs?.preferred_quality));
+		const next = pool.find((c) => !triedCandKeys.has(candidateKey(c)) && (c.instant || c.seeders > 0));
 		if (!next) return;
 		autoFallbacks++;
 		fallbackNotice = `Switching to fallback: ${next.provider || next.source_name}`;
 		void startCandidate(next, playMode, currentPos > 10 ? currentPos : 0, true);
 	}
 
-	async function attachPlayback(startSec: number, forceHLS = false) {
+	async function attachPlayback(startSec: number, forceHLS = false, seamless = false, statusText = '') {
 		const st = session;
 		if (!st || !videoEl) return;
 		const req = ++loadReqSeq;
-		destroyVideoPipeline(); loadReqSeq = req; loadingMedia = true; playerError = ''; seekOffset = startSec; videoTime = 0;
+		const keepLive = seamless && pipelineMode !== 'none';
+		if (!keepLive) {
+			destroyVideoPipeline(); loadReqSeq = req; loadingMedia = true; seekOffset = startSec; videoTime = 0;
+		} else {
+			seamlessStatus = statusText || 'Updating stream...';
+		}
+		playerError = '';
 
 		try {
 			const tr = st.transport ?? 'torrent';
@@ -473,29 +442,33 @@
 			const isCancelled = () => req !== loadReqSeq || destroyed || !videoEl;
 			const hlsOpts = (url: string, at: number) => attachHlsMedia({
 				video: videoEl!, srcUrl: url, startSec: at, playbackRate, volume, muted, isCancelled,
-				onFatalError: (d) => { playerError = `Playback error (${d})`; tryFallbackSource(); },
-				onStarted: () => void sendScrobble('start')
+				onFatalError: (d) => { clearStall(); playerError = `Playback error (${d})`; tryFallbackSource(); },
+				onStarted: () => { clearStall(); loadingMedia = false; void sendScrobble('start'); },
+				onLevelsLoaded: (levels) => { if (!isCancelled()) { hlsLevels = levels; hlsLevelIdx = -1; } }
 			});
 
 			if (tr === 'hls_remote') {
-				pipelineMode = 'hls'; seekOffset = 0;
+				const oldHls = hlsInstance; hlsInstance = null; oldHls?.destroy();
+				pipelineMode = 'hls'; seekOffset = 0; videoTime = 0; bufferedEnd = 0;
 				hlsInstance = await hlsOpts(playURL, startSec);
 				return;
 			}
 			const canDirect = !forceHLS && browserQuality === 'original' && audioIdx === 0 && !st.needs_transcode && (tr === 'local' || tr === 'direct' ? st.probe?.direct_playable !== false : !!st.probe?.direct_playable);
 			if (canDirect) {
-				pipelineMode = 'direct';
+				const oldHls = hlsInstance; hlsInstance = null; oldHls?.destroy();
+				pipelineMode = 'direct'; seekOffset = 0; videoTime = 0; hlsLevels = [];
 				if (startSec > 0.5) videoEl.addEventListener('loadedmetadata', () => { if (videoEl) videoEl.currentTime = startSec; }, { once: true });
 				videoEl.src = playURL; videoEl.playbackRate = playbackRate; videoEl.volume = volume; videoEl.muted = muted;
 				await videoEl.play().catch(() => {});
-				void sendScrobble('start'); wakeHud(); return;
+				clearStall(); void sendScrobble('start'); wakeHud(); return;
 			}
 			if (!ffmpegAvailable) throw new Error('ffmpeg is not installed for transcoding');
 			const hlsRes = await ensureStreamHLS(st.id, browserQuality, audioIdx, startSec);
 			if (isCancelled() || !session || session.id !== st.id) return;
-			seekOffset = hlsRes.start_sec; pipelineMode = 'hls';
+			const oldHls = hlsInstance; hlsInstance = null; oldHls?.destroy();
+			seekOffset = hlsRes.start_sec; videoTime = 0; bufferedEnd = 0; pipelineMode = 'hls';
 			hlsInstance = await hlsOpts(to(hlsRes.playlist_url), 0);
-		} catch (e) { if (req === loadReqSeq) { playerError = message(e); tryFallbackSource(); } } finally { if (req === loadReqSeq) loadingMedia = false; }
+		} catch (e) { if (req === loadReqSeq) { clearStall(); playerError = message(e); tryFallbackSource(); } } finally { if (req === loadReqSeq) loadingMedia = false; }
 	}
 
 	async function triggerMPV(id: string, atSec = currentPos) {
@@ -519,13 +492,29 @@
 		if (!session || !videoEl) return;
 		const t = Math.max(0, target);
 		if (pipelineMode === 'direct' || session.transport === 'hls_remote') { videoEl.currentTime = t; videoTime = t; return; }
-		void attachPlayback(t);
+		if (pipelineMode === 'hls' && canSeekInLocalHlsBuffer(videoEl, seekOffset, t, bufferedEnd)) {
+			const rel = Math.max(0, t - seekOffset);
+			videoEl.currentTime = rel; videoTime = rel;
+			return;
+		}
+		void attachPlayback(t, true, true, 'Jumping...');
 	}
-	function cycleSpeed() {
-		const speeds = [1, 1.25, 1.5, 2, 0.75];
-		playbackRate = speeds[(speeds.indexOf(playbackRate) + 1) % speeds.length] ?? 1;
+	function selectSpeed(spd: number) {
+		playbackRate = spd;
 		if (videoEl) videoEl.playbackRate = playbackRate;
 		showFeedback(`${playbackRate}x`);
+	}
+	function selectHlsLevel(idx: number) {
+		hlsLevelIdx = idx;
+		if (hlsInstance) hlsInstance.currentLevel = idx;
+		showFeedback(idx < 0 ? 'Quality: Auto' : `Quality: ${hlsLevels.find((l) => l.index === idx)?.label || ''}`);
+	}
+	async function togglePiP() {
+		if (typeof document === 'undefined' || !videoEl) return;
+		try {
+			if (document.pictureInPictureElement) await document.exitPictureInPicture();
+			else await videoEl.requestPictureInPicture();
+		} catch { /* Ignore PiP denial. */ }
 	}
 	function setVolumeLevel(v: number) { volume = Math.min(1, Math.max(0, v)); muted = volume === 0; if (videoEl) { videoEl.volume = volume; videoEl.muted = muted; } }
 	function toggleMute() { muted = !muted; if (videoEl) videoEl.muted = muted; showFeedback(muted ? 'Muted' : 'Unmuted'); }
@@ -539,12 +528,9 @@
 		if (!session) return;
 		loadingSub = true; subError = '';
 		try {
-			const res = await fetch(to(`/api/v1/stream/${encodeURIComponent(session.id)}/sub/${encodeURIComponent(session.token)}/${idx}`), { credentials: 'same-origin' });
-			if (!res.ok) throw new Error(await res.text());
-			parsedCues = parseWebVTT(await res.text()); subMode = 'embedded'; subIndex = idx; subSiteId = ''; subFile = '';
-			const tr = session.probe?.subtitle_tracks.find((t) => t.index === idx);
-			subLang = tr?.language ?? ''; subLabel = [tr?.language?.toUpperCase(), tr?.title].filter(Boolean).join(' · ') || `Track ${idx + 1}`;
-			if (!silent) showFeedback(`Subs: ${subLabel}`);
+			const res = await resolveEmbeddedSub(session.id, session.token, idx, session.probe?.subtitle_tracks.find((t) => t.index === idx));
+			parsedCues = res.cues; subMode = 'embedded'; subIndex = idx; subSiteId = ''; subFile = ''; subLang = res.lang; subLabel = res.label;
+			if (!silent) showFeedback(`Subs: ${res.label}`);
 			void persistProgress();
 		} catch (e) { subError = message(e); } finally { loadingSub = false; }
 	}
@@ -562,9 +548,9 @@
 	async function loadSiteSubtitleById(id: string, lang: string, label: string, silent: boolean) {
 		loadingSub = true; subError = '';
 		try {
-			const res = await fetchStreamSubtitle(id, session?.id ?? '');
-			parsedCues = parseWebVTT(res.vtt); subMode = 'site'; subSiteId = id; subLang = res.language || lang; subLabel = label || subLang.toUpperCase(); subFile = res.sub_file ?? '';
-			if (!silent) showFeedback(`Subs: ${subLabel}`);
+			const res = await resolveSiteSub(id, lang, label, session?.id ?? '');
+			parsedCues = res.cues; subMode = 'site'; subSiteId = id; subLang = res.lang; subLabel = res.label; subFile = res.subFile;
+			if (!silent) showFeedback(`Subs: ${res.label}`);
 			void persistProgress();
 		} catch (e) { subError = message(e); } finally { loadingSub = false; }
 	}
@@ -573,8 +559,8 @@
 		if (!f) return;
 		loadingSub = true; subError = '';
 		try {
-			const res = await uploadStreamSubtitle(f.name, await f.text(), '', session?.id ?? '');
-			parsedCues = parseWebVTT(res.vtt); subMode = 'upload'; subLabel = f.name; subFile = res.sub_file ?? '';
+			const res = await resolveUploadedSub(f, session?.id ?? '');
+			parsedCues = res.cues; subMode = 'upload'; subLabel = res.label; subFile = res.subFile;
 			showFeedback(`Subs: ${f.name}`);
 		} catch (err) { subError = message(err); } finally { loadingSub = false; }
 	}
@@ -609,19 +595,18 @@
 		commitSeek(seg.end); showFeedback(`Skipped ${seg.kind}`);
 	}
 	function onKeyDown(e: KeyboardEvent) {
-		const target = e.target as HTMLElement | null;
-		if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) return;
+		const act = matchPlayerHotkey(e, kind === 'show');
+		if (!act) return;
 		wakeHud();
-		switch (e.key.toLowerCase()) {
-			case ' ': case 'k': e.preventDefault(); togglePlayPause(); break;
-			case 'arrowleft': case 'j': e.preventDefault(); seekBy(-10); break;
-			case 'arrowright': case 'l': e.preventDefault(); seekBy(10); break;
-			case 'm': toggleMute(); break;
-			case 'f': void toggleFullscreen(); break;
-			case 's': drawer = drawer === 'sources' ? 'none' : 'sources'; break;
-			case 'e': if (kind === 'show') drawer = drawer === 'episodes' ? 'none' : 'episodes'; break;
-			case 'escape': if (drawer !== 'none') drawer = 'none'; break;
-		}
+		if (act === 'togglePlay' || act === 'back10' || act === 'fwd10') e.preventDefault();
+		if (act === 'togglePlay') togglePlayPause();
+		else if (act === 'back10') seekBy(-10);
+		else if (act === 'fwd10') seekBy(10);
+		else if (act === 'mute') toggleMute();
+		else if (act === 'fullscreen') void toggleFullscreen();
+		else if (act === 'sources') drawer = drawer === 'sources' ? 'none' : 'sources';
+		else if (act === 'episodes') drawer = drawer === 'episodes' ? 'none' : 'episodes';
+		else if (act === 'closeDrawer' && drawer !== 'none') drawer = 'none';
 	}
 
 	$effect(() => { if (drawer === 'audioSubs' && siteSubCandidates.length === 0 && !searchingSubs && details) void searchSubtitlesOnline(); });
@@ -645,20 +630,24 @@
 		progressTimer = setInterval(() => { if (!paused && pipelineMode !== 'none' && currentPos > 5) void persistProgress(); }, 8000);
 		scrobbleTimer = setInterval(() => { if (!paused && pipelineMode !== 'none' && currentPos > 10) void sendScrobble('start'); }, 60000);
 		const onFs = () => { isFullscreen = !!document.fullscreenElement; };
+		const onPip = () => { isPiP = typeof document !== 'undefined' && document.pictureInPictureElement === videoEl; };
 		const onUnload = () => { if (pipelineMode !== 'none' && currentPos > 5) { void persistProgress(currentPos, true); void sendScrobble('stop'); } if (session && !session.mpv_running) void stopStream(session.id).catch(() => {}); };
+		const vid = videoEl;
+		vid?.addEventListener('enterpictureinpicture', onPip);
+		vid?.addEventListener('leavepictureinpicture', onPip);
 		document.addEventListener('fullscreenchange', onFs);
 		window.addEventListener('beforeunload', onUnload);
-		return () => { document.removeEventListener('fullscreenchange', onFs); window.removeEventListener('beforeunload', onUnload); };
+		return () => {
+			vid?.removeEventListener('enterpictureinpicture', onPip);
+			vid?.removeEventListener('leavepictureinpicture', onPip);
+			document.removeEventListener('fullscreenchange', onFs);
+			window.removeEventListener('beforeunload', onUnload);
+		};
 	});
 	onDestroy(() => {
 		destroyed = true;
 		if (pipelineMode !== 'none' && currentPos > 5) { void persistProgress(currentPos, true); void sendScrobble('stop'); }
-		if (progressTimer) clearInterval(progressTimer);
-		if (scrobbleTimer) clearInterval(scrobbleTimer);
-		if (skipTimer) clearInterval(skipTimer);
-		if (hudTimer) clearTimeout(hudTimer);
-		if (feedbackTimer) clearTimeout(feedbackTimer);
-		if (nextTimer) clearInterval(nextTimer);
+		clearPlayerTimers([progressTimer, scrobbleTimer, skipTimer, nextTimer], [hudTimer, feedbackTimer, waitingTimer]);
 		stopPolling(); destroyVideoPipeline();
 		if (session && !session.mpv_running) void stopStream(session.id).catch(() => {});
 	});
@@ -678,14 +667,18 @@
 	<video
 		bind:this={videoEl} class="wp-video" class:cover={fitMode === 'cover'} playsinline
 		onclick={() => (drawer !== 'none' ? (drawer = 'none') : togglePlayPause())}
-		ontimeupdate={() => { if (videoEl) { videoTime = videoEl.currentTime; if (videoEl.buffered.length > 0) bufferedEnd = videoEl.buffered.end(videoEl.buffered.length - 1); } }}
+		ontimeupdate={() => { clearStall(); if (videoEl) { videoTime = videoEl.currentTime; if (videoEl.buffered.length > 0) bufferedEnd = videoEl.buffered.end(videoEl.buffered.length - 1); } }}
+		onwaiting={onVideoWaiting}
+		onplaying={() => { paused = false; clearStall(); wakeHud(); }}
+		oncanplay={clearStall}
+		onseeked={clearStall}
 		onplay={() => { paused = false; wakeHud(); }}
-		onpause={() => { paused = true; wakeHud(); }}
+		onpause={() => { paused = true; clearStall(); wakeHud(); }}
 		onloadedmetadata={() => { if (videoEl && Number.isFinite(videoEl.duration) && videoEl.duration > 0) videoDuration = videoEl.duration; }}
 		ondurationchange={() => { if (videoEl && Number.isFinite(videoEl.duration) && videoEl.duration > 0) videoDuration = videoEl.duration; }}
-		onloadeddata={() => { if (pipelineMode === 'direct' && videoEl && videoEl.videoWidth === 0 && ffmpegAvailable && session) { showFeedback('Transcoding video...'); void attachPlayback(currentPos, true); } }}
+		onloadeddata={() => { if (pipelineMode === 'direct' && videoEl && videoEl.videoWidth === 0 && ffmpegAvailable && session) { void attachPlayback(currentPos, true, true, 'Transcoding video...'); } }}
 		onended={() => { paused = true; void persistProgress(totalDuration, false, true); void sendScrobble('stop'); if (nextEpisodeTarget) void switchEpisode(nextEpisodeTarget.season, nextEpisodeTarget.episode, true); }}
-		onerror={() => { if (pipelineMode === 'direct' && ffmpegAvailable && session) void attachPlayback(currentPos, true); else tryFallbackSource(); }}
+		onerror={() => { if (pipelineMode === 'direct' && ffmpegAvailable && session) void attachPlayback(currentPos, true, true, 'Transcoding stream...'); else tryFallbackSource(); }}
 	></video>
 
 	{#if visibleCues.length > 0 && pipelineMode !== 'none'}
@@ -714,37 +707,42 @@
 	{/if}
 
 	<PlayerHud
-		{hudVisible} {drawer} {kind} {headerTitle} {headerSub} {session} {pipelineMode} {paused} {mpvAvailable}
+		{hudVisible} {drawer} {kind} {headerTitle} {headerSub} runtimeMin={curEpObj?.runtime || details?.runtime || 0}
+		{session} {activeCandidate} candidatesCount={candidates.length} {loadingMoreSources} {seamlessStatus} {stalled}
+		{pipelineMode} {paused} {mpvAvailable} {ffmpegAvailable} {pipAvailable} {isPiP}
 		{playbackRate} {volume} {muted} {fitMode} {isFullscreen} {totalDuration} {currentPos} {scrubbedPct} {bufferedPct}
 		{remainingText} {endsAtText} chapters={session?.chapters ?? session?.probe?.chapters ?? []} {skipSegments} {activeSkip} {skipCountdown}
-		hasNextEpisode={!!nextEpisodeTarget}
+		hasNextEpisode={!!nextEpisodeTarget} {hlsLevels} {hlsLevelIdx} {browserQuality}
 		onLeave={() => void goto(backHref || to(detailPath(kind, tmdb)))}
 		onToggleDrawer={(d) => { drawer = drawer === d ? 'none' : d; }}
 		onTriggerMPV={() => { if (session) void triggerMPV(session.id, currentPos); }}
 		onTogglePlayPause={togglePlayPause} onSeekBy={seekBy}
 		onScrubInput={(sec) => { isScrubbing = true; scrubValue = sec; }}
 		onScrubCommit={commitSeek} onToggleMute={toggleMute} onVolumeChange={setVolumeLevel}
-		onCycleSpeed={cycleSpeed} onToggleFit={() => { fitMode = fitMode === 'contain' ? 'cover' : 'contain'; }}
+		onSelectSpeed={selectSpeed} onToggleFit={() => { fitMode = fitMode === 'contain' ? 'cover' : 'contain'; }}
+		onSelectHlsLevel={selectHlsLevel}
+		onChangeBrowserQuality={(q) => { browserQuality = q; if (session && playMode === 'browser') void attachPlayback(currentPos, q !== 'original', true, `Switching to ${q}...`); }}
+		onTogglePiP={() => void togglePiP()}
 		onNextEpisode={() => { if (nextEpisodeTarget) void switchEpisode(nextEpisodeTarget.season, nextEpisodeTarget.episode, true); }}
-		onShuffleEpisode={() => void shuffleEpisode()} onToggleFullscreen={() => void toggleFullscreen()}
+		onToggleFullscreen={() => void toggleFullscreen()}
 		onExecuteSkip={executeSkip} onCancelAutoSkip={() => { if (activeSkip) autoSkipDismissed = { ...autoSkipDismissed, [activeSkip.kind]: true }; }}
 	/>
 
 	<PlayerSourcesDrawer
-		open={drawer === 'sources'} bind:queryText bind:sourceTab bind:resFilter {searching} {searchError} {fallbackNotice} {candidates} {counts}
-		activeCandidateKey={activeCandidate ? candKey(activeCandidate) : ''} {session} {ffmpegAvailable} {mpvAvailable} {browserQuality} {audioIdx}
-		onClose={() => { drawer = 'none'; }} onSearch={() => void runSearch()}
-		onStartCandidate={(c, m) => { autoFallbacks = 0; void startCandidate(c, m, 0, true); }}
+		open={drawer === 'sources'} bind:queryText bind:sourceTab bind:resFilter {searching} {loadingMoreSources} {searchError} {fallbackNotice} {candidates} {counts}
+		activeCandidateKey={activeCandidate ? candidateKey(activeCandidate) : ''} {session} {mpvAvailable}
+		onClose={() => { drawer = 'none'; }} onSearch={() => void runSearch(true)}
+		onStartCandidate={(c, m) => { autoFallbacks = 0; drawer = 'none'; void startCandidate(c, m, 0, true); }}
 		onSelectFile={(idx) => { if (session) void selectStreamFile(session.id, idx).then((s) => { session = s; attachedSessionKey = ''; }); }}
 		onToggleKeep={() => { if (session) void setStreamKeep(session.id, !session.keep_file).then((s) => { session = s; }); }}
-		onChangeQuality={(q) => { browserQuality = q; if (session && playMode === 'browser') void attachPlayback(currentPos); }}
-		onChangeAudio={(idx) => { audioIdx = idx; if (session && playMode === 'browser') void attachPlayback(currentPos); }}
 	/>
 
 	<PlayerSubsDrawer
-		open={drawer === 'audioSubs'} {session} {subMode} {subIndex} {subLabel} {subDelayMS} {subSize} bind:subStyle bind:siteSubLangsInput
+		open={drawer === 'audioSubs'} {session} {audioIdx} {ffmpegAvailable} {subMode} {subIndex} {subLabel} {subDelayMS} {subSize} bind:subStyle bind:siteSubLangsInput
 		{siteSubCandidates} {searchingSubs} {loadingSub} {subError}
-		onClose={() => { drawer = 'none'; }} onTurnOff={turnOffSubtitles}
+		onClose={() => { drawer = 'none'; }}
+		onChangeAudio={(idx) => { audioIdx = idx; if (session && playMode === 'browser') void attachPlayback(currentPos, true, true, 'Switching audio...'); }}
+		onTurnOff={turnOffSubtitles}
 		onLoadEmbedded={(idx) => void loadEmbeddedSubtitle(idx)} onSearchOnline={() => void searchSubtitlesOnline()}
 		onLoadSiteSub={(c) => void loadSiteSubtitleById(c.id, c.language, `${c.language.toUpperCase()} · ${c.site_name}`, false)}
 		onAdjustDelay={(d) => { subDelayMS += d; showFeedback(`Subs ${subDelayMS}ms`); void persistProgress(); }}

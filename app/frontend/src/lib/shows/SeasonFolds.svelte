@@ -12,6 +12,7 @@
 	import { date } from '../core/format.ts';
 	import { sized } from '../core/tmdb-image.ts';
 	import { t } from '#lib/core/i18n/i18n.svelte.ts';
+	import { prefetchStreamSources } from '#lib/stream/index.ts';
 
 	type Ep = { number: number; name?: string; overview?: string; runtime?: number; still?: string; air_day?: string };
 
@@ -103,31 +104,40 @@
 					<Shelf title={t('shows.folds.seasonEpisodes', { season: seasonName(shown) })} item="260px" placeholder="wide" whole>
 						{#each cards(shown) as c (c.key)}
 							{@const epProg = progress[`${shown}:${c.key}`]}
-							<article class="ep">
-								<span class="still">
-									{#if !c.still || stillState[`${shown}:${c.key}`] !== 'ok'}<ArtPlaceholder name={!c.still || stillState[`${shown}:${c.key}`] === 'bad' ? c.name.replace(/^\d+\.\s*/, '') : ''} shape="wide" loading={!!c.still && !stillState[`${shown}:${c.key}`]} />{/if}
-									{#if c.still && stillState[`${shown}:${c.key}`] !== 'bad'}<img src={sized(c.still, 'backdrop', 300)} alt="" loading="lazy" decoding="async" onload={() => (stillState[`${shown}:${c.key}`] = 'ok')} onerror={() => (stillState[`${shown}:${c.key}`] = 'bad')} />{/if}
-									{#if epProg?.completed}
-										<span class="ep-done" title="Watched"><Icon name="check" size={12} /></span>
-									{/if}
-									{#if onstream}
-										<button
-											type="button"
-											class="ep-play"
-											aria-label={`Stream ${seasonName(shown)} ${c.name}`}
-											title={epProg && !epProg.completed ? 'Resume episode' : 'Stream this episode'}
-											onclick={(e) => {
-												e.stopPropagation();
-												onstream(shown, c.key);
-											}}
-										>
-											<Icon name="play" size={14} />
-										</button>
-									{/if}
-									{#if epProg && epProg.progress_pct > 0}
-										<span class="ep-prog"><i style="width: {Math.min(100, epProg.progress_pct)}%"></i></span>
-									{/if}
-								</span>
+							<article
+								class="ep"
+								onmouseenter={() => { if (onstream && tmdb) prefetchStreamSources({ query: '', kind: 'show', tmdb: Number(tmdb) || 0, season: shown, episode: c.key }); }}
+							>
+								{#if onstream}
+									<button
+										type="button"
+										class="still still-btn"
+										aria-label={`Stream ${seasonName(shown)} ${c.name}`}
+										title={epProg && !epProg.completed ? 'Resume episode' : 'Play episode'}
+										onclick={() => onstream(shown, c.key)}
+									>
+										{#if !c.still || stillState[`${shown}:${c.key}`] !== 'ok'}<ArtPlaceholder name={!c.still || stillState[`${shown}:${c.key}`] === 'bad' ? c.name.replace(/^\d+\.\s*/, '') : ''} shape="wide" loading={!!c.still && !stillState[`${shown}:${c.key}`]} />{/if}
+										{#if c.still && stillState[`${shown}:${c.key}`] !== 'bad'}<img src={sized(c.still, 'backdrop', 300)} alt="" loading="lazy" decoding="async" onload={() => (stillState[`${shown}:${c.key}`] = 'ok')} onerror={() => (stillState[`${shown}:${c.key}`] = 'bad')} />{/if}
+										{#if epProg?.completed}
+											<span class="ep-done" title="Watched"><Icon name="check" size={12} /></span>
+										{/if}
+										<span class="ep-play"><Icon name="play" size={15} /></span>
+										{#if epProg && epProg.progress_pct > 0}
+											<span class="ep-prog"><i style="width: {Math.min(100, epProg.progress_pct)}%"></i></span>
+										{/if}
+									</button>
+								{:else}
+									<span class="still">
+										{#if !c.still || stillState[`${shown}:${c.key}`] !== 'ok'}<ArtPlaceholder name={!c.still || stillState[`${shown}:${c.key}`] === 'bad' ? c.name.replace(/^\d+\.\s*/, '') : ''} shape="wide" loading={!!c.still && !stillState[`${shown}:${c.key}`]} />{/if}
+										{#if c.still && stillState[`${shown}:${c.key}`] !== 'bad'}<img src={sized(c.still, 'backdrop', 300)} alt="" loading="lazy" decoding="async" onload={() => (stillState[`${shown}:${c.key}`] = 'ok')} onerror={() => (stillState[`${shown}:${c.key}`] = 'bad')} />{/if}
+										{#if epProg?.completed}
+											<span class="ep-done" title="Watched"><Icon name="check" size={12} /></span>
+										{/if}
+										{#if epProg && epProg.progress_pct > 0}
+											<span class="ep-prog"><i style="width: {Math.min(100, epProg.progress_pct)}%"></i></span>
+										{/if}
+									</span>
+								{/if}
 								<b class="ep-name">{c.name}</b>
 								<span class="xs muted">{serverWords(c.line)}</span>
 								{#if c.overview}<p class="ep-text">{c.overview}</p>{/if}
@@ -158,10 +168,12 @@
 	.seasons :global(.ui-shelf header) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 	.ep { display: flex; flex-direction: column; gap: 4px; min-width: 0; align-self: start; }
 	.still { position: relative; display: block; aspect-ratio: 16 / 9; margin-bottom: 6px; border-radius: 10px; overflow: hidden; background: var(--surface-2); }
-	.still img { position: relative; width: 100%; height: 100%; object-fit: cover; }
-	.ep-play { position: absolute; right: 8px; bottom: 8px; z-index: 2; display: inline-grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 1px solid rgb(255 255 255 / 24%); border-radius: 999px; background: rgb(15 15 18 / 78%); color: #fff; cursor: pointer; backdrop-filter: blur(8px); transition: transform var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out); }
-	.ep-play:hover { background: #fff; color: #111; transform: scale(1.06); }
-	.ep-play:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+	.still-btn { width: 100%; padding: 0; border: 0; text-align: left; cursor: pointer; }
+	.still-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+	.still img { position: relative; width: 100%; height: 100%; object-fit: cover; transition: transform var(--dur-fast) var(--ease-out); }
+	.still-btn:hover img { transform: scale(1.03); }
+	.ep-play { position: absolute; right: 8px; bottom: 8px; z-index: 2; display: inline-grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 1px solid rgb(255 255 255 / 24%); border-radius: 999px; background: rgb(15 15 18 / 78%); color: #fff; backdrop-filter: blur(8px); transition: transform var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out); }
+	.still-btn:hover .ep-play { background: #fff; color: #111; transform: scale(1.08); }
 	.ep-done { position: absolute; top: 8px; right: 8px; z-index: 2; display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 999px; background: rgb(34 197 94 / 90%); color: #fff; }
 	.ep-prog { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; height: 4px; background: rgb(255 255 255 / 26%); }
 	.ep-prog i { display: block; height: 100%; background: #e50914; }

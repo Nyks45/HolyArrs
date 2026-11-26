@@ -50,6 +50,12 @@ func (h *Handlers) registerStreamingRoutes(m *http.ServeMux) {
 	m.HandleFunc("GET /api/v1/streaming/proxy/{token}/hls", h.Mgr.Proxy.ServeProxyHLS)
 }
 
+func (h *Handlers) invalidateSearchCache() {
+	if h != nil && h.Mgr != nil && h.Mgr.SearchCache != nil {
+		h.Mgr.SearchCache.InvalidateAll()
+	}
+}
+
 func actorFromRequest(r *http.Request) database.Actor {
 	uid := callerID(r)
 	if uid > 0 {
@@ -93,6 +99,7 @@ func (h *Handlers) addAddon(w http.ResponseWriter, r *http.Request) {
 		webserver.Fail(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	h.invalidateSearchCache()
 	webserver.WriteJSON(w, http.StatusCreated, addon)
 }
 
@@ -109,6 +116,7 @@ func (h *Handlers) patchAddon(w http.ResponseWriter, r *http.Request) {
 		webserver.Fail(w, http.StatusNotFound, err.Error())
 		return
 	}
+	h.invalidateSearchCache()
 	webserver.WriteJSON(w, http.StatusOK, addon)
 }
 
@@ -117,6 +125,7 @@ func (h *Handlers) deleteAddon(w http.ResponseWriter, r *http.Request) {
 		webserver.Fail(w, http.StatusNotFound, err.Error())
 		return
 	}
+	h.invalidateSearchCache()
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -126,6 +135,7 @@ func (h *Handlers) refreshAddon(w http.ResponseWriter, r *http.Request) {
 		webserver.Fail(w, http.StatusBadGateway, err.Error())
 		return
 	}
+	h.invalidateSearchCache()
 	webserver.WriteJSON(w, http.StatusOK, addon)
 }
 
@@ -168,6 +178,7 @@ func (h *Handlers) addPluginRepo(w http.ResponseWriter, r *http.Request) {
 		webserver.Fail(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	h.invalidateSearchCache()
 	webserver.WriteJSON(w, http.StatusCreated, repo)
 }
 
@@ -186,6 +197,7 @@ func (h *Handlers) patchPluginRepo(w http.ResponseWriter, r *http.Request) {
 		webserver.Fail(w, http.StatusNotFound, err.Error())
 		return
 	}
+	h.invalidateSearchCache()
 	webserver.WriteJSON(w, http.StatusOK, repo)
 }
 
@@ -194,6 +206,7 @@ func (h *Handlers) deletePluginRepo(w http.ResponseWriter, r *http.Request) {
 		webserver.Fail(w, http.StatusNotFound, err.Error())
 		return
 	}
+	h.invalidateSearchCache()
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -203,6 +216,7 @@ func (h *Handlers) refreshPluginRepo(w http.ResponseWriter, r *http.Request) {
 		webserver.Fail(w, http.StatusBadGateway, err.Error())
 		return
 	}
+	h.invalidateSearchCache()
 	webserver.WriteJSON(w, http.StatusOK, repo)
 }
 
@@ -216,6 +230,7 @@ func (h *Handlers) saveCustomPlugin(w http.ResponseWriter, r *http.Request) {
 		webserver.Fail(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	h.invalidateSearchCache()
 	webserver.WriteJSON(w, http.StatusOK, repo)
 }
 
@@ -233,6 +248,7 @@ func (h *Handlers) deleteCustomPlugin(w http.ResponseWriter, r *http.Request) {
 		webserver.Fail(w, http.StatusNotFound, err.Error())
 		return
 	}
+	h.invalidateSearchCache()
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -254,6 +270,7 @@ func (h *Handlers) putDebrid(w http.ResponseWriter, r *http.Request) {
 		webserver.Fail(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	h.invalidateSearchCache()
 	webserver.WriteJSON(w, http.StatusOK, st)
 }
 
@@ -262,6 +279,7 @@ func (h *Handlers) deleteDebrid(w http.ResponseWriter, r *http.Request) {
 		webserver.Fail(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	h.invalidateSearchCache()
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -385,5 +403,6 @@ func (h *Handlers) applyPresets(w http.ResponseWriter, r *http.Request) {
 		rec = *in.Recommended
 	}
 	res := h.Mgr.ApplyPresets(r.Context(), in.Kind, in.ID, rec)
+	h.invalidateSearchCache()
 	webserver.WriteJSON(w, http.StatusOK, res)
 }

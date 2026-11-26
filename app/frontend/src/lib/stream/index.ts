@@ -7,4 +7,5 @@ export { default as AddonCatalogShelves } from './AddonCatalogShelves.svelte';
 export * from './stream-api.ts';
 export * from './streaming-config-api.ts';
 export * from './subtitle-style.ts';
+export * from './player-media.ts';
 export * from './vtt.ts';

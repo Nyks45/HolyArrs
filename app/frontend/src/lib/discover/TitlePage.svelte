@@ -56,6 +56,7 @@
 		StreamSheet,
 		formatDuration,
 		getTitleWatchHistory,
+		prefetchStreamSources,
 		type WatchEntry
 	} from '#lib/stream/index.ts';
 	import { chosenToast } from '#lib/mediafiles/index.ts';
@@ -269,6 +270,13 @@
 			void load(k, id);
 			allCast = false;
 		});
+	});
+	$effect(() => {
+		if (!details?.name || (kind !== 'movie' && kind !== 'show')) return;
+		const ss = kind === 'show' ? (watchLatest?.season || seasons.find((s) => s.number > 0)?.number || 1) : 0;
+		const ee = kind === 'show' ? (watchLatest?.episode || 1) : 0;
+		const ext = (kind === 'movie' ? details.movie?.ids : details.show?.ids) as Record<string, string | undefined> | undefined;
+		prefetchStreamSources({ query: details.name, kind: kind as 'movie' | 'show', year: details.year || 0, season: ss, episode: ee, imdb: ext?.imdb ?? '', tmdb: Number(tmdb) || 0, original_title: details.original_title, genres: details.genres, original_language: details.original_language, origin_country: details.origin_country });
 	});
 	// The Library folders and Pick rules the add sheets offer; a failed load shows in the sheet with Try again.
 	let choicesLoaded = $state(false);

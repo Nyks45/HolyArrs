@@ -6,6 +6,8 @@
 	let {
 		open,
 		session,
+		audioIdx = 0,
+		ffmpegAvailable = false,
 		subMode,
 		subIndex,
 		subLabel,
@@ -18,6 +20,7 @@
 		loadingSub,
 		subError,
 		onClose,
+		onChangeAudio,
 		onTurnOff,
 		onLoadEmbedded,
 		onSearchOnline,
@@ -29,6 +32,8 @@
 	}: {
 		open: boolean;
 		session: SessionStatus | null;
+		audioIdx?: number;
+		ffmpegAvailable?: boolean;
 		subMode: 'off' | 'embedded' | 'site' | 'upload';
 		subIndex: number;
 		subLabel: string;
@@ -41,6 +46,7 @@
 		loadingSub: boolean;
 		subError: string;
 		onClose: () => void;
+		onChangeAudio: (idx: number) => void;
 		onTurnOff: () => void;
 		onLoadEmbedded: (idx: number) => void;
 		onSearchOnline: () => void;
@@ -61,23 +67,38 @@
 </script>
 
 {#if open}
-	<aside class="wp-drawer" aria-label="Subtitles drawer">
-		<div class="wp-drawer-head">
+	<aside class="wp-pop" aria-label="Audio and subtitles menu">
+		<div class="wp-pop-head">
 			<h3>Audio &amp; Subtitles</h3>
-			<button type="button" class="wp-close" onclick={onClose}><Icon name="x" size={18} /></button>
+			<button type="button" class="wp-close" onclick={onClose}><Icon name="x" size={16} /></button>
 		</div>
 
-		<div class="wp-drawer-body">
-			{#if subError}
-				<div class="wp-err-inline">{subError}</div>
+		<div class="wp-pop-body">
+			{#if subError}<div class="wp-err-inline">{subError}</div>{/if}
+
+			{#if (session?.probe?.audio_tracks.length ?? 0) > 0}
+				<div class="wp-box">
+					<div class="wp-box-title">Audio Track</div>
+					<div class="wp-stack">
+						{#each session?.probe?.audio_tracks ?? [] as tr (tr.index)}
+							<button
+								type="button"
+								class="wp-list-pick"
+								class:on={audioIdx === tr.index}
+								disabled={!ffmpegAvailable}
+								onclick={() => onChangeAudio(tr.index)}
+							>
+								<span>{[tr.language?.toUpperCase(), tr.title, tr.codec?.toUpperCase(), tr.channels ? `${tr.channels}ch` : ''].filter(Boolean).join(' · ') || `Audio ${tr.index + 1}`}</span>
+							</button>
+						{/each}
+					</div>
+				</div>
 			{/if}
 
 			<div class="wp-box">
 				<div class="wp-row-between">
-					<strong>Active Subtitle: {subMode === 'off' ? 'Off' : subLabel || 'Loaded'}</strong>
-					{#if subMode !== 'off'}
-						<button type="button" class="wp-mini-btn" onclick={onTurnOff}>Turn Off</button>
-					{/if}
+					<strong>Subtitle: {subMode === 'off' ? 'Off' : subLabel || 'Loaded'}</strong>
+					{#if subMode !== 'off'}<button type="button" class="wp-mini-btn" onclick={onTurnOff}>Turn Off</button>{/if}
 				</div>
 				<div class="wp-sync-row">
 					<span>Timing ({subDelayMS >= 0 ? `+${subDelayMS}` : subDelayMS} ms)</span>
@@ -87,10 +108,8 @@
 					</div>
 				</div>
 				<div class="wp-tab-row">
-					{#each ['sm', 'md', 'lg', 'xl'] as sz}
-						<button type="button" class="wp-chip" class:on={subSize === sz} onclick={() => onChangeSize(sz as typeof subSize)}>
-							{sz.toUpperCase()}
-						</button>
+					{#each ['sm', 'md', 'lg', 'xl'] as sz (sz)}
+						<button type="button" class="wp-chip" class:on={subSize === sz} onclick={() => onChangeSize(sz as typeof subSize)}>{sz.toUpperCase()}</button>
 					{/each}
 				</div>
 			</div>
@@ -128,13 +147,7 @@
 					<div class="wp-box-title">Embedded File Tracks</div>
 					<div class="wp-stack">
 						{#each session?.probe?.subtitle_tracks.filter((s) => s.text) ?? [] as tr (tr.index)}
-							<button
-								type="button"
-								class="wp-list-pick"
-								class:on={subMode === 'embedded' && subIndex === tr.index}
-								disabled={loadingSub}
-								onclick={() => onLoadEmbedded(tr.index)}
-							>
+							<button type="button" class="wp-list-pick" class:on={subMode === 'embedded' && subIndex === tr.index} disabled={loadingSub} onclick={() => onLoadEmbedded(tr.index)}>
 								<span>{[tr.language?.toUpperCase(), tr.title, tr.codec?.toUpperCase()].filter(Boolean).join(' · ') || `Track ${tr.index + 1}`}</span>
 							</button>
 						{/each}
@@ -143,7 +156,7 @@
 			{/if}
 
 			<div class="wp-box">
-				<div class="wp-box-title">Search Online (Sites &amp; Stremio Addons)</div>
+				<div class="wp-box-title">Online Subtitles &amp; Upload</div>
 				<form class="wp-search-row" onsubmit={(e) => { e.preventDefault(); onSearchOnline(); }}>
 					<input type="text" bind:value={siteSubLangsInput} placeholder="en, tr, ja" />
 					<button type="submit" class="wp-mini-btn accent" disabled={searchingSubs}>{searchingSubs ? '...' : 'Search'}</button>
@@ -174,33 +187,29 @@
 {/if}
 
 <style>
-	.wp-drawer {
-		position: absolute; top: 0; right: 0; bottom: 0; width: min(440px, 100vw); z-index: 12;
-		background: rgb(14 14 18 / 94%); border-left: 1px solid rgb(255 255 255 / 14%);
-		backdrop-filter: blur(22px); display: flex; flex-direction: column;
-	}
-	.wp-drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-bottom: 1px solid rgb(255 255 255 / 12%); }
-	.wp-drawer-head h3 { margin: 0; font-size: 16px; font-weight: 700; }
-	.wp-close { width: 32px; height: 32px; border-radius: 50%; border: 0; background: rgb(255 255 255 / 12%); color: #fff; display: grid; place-items: center; cursor: pointer; }
-	.wp-drawer-body { flex: 1; overflow-y: auto; padding: 14px 16px 28px; display: flex; flex-direction: column; gap: 12px; }
-	.wp-box { padding: 12px; border-radius: 10px; background: rgb(255 255 255 / 5%); display: flex; flex-direction: column; gap: 10px; }
-	.wp-box-title { font-size: 12px; font-weight: 700; color: rgb(255 255 255 / 72%); text-transform: uppercase; letter-spacing: .04em; }
+	.wp-pop { position: absolute; top: 62px; right: 24px; width: min(410px, calc(100vw - 32px)); max-height: min(74vh, 620px); z-index: 14; background: rgb(16 16 22 / 94%); border: 1px solid rgb(255 255 255 / 14%); border-radius: 16px; backdrop-filter: blur(22px); display: flex; flex-direction: column; box-shadow: 0 20px 50px rgb(0 0 0 / 60%); }
+	.wp-pop-head { display: flex; align-items: center; justify-content: space-between; padding: 13px 16px; border-bottom: 1px solid rgb(255 255 255 / 10%); }
+	.wp-pop-head h3 { margin: 0; font-size: 15px; font-weight: 700; }
+	.wp-close { width: 28px; height: 28px; border-radius: 50%; border: 0; background: rgb(255 255 255 / 12%); color: #fff; display: grid; place-items: center; cursor: pointer; }
+	.wp-pop-body { flex: 1; overflow-y: auto; padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+	.wp-box { padding: 11px; border-radius: 10px; background: rgb(255 255 255 / 5%); display: flex; flex-direction: column; gap: 9px; }
+	.wp-box-title { font-size: 11px; font-weight: 700; color: rgb(255 255 255 / 66%); text-transform: uppercase; letter-spacing: .04em; }
 	.wp-row-between, .wp-sync-row, .wp-slider-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12.5px; }
-	.wp-slider-row input[type="range"] { width: 150px; accent-color: #e50914; }
+	.wp-slider-row input[type="range"] { width: 140px; accent-color: #e50914; }
 	.wp-check { display: flex; align-items: center; gap: 8px; font-size: 12.5px; cursor: pointer; }
 	.wp-btns, .wp-tab-row { display: flex; flex-wrap: wrap; gap: 6px; }
-	.wp-chip { padding: 5px 10px; border: 1px solid rgb(255 255 255 / 18%); border-radius: 999px; background: transparent; color: rgb(255 255 255 / 78%); font-size: 12px; font-weight: 600; cursor: pointer; }
+	.wp-chip { padding: 4px 9px; border: 1px solid rgb(255 255 255 / 16%); border-radius: 999px; background: transparent; color: rgb(255 255 255 / 78%); font-size: 11.5px; font-weight: 600; cursor: pointer; }
 	.wp-chip.on { background: #fff; color: #111; border-color: #fff; }
 	.wp-search-row { display: flex; gap: 8px; }
-	.wp-search-row input { flex: 1; height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid rgb(255 255 255 / 20%); background: rgb(28 28 34); color: #fff; font-size: 13px; }
-	.wp-stack { display: flex; flex-direction: column; gap: 7px; }
-	.wp-list-pick { display: flex; width: 100%; padding: 9px 12px; border: 1px solid rgb(255 255 255 / 14%); border-radius: 9px; background: rgb(255 255 255 / 5%); color: #fff; text-align: left; font-size: 13px; cursor: pointer; }
-	.wp-list-pick.on { border-color: #e50914; background: rgb(229 9 20 / 15%); }
+	.wp-search-row input { flex: 1; height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid rgb(255 255 255 / 20%); background: rgb(28 28 34); color: #fff; font-size: 12.5px; }
+	.wp-stack { display: flex; flex-direction: column; gap: 6px; }
+	.wp-list-pick { display: flex; width: 100%; padding: 8px 11px; border: 1px solid rgb(255 255 255 / 12%); border-radius: 9px; background: rgb(255 255 255 / 5%); color: #fff; text-align: left; font-size: 12.5px; cursor: pointer; }
+	.wp-list-pick.on { border-color: #e50914; background: rgb(229 9 20 / 16%); }
 	.wp-sub-cand { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 	.wp-sub-cand span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.wp-sub-cand small { color: rgb(255 255 255 / 62%); font-size: 11px; }
-	.wp-mini-btn { padding: 6px 10px; border-radius: 8px; border: 1px solid rgb(255 255 255 / 20%); background: rgb(255 255 255 / 10%); color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; }
+	.wp-mini-btn { padding: 6px 10px; border-radius: 8px; border: 1px solid rgb(255 255 255 / 20%); background: rgb(255 255 255 / 10%); color: #fff; font-size: 11.5px; font-weight: 600; cursor: pointer; }
 	.wp-mini-btn.accent { background: #e50914; border-color: #e50914; }
-	.wp-muted { margin: 0; color: rgb(255 255 255 / 66%); font-size: 13px; }
-	.wp-err-inline { padding: 8px 10px; border-radius: 8px; background: rgb(239 68 68 / 20%); color: #fca5a5; font-size: 12.5px; }
+	.wp-muted { margin: 0; color: rgb(255 255 255 / 66%); font-size: 12.5px; }
+	.wp-err-inline { padding: 7px 10px; border-radius: 8px; background: rgb(239 68 68 / 20%); color: #fca5a5; font-size: 12px; }
 </style>

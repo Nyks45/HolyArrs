@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -480,7 +481,7 @@ func (p *PluginStore) downloadScript(ctx context.Context, hc *http.Client, targe
 }
 
 // SearchStreams runs enabled Nuvio JS scrapers matching kind and metadata context concurrently in isolated Node workers.
-func (p *PluginStore) SearchStreams(ctx context.Context, kind, tmdbID string, season, episode int, tmdbAPIKey string, mc SearchMatchContext) ([]UnifiedCandidate, []string) {
+func (p *PluginStore) SearchStreams(ctx context.Context, kind, tmdbID string, season, episode int, tmdbAPIKey string, mc SearchMatchContext, fast bool, health *ProviderHealth) ([]UnifiedCandidate, []string) {
 	if !p.NodeAvailable() || strings.TrimSpace(tmdbID) == "" {
 		return nil, nil
 	}
@@ -488,9 +489,10 @@ func (p *PluginStore) SearchStreams(ctx context.Context, kind, tmdbID string, se
 		repoName string
 		scraper  NuvioScraper
 		code     string
+		latency  float64
 	}
 	p.mu.RLock()
-	var jobs []job
+	var matching []job
 	seenIDs := map[string]bool{}
 	for _, r := range p.repos {
 		if !r.Enabled {
@@ -511,27 +513,72 @@ func (p *PluginStore) SearchStreams(ctx context.Context, kind, tmdbID string, se
 			if idKey != "" {
 				seenIDs[idKey] = true
 			}
-			jobs = append(jobs, job{repoName: r.Name, scraper: sc, code: string(raw)})
+			matching = append(matching, job{
+				repoName: r.Name,
+				scraper:  sc,
+				code:     string(raw),
+				latency:  health.LatencyMS(sc.ID),
+			})
 		}
 	}
 	p.mu.RUnlock()
-	if len(jobs) == 0 {
+	if len(matching) == 0 {
 		return nil, nil
 	}
+
+	jobs := make([]job, 0, len(matching))
+	for _, jb := range matching {
+		if health != nil && health.ShouldSkip(jb.scraper.ID) {
+			continue
+		}
+		jobs = append(jobs, jb)
+	}
+	if len(jobs) == 0 {
+		jobs = matching
+	}
+	sort.SliceStable(jobs, func(i, j int) bool {
+		return jobs[i].latency < jobs[j].latency
+	})
 
 	mediaType := "movie"
 	if kind == "show" {
 		mediaType = "tv"
 	}
 
-	sctx, cancelAll := context.WithTimeout(ctx, 12*time.Second)
+	totalBudget := 8 * time.Second
+	if fast {
+		totalBudget = 5 * time.Second
+	}
+	sctx, cancelAll := context.WithTimeout(ctx, totalBudget)
 	defer cancelAll()
 
-	sem := make(chan struct{}, 8)
+	startedAt := time.Now()
+	sem := make(chan struct{}, 12)
 	var mu sync.Mutex
 	var out []UnifiedCandidate
 	var warnings []string
 	var wg sync.WaitGroup
+	earlyStopped := false
+	tryEarlyStop := func() {
+		if fast && !earlyStopped && len(out) >= 3 && time.Since(startedAt) >= 2200*time.Millisecond {
+			earlyStopped = true
+			cancelAll()
+		}
+	}
+	var earlyTimer *time.Timer
+	if fast {
+		earlyTimer = time.AfterFunc(2250*time.Millisecond, func() {
+			mu.Lock()
+			tryEarlyStop()
+			mu.Unlock()
+		})
+	}
+	defer func() {
+		if earlyTimer != nil {
+			earlyTimer.Stop()
+		}
+	}()
+
 	for _, j := range jobs {
 		wg.Add(1)
 		go func(jb job) {
@@ -543,14 +590,24 @@ func (p *PluginStore) SearchStreams(ctx context.Context, kind, tmdbID string, se
 			}
 			defer func() { <-sem }()
 
+			t0 := time.Now()
 			cands, err := p.runScraperCode(sctx, jb.scraper.ID, jb.scraper.Name, jb.code, tmdbID, mediaType, season, episode, jb.scraper.Settings, tmdbAPIKey)
+			dur := time.Since(t0)
+
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
+				if health != nil && ctx.Err() == nil && sctx.Err() == nil {
+					health.RecordFailure(jb.scraper.ID)
+				}
 				warnings = append(warnings, jb.scraper.Name+": "+err.Error())
 				return
 			}
+			if health != nil && len(cands) > 0 {
+				health.RecordSuccess(jb.scraper.ID, dur)
+			}
 			out = append(out, cands...)
+			tryEarlyStop()
 		}(j)
 	}
 	wg.Wait()

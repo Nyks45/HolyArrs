@@ -729,6 +729,7 @@ failures
 failures_24h
 family
 fans
+fast_start
 fd
 feature_details
 feed
@@ -1362,6 +1363,7 @@ next_run
 next_search
 next_try
 next_try_at
+no_cache
 no_downloader
 no_file_lock
 no_file_lock_asked
@@ -1612,6 +1614,7 @@ primary_type
 priority
 private
 probe
+probe_ms
 problem
 processes
 production_companies
@@ -2373,6 +2376,7 @@ various
 vbr
 verdict
 verification_url
+verified
 version
 version_audio_languages
 version_id

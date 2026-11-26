@@ -263,7 +263,7 @@
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
 ::view-transition-group(*) { animation-duration: var(--dur-page); animation-timing-function: var(--ease-out); }
 ::view-transition-group(page) { animation: none; }
-::view-transition-old(page), ::view-transition-new(page) { width: 100%; height: auto; }
+::view-transition-old(page), ::view-transition-new(page) { width: 100%; height: auto; object-fit: none; object-position: top; }
 ::view-transition-old(page) { animation: vt-out var(--dur-fast) var(--ease-in) both; }
 ::view-transition-new(page) { animation: vt-in var(--dur-page) var(--ease-out) both; }
 @keyframes vt-out { to { opacity: 0; } }

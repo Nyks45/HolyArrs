@@ -33,6 +33,8 @@ DELETE /api/v1/plugins/{id} auth=owner scope=admin assurance=false part=core
 DELETE /api/v1/settings/old-app-api/keys/{side} auth=settings scope=admin assurance=true part=core
 DELETE /api/v1/settings/trakt-signin auth=owner scope=admin assurance=false part=core
 DELETE /api/v1/sources/{id} auth=settings scope=write assurance=false part=core
+DELETE /api/v1/stream/history/{key} auth=signed_in scope=write assurance=false part=-
+DELETE /api/v1/stream/{id} auth=signed_in scope=write assurance=false part=-
 DELETE /api/v1/subtitle-sites/{id} auth=settings scope=write assurance=false part=subtitles
 DELETE /api/v1/titles/{id}/follow auth=signed_in scope=write assurance=false part=wishlist
 DELETE /api/v1/titles/{id}/versions/{vid} auth=manage_library scope=write assurance=false part=title
@@ -277,6 +279,14 @@ GET /api/v1/shows/lookup auth=signed_in scope=read assurance=false part=shows
 GET /api/v1/sources auth=manage_library scope=read assurance=false part=core
 GET /api/v1/sources/sites auth=manage_library scope=read assurance=false part=core
 GET /api/v1/sources/{id}/stats auth=manage_library scope=read assurance=false part=core
+GET /api/v1/stream/history auth=signed_in scope=admin assurance=false part=-
+GET /api/v1/stream/history/title/{kind}/{tmdb} auth=signed_in scope=admin assurance=false part=-
+GET /api/v1/stream/sessions auth=signed_in scope=admin assurance=false part=-
+GET /api/v1/stream/sources auth=signed_in scope=admin assurance=false part=-
+GET /api/v1/stream/{id} auth=signed_in scope=admin assurance=false part=-
+GET /api/v1/stream/{id}/hls/{token}/{gen}/{file} auth=public scope=admin assurance=false part=-
+GET /api/v1/stream/{id}/media/{token} auth=public scope=admin assurance=false part=-
+GET /api/v1/stream/{id}/sub/{token}/{idx} auth=public scope=admin assurance=false part=-
 GET /api/v1/subtitle-sites auth=manage_library scope=read assurance=false part=subtitles
 GET /api/v1/subtitle-sites/kinds auth=manage_library scope=read assurance=false part=subtitles
 GET /api/v1/subtitles/languages auth=manage_library scope=read assurance=false part=subtitles
@@ -593,6 +603,14 @@ POST /api/v1/sources/{id}/try auth=settings scope=write assurance=false part=cor
 POST /api/v1/stages/{name}/pause auth=users scope=control assurance=false part=core
 POST /api/v1/stages/{name}/restart auth=users scope=control assurance=false part=core
 POST /api/v1/stages/{name}/resume auth=users scope=control assurance=false part=core
+POST /api/v1/stream/search auth=signed_in scope=write assurance=false part=-
+POST /api/v1/stream/start auth=signed_in scope=write assurance=false part=-
+POST /api/v1/stream/subtitles/fetch auth=signed_in scope=write assurance=false part=-
+POST /api/v1/stream/subtitles/search auth=signed_in scope=write assurance=false part=-
+POST /api/v1/stream/subtitles/upload auth=signed_in scope=write assurance=false part=-
+POST /api/v1/stream/{id}/file auth=signed_in scope=write assurance=false part=-
+POST /api/v1/stream/{id}/hls auth=signed_in scope=write assurance=false part=-
+POST /api/v1/stream/{id}/mpv auth=signed_in scope=write assurance=false part=-
 POST /api/v1/subtitle-sites auth=settings scope=write assurance=false part=subtitles
 POST /api/v1/subtitle-sites/{id}/test auth=settings scope=write assurance=false part=subtitles
 POST /api/v1/subtitles/clean auth=manage_library scope=write assurance=false part=subtitles
@@ -714,6 +732,8 @@ PUT /api/v1/settings/ui auth=settings scope=write assurance=false part=core
 PUT /api/v1/settings/url-base auth=settings scope=write assurance=false part=core
 PUT /api/v1/settings/watch-history auth=owner scope=admin assurance=false part=media
 PUT /api/v1/sources/{id} auth=settings scope=write assurance=false part=core
+PUT /api/v1/stream/history auth=signed_in scope=write assurance=false part=-
+PUT /api/v1/stream/{id}/keep auth=signed_in scope=write assurance=false part=-
 PUT /api/v1/subtitle-sites/{id} auth=settings scope=write assurance=false part=subtitles
 PUT /api/v1/titles/{id} auth=manage_library scope=write assurance=false part=title
 PUT /api/v1/titles/{id}/artist auth=manage_library scope=write assurance=false part=music

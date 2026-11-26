@@ -1,11 +1,16 @@
 package stream
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 	"os/exec"
+	"strconv"
+	"strings"
 
 	"github.com/HolyArrs/holyarrs/app/backend/internal/core/webserver"
 	"github.com/HolyArrs/holyarrs/app/backend/internal/sources"
+	"github.com/HolyArrs/holyarrs/app/backend/internal/subtitles"
 )
 
 // Handlers exposes direct torrent streaming APIs and media endpoints.
@@ -19,6 +24,13 @@ func (h *Handlers) Routes(m *http.ServeMux) {
 	m.HandleFunc("POST /api/v1/stream/search", h.search)
 	m.HandleFunc("POST /api/v1/stream/start", h.start)
 	m.HandleFunc("GET /api/v1/stream/sessions", h.listSessions)
+	m.HandleFunc("GET /api/v1/stream/history", h.listHistory)
+	m.HandleFunc("GET /api/v1/stream/history/title/{kind}/{tmdb}", h.titleHistory)
+	m.HandleFunc("PUT /api/v1/stream/history", h.saveHistory)
+	m.HandleFunc("DELETE /api/v1/stream/history/{key}", h.deleteHistory)
+	m.HandleFunc("POST /api/v1/stream/subtitles/search", h.searchSubtitles)
+	m.HandleFunc("POST /api/v1/stream/subtitles/fetch", h.fetchSubtitle)
+	m.HandleFunc("POST /api/v1/stream/subtitles/upload", h.uploadSubtitle)
 	m.HandleFunc("GET /api/v1/stream/{id}", h.status)
 	m.HandleFunc("POST /api/v1/stream/{id}/file", h.selectFile)
 	m.HandleFunc("POST /api/v1/stream/{id}/hls", h.startHLS)
@@ -142,13 +154,23 @@ func (h *Handlers) startHLS(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) launchMPV(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		AudioLang string `json:"audio_lang"`
-		SubLang   string `json:"sub_lang"`
+		AudioLang string      `json:"audio_lang"`
+		SubLang   string      `json:"sub_lang"`
+		StartSec  float64     `json:"start_sec"`
+		SubFile   string      `json:"sub_file"`
+		Watch     *WatchEntry `json:"watch"`
 	}
-	if r.ContentLength != 0 && !webserver.Decode(w, r, &in, "send {audio_lang, sub_lang}") {
+	if r.ContentLength != 0 && !webserver.Decode(w, r, &in, "send {audio_lang, sub_lang, start_sec, sub_file, watch}") {
 		return
 	}
-	if err := h.Mgr.LaunchMPV(r.PathValue("id"), in.AudioLang, in.SubLang); err != nil {
+	opts := MPVOpts{
+		AudioLang: in.AudioLang,
+		SubLang:   in.SubLang,
+		StartSec:  in.StartSec,
+		SubFile:   in.SubFile,
+		Watch:     in.Watch,
+	}
+	if err := h.Mgr.LaunchMPV(r.PathValue("id"), opts); err != nil {
 		webserver.Fail(w, http.StatusBadGateway, err.Error())
 		return
 	}
@@ -174,4 +196,155 @@ func (h *Handlers) setKeep(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) stop(w http.ResponseWriter, r *http.Request) {
 	_ = h.Mgr.Stop(r.PathValue("id"))
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handlers) listHistory(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	if h.Mgr.History == nil {
+		webserver.WriteJSON(w, http.StatusOK, map[string]any{"items": []WatchEntry{}, "continue_watching": []WatchEntry{}})
+		return
+	}
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	items, cw := h.Mgr.History.List(callerID(r), limit)
+	webserver.WriteJSON(w, http.StatusOK, map[string]any{
+		"items":             items,
+		"continue_watching": cw,
+	})
+}
+
+func (h *Handlers) titleHistory(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	if h.Mgr.History == nil {
+		webserver.WriteJSON(w, http.StatusOK, map[string]any{"latest": nil, "episodes": []WatchEntry{}})
+		return
+	}
+	kind := r.PathValue("kind")
+	tmdb := r.PathValue("tmdb")
+	latest, eps := h.Mgr.History.ForTitle(callerID(r), kind, tmdb)
+	webserver.WriteJSON(w, http.StatusOK, map[string]any{
+		"latest":   latest,
+		"episodes": eps,
+	})
+}
+
+func (h *Handlers) saveHistory(w http.ResponseWriter, r *http.Request) {
+	if h.Mgr.History == nil {
+		webserver.Fail(w, http.StatusServiceUnavailable, "watch history is unavailable")
+		return
+	}
+	var in WatchEntry
+	if !webserver.Decode(w, r, &in, "send {kind, tmdb, title, position_sec, duration_sec, ...}") {
+		return
+	}
+	saved, err := h.Mgr.History.Upsert(callerID(r), in)
+	if err != nil {
+		webserver.Fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	webserver.WriteJSON(w, http.StatusOK, saved)
+}
+
+func (h *Handlers) deleteHistory(w http.ResponseWriter, r *http.Request) {
+	if h.Mgr.History != nil {
+		_ = h.Mgr.History.Delete(callerID(r), r.PathValue("key"))
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handlers) searchSubtitles(w http.ResponseWriter, r *http.Request) {
+	if h.Mgr.Subtitles == nil {
+		webserver.Fail(w, http.StatusServiceUnavailable, "subtitle service is unavailable")
+		return
+	}
+	var in subtitles.StreamSubSearchReq
+	if !webserver.Decode(w, r, &in, "send {kind, title, year, season, episode, imdb, tmdb, release_name, languages}") {
+		return
+	}
+	cands, langs, err := h.Mgr.Subtitles.SearchForStream(r.Context(), in)
+	if err != nil {
+		webserver.Fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	webserver.WriteJSON(w, http.StatusOK, map[string]any{
+		"candidates": cands,
+		"languages":  langs,
+	})
+}
+
+func (h *Handlers) fetchSubtitle(w http.ResponseWriter, r *http.Request) {
+	if h.Mgr.Subtitles == nil {
+		webserver.Fail(w, http.StatusServiceUnavailable, "subtitle service is unavailable")
+		return
+	}
+	var in struct {
+		ID        string `json:"id"`
+		SessionID string `json:"session_id"`
+	}
+	if !webserver.Decode(w, r, &in, "send {id, session_id}") {
+		return
+	}
+	vtt, lang, err := h.Mgr.Subtitles.FetchStreamSubtitleVTT(r.Context(), in.ID)
+	if err != nil {
+		webserver.Fail(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	subFile := ""
+	if strings.TrimSpace(in.SessionID) != "" {
+		if savedPath, serr := h.Mgr.SaveSessionSubtitle(in.SessionID, vtt); serr == nil {
+			subFile = savedPath
+		}
+	}
+	webserver.WriteJSON(w, http.StatusOK, map[string]any{
+		"vtt":      string(vtt),
+		"language": lang,
+		"sub_file": subFile,
+	})
+}
+
+func (h *Handlers) uploadSubtitle(w http.ResponseWriter, r *http.Request) {
+	const maxUploadBytes = (5 << 20) + 8192
+	rawBody, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxUploadBytes))
+	if err != nil {
+		webserver.Fail(w, http.StatusRequestEntityTooLarge, "subtitle file exceeds 5 MB limit")
+		return
+	}
+	var in struct {
+		Filename  string `json:"filename"`
+		Language  string `json:"language"`
+		Content   string `json:"content"`
+		SessionID string `json:"session_id"`
+	}
+	if json.Unmarshal(rawBody, &in) != nil {
+		webserver.Fail(w, http.StatusBadRequest, "send {filename, language, content, session_id}")
+		return
+	}
+	if len(in.Content) > 5<<20 {
+		webserver.Fail(w, http.StatusRequestEntityTooLarge, "subtitle file exceeds 5 MB limit")
+		return
+	}
+	if strings.TrimSpace(in.Content) == "" {
+		webserver.Fail(w, http.StatusBadRequest, "subtitle content is empty")
+		return
+	}
+	hint := strings.TrimSpace(in.Filename)
+	if hint == "" {
+		hint = "subtitle.srt"
+	}
+	lang := subtitles.NormLanguage(in.Language)
+	vtt, err := subtitles.ConvertToWebVTT([]byte(in.Content), hint, lang)
+	if err != nil {
+		webserver.Fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	subFile := ""
+	if strings.TrimSpace(in.SessionID) != "" {
+		if savedPath, serr := h.Mgr.SaveSessionSubtitle(in.SessionID, vtt); serr == nil {
+			subFile = savedPath
+		}
+	}
+	webserver.WriteJSON(w, http.StatusOK, map[string]any{
+		"vtt":      string(vtt),
+		"language": lang,
+		"sub_file": subFile,
+	})
 }

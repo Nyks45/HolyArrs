@@ -13,6 +13,7 @@ export const LAYER: Record<string, number> = {
 	mediafiles: 3,
 	sources: 4,
 	downloads: 5,
+	stream: 6,
 	subtitles: 6,
 	mediaservers: 6,
 	alerts: 6,
@@ -97,7 +98,8 @@ const ROUTES: [RegExp, string][] = [
 	[/^routes\/settings\/media-servers/, 'mediaservers'],
 	[/^routes\/settings\/(search|sources)/, 'sources'],
 	[/^routes\/settings\/subtitles/, 'subtitles'],
-	[/^routes\/settings\/tmdb/, 'metadata']
+	[/^routes\/settings\/tmdb/, 'metadata'],
+	[/^routes\/watch\b/, 'stream']
 ];
 
 export function routeModule(file: string): string | null {

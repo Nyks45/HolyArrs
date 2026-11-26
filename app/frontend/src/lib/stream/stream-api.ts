@@ -146,6 +146,103 @@ export interface HLSResponse {
 	start_sec: number;
 }
 
+export interface SubPref {
+	mode: 'off' | 'embedded' | 'site' | 'upload';
+	language?: string;
+	label?: string;
+	index?: number;
+	site_id?: string;
+	site_key?: string;
+	delay_ms?: number;
+	size?: 'sm' | 'md' | 'lg' | 'xl';
+}
+
+export interface WatchEntry {
+	key?: string;
+	user_id?: number;
+	kind: 'movie' | 'show';
+	tmdb: string;
+	imdb?: string;
+	title: string;
+	year?: number;
+	poster?: string;
+	backdrop?: string;
+	season?: number;
+	episode?: number;
+	episode_name?: string;
+	position_sec: number;
+	duration_sec: number;
+	progress_pct?: number;
+	completed?: boolean;
+	source_id?: number;
+	source_name?: string;
+	release_title?: string;
+	release_link?: string;
+	info_hash?: string;
+	resolution?: string;
+	file_index?: number;
+	quality?: string;
+	audio_index?: number;
+	playback_rate?: number;
+	subtitle?: SubPref;
+	updated_at?: string;
+}
+
+export interface WatchHistoryResponse {
+	items: WatchEntry[];
+	continue_watching: WatchEntry[];
+}
+
+export interface TitleWatchResponse {
+	latest: WatchEntry | null;
+	episodes: WatchEntry[];
+}
+
+export interface StreamSubSearchReq {
+	kind: 'movie' | 'show';
+	title: string;
+	year?: number;
+	season?: number;
+	episode?: number;
+	imdb?: string;
+	tmdb?: string;
+	release_name?: string;
+	languages?: string[];
+}
+
+export interface StreamSubCandidate {
+	id: string;
+	site_id: number;
+	site_name: string;
+	site_kind: string;
+	language: string;
+	release_names?: string[];
+	hearing_impaired?: boolean;
+	forced?: boolean;
+	downloads?: number;
+	format?: string;
+	machine_made?: string;
+}
+
+export interface StreamSubSearchResponse {
+	candidates: StreamSubCandidate[];
+	languages: string[];
+}
+
+export interface StreamSubFetchResponse {
+	vtt: string;
+	language?: string;
+	sub_file?: string;
+}
+
+export interface MPVLaunchReq {
+	audio_lang?: string;
+	sub_lang?: string;
+	start_sec?: number;
+	sub_file?: string;
+	watch?: WatchEntry;
+}
+
 export function listStreamSources(kind: 'movie' | 'show'): Promise<StreamSourcesResponse> {
 	return api.get<StreamSourcesResponse>(`/stream/sources?kind=${kind}`);
 }
@@ -174,11 +271,12 @@ export function ensureStreamHLS(id: string, quality: string, audioIndex: number,
 	});
 }
 
-export function launchStreamMPV(id: string, audioLang = '', subLang = ''): Promise<SessionStatus> {
-	return api.post<SessionStatus>(`/stream/${encodeURIComponent(id)}/mpv`, {
-		audio_lang: audioLang,
-		sub_lang: subLang
-	});
+export function launchStreamMPV(id: string, opts: MPVLaunchReq | string = '', legacySubLang = ''): Promise<SessionStatus> {
+	const body: MPVLaunchReq =
+		typeof opts === 'string'
+			? { audio_lang: opts, sub_lang: legacySubLang }
+			: opts;
+	return api.post<SessionStatus>(`/stream/${encodeURIComponent(id)}/mpv`, body);
 }
 
 export function setStreamKeep(id: string, keepFile: boolean): Promise<SessionStatus> {
@@ -187,6 +285,39 @@ export function setStreamKeep(id: string, keepFile: boolean): Promise<SessionSta
 
 export function stopStream(id: string): Promise<void> {
 	return api.del(`/stream/${encodeURIComponent(id)}`);
+}
+
+export function listWatchHistory(limit = 100): Promise<WatchHistoryResponse> {
+	return api.get<WatchHistoryResponse>(`/stream/history?limit=${limit}`);
+}
+
+export function getTitleWatchHistory(kind: 'movie' | 'show', tmdb: string): Promise<TitleWatchResponse> {
+	return api.get<TitleWatchResponse>(`/stream/history/title/${kind}/${encodeURIComponent(tmdb)}`);
+}
+
+export function saveWatchProgress(entry: WatchEntry, keepalive = false): Promise<WatchEntry> {
+	return api.request<WatchEntry>('/stream/history', { method: 'PUT', body: entry, keepalive });
+}
+
+export function deleteWatchHistory(key: string): Promise<void> {
+	return api.del(`/stream/history/${encodeURIComponent(key)}`);
+}
+
+export function searchStreamSubtitles(req: StreamSubSearchReq): Promise<StreamSubSearchResponse> {
+	return api.post<StreamSubSearchResponse>('/stream/subtitles/search', req);
+}
+
+export function fetchStreamSubtitle(id: string, sessionId = ''): Promise<StreamSubFetchResponse> {
+	return api.post<StreamSubFetchResponse>('/stream/subtitles/fetch', { id, session_id: sessionId });
+}
+
+export function uploadStreamSubtitle(filename: string, content: string, language = '', sessionId = ''): Promise<StreamSubFetchResponse> {
+	return api.post<StreamSubFetchResponse>('/stream/subtitles/upload', {
+		filename,
+		language,
+		content,
+		session_id: sessionId
+	});
 }
 
 export function formatSpeed(bps: number): string {
@@ -209,4 +340,15 @@ export function formatDuration(sec: number): string {
 	const s = total % 60;
 	if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 	return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+export function formatTimeLeft(posSec: number, durSec: number): string {
+	if (!durSec || !Number.isFinite(durSec) || durSec <= 0) return '';
+	const rem = Math.max(0, Math.floor(durSec - Math.max(0, posSec)));
+	if (rem < 60) return '< 1m left';
+	const totalMin = Math.round(rem / 60);
+	const h = Math.floor(totalMin / 60);
+	const m = totalMin % 60;
+	if (h > 0) return m > 0 ? `${h}h ${m}m left` : `${h}h left`;
+	return `${totalMin}m left`;
 }

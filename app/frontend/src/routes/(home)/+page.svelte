@@ -42,6 +42,7 @@
 	import { inbox } from '#lib/core/inbox.svelte.ts';
 	import type { DownloadRow } from '#lib/core/types.ts';
 	import type { Ask, LibraryFolder } from '#lib/core/types.ts';
+	import { ContinueWatchingShelf } from '#lib/stream/index.ts';
 
 	// Home is "my stuff": the server sends the row order per person (GET /home); every row hides when it has nothing.
 	let loaded = $state(false);
@@ -371,8 +372,8 @@
 				{#if failed && !home}{:else if overview.shown === 'system'}{#if disk.sysNote}<span class="dot {attentionView.worst}" aria-hidden="true"></span>{disk.sysNote}{/if}{:else}{news}{/if}
 			</p>
 			<div class="acts">
-				<span class="wide-only"><Button variant="secondary" icon="search" href={to('/search')}>{t('home.search')}</Button><Button variant="secondary" icon="compass" href={to('/explore')}>{t('home.explore')}</Button></span>
-				<span class="phone-only"><IconButton icon="search" label={t('home.search')} variant="tinted" size="lg" href={to('/search')} tooltip={false} /><IconButton icon="compass" label={t('home.explore')} variant="tinted" size="lg" href={to('/explore')} tooltip={false} /></span>
+				<span class="wide-only"><Button variant="secondary" icon="clock" href={to('/watch/history')}>Watch history</Button><Button variant="secondary" icon="search" href={to('/search')}>{t('home.search')}</Button><Button variant="secondary" icon="compass" href={to('/explore')}>{t('home.explore')}</Button></span>
+				<span class="phone-only"><IconButton icon="clock" label="Watch history" variant="tinted" size="lg" href={to('/watch/history')} tooltip={false} /><IconButton icon="search" label={t('home.search')} variant="tinted" size="lg" href={to('/search')} tooltip={false} /><IconButton icon="compass" label={t('home.explore')} variant="tinted" size="lg" href={to('/explore')} tooltip={false} /></span>
 			</div>
 		</div>
 	</div>
@@ -468,6 +469,7 @@
 		{/snippet}
 
 		<PageLoader loading={!loaded} label={t('home.loadingHome')} onretry={retry}>
+		<ContinueWatchingShelf from={to('/')} />
 		{#if joinedOn}<JoinedWelcome name={profile.displayName || session.s.name} kinds={joinedKinds} />{/if}
 		{#if welcomeOn && (owner || !joinedOn)}{@render welcomeCard()}{/if}
 		<HomeOverview {overview} {disk} {admin} {settled} {attentionView} {uncheckedParts} {retrying} {retry} {approver} {kid} {uncheckedAsks} {downloading} {mineOpen} {mineDeclined} {fetchingAll} {home} {uncheckedDl} {now} {uncheckedHealth} {health} {picTile} {tileArt} />

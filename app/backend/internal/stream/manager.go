@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
 	"database/sql"
 	"encoding/hex"
@@ -29,6 +30,7 @@ import (
 
 	"github.com/HolyArrs/holyarrs/app/backend/internal/core/database"
 	"github.com/HolyArrs/holyarrs/app/backend/internal/sources"
+	"github.com/HolyArrs/holyarrs/app/backend/internal/subtitles"
 )
 
 var defaultTrackers = []string{
@@ -103,6 +105,8 @@ type SessionStatus struct {
 type Manager struct {
 	Store      *database.Store
 	Secrets    sources.SecretReader
+	Subtitles  *subtitles.Service
+	History    *HistoryStore
 	ConfigDir  string
 	KeepDir    string
 	CacheRoot  string
@@ -137,16 +141,16 @@ type Session struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	mu              sync.Mutex
-	state           string
-	errMsg          string
-	torrent         *torrent.Torrent
-	files           []*torrent.File
-	selected        int
-	probe           *MediaProbe
-	probing         bool
-	probeFailedAt   time.Time
-	hls             *hlsState
+	mu            sync.Mutex
+	state         string
+	errMsg        string
+	torrent       *torrent.Torrent
+	files         []*torrent.File
+	selected      int
+	probe         *MediaProbe
+	probing       bool
+	probeFailedAt time.Time
+	hls           *hlsState
 	mpvCmd        *exec.Cmd
 	mpvRunning    bool
 	lastActivity  time.Time
@@ -163,6 +167,7 @@ func NewManager(store *database.Store, secrets sources.SecretReader, configDir s
 	m := &Manager{
 		Store:      store,
 		Secrets:    secrets,
+		History:    NewHistoryStore(configDir),
 		ConfigDir:  configDir,
 		ListenAddr: listenAddr,
 		sessions:   map[string]*Session{},
@@ -701,6 +706,35 @@ func (m *Manager) SetKeep(id string, keep bool) (SessionStatus, error) {
 	s.lastActivity = time.Now()
 	s.mu.Unlock()
 	return s.status(), nil
+}
+
+// SaveSessionSubtitle saves a converted WebVTT subtitle inside session id's cache directory
+// so desktop mpv can load it securely via --sub-file.
+func (m *Manager) SaveSessionSubtitle(id string, vtt []byte) (string, error) {
+	if len(vtt) == 0 {
+		return "", errors.New("empty subtitle data")
+	}
+	s, ok := m.getSession(id)
+	if !ok {
+		return "", errors.New("stream session not found")
+	}
+	s.mu.Lock()
+	sessDir := s.dir
+	closed := s.closed
+	s.mu.Unlock()
+	if closed || sessDir == "" {
+		return "", errors.New("stream session closed")
+	}
+	subsDir := filepath.Join(sessDir, "subs")
+	if err := os.MkdirAll(subsDir, 0o750); err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(vtt)
+	outPath := filepath.Join(subsDir, "ext_"+hex.EncodeToString(sum[:8])+".vtt")
+	if err := os.WriteFile(outPath, vtt, 0o640); err != nil {
+		return "", err
+	}
+	return outPath, nil
 }
 
 // Stop terminates session id, kills child processes, and cleans up temp storage unless keepFile saved a completed file.

@@ -10,6 +10,15 @@ import (
 // RouteScopes names routes whose scope is not the one the method and
 // RoutePerms give them (see RouteScope).
 var RouteScopes = map[string]string{
+	// Streaming status and history can contain playback tokens or private release links.
+	"GET /api/v1/stream/history":                                 webserver.ScopeAdmin,
+	"GET /api/v1/stream/history/title/{kind}/{tmdb}":             webserver.ScopeAdmin,
+	"GET /api/v1/stream/sessions":                                webserver.ScopeAdmin,
+	"GET /api/v1/stream/sources":                                 webserver.ScopeAdmin,
+	"GET /api/v1/stream/{id}":                                    webserver.ScopeAdmin,
+	"GET /api/v1/stream/{id}/hls/{token}/{gen}/{file}":           webserver.ScopeAdmin,
+	"GET /api/v1/stream/{id}/media/{token}":                      webserver.ScopeAdmin,
+	"GET /api/v1/stream/{id}/sub/{token}/{idx}":                  webserver.ScopeAdmin,
 	"GET /api/v1/plugin-hooks/metadata":                          webserver.ScopeAdmin,
 	"GET /api/v1/plugins/{id}/activity":                          webserver.ScopeAdmin,
 	"GET /api/v1/plugins/{id}/remote/status":                     webserver.ScopeAdmin,

@@ -195,11 +195,24 @@ func TestBuildFFmpegArgs(t *testing.T) {
 }
 
 func TestBuildMPVArgs(t *testing.T) {
-	args := buildMPVArgs("http://127.0.0.1:6262/api/v1/stream/s1/media/tok", "Dune (2021)", "eng,en", "tur,tr")
+	args := buildMPVArgs(
+		"http://127.0.0.1:6262/api/v1/stream/s1/media/tok",
+		"Dune (2021)",
+		MPVOpts{
+			AudioLang: "eng,en",
+			SubLang:   "tur,tr",
+			StartSec:  1234.5,
+			SubFile:   "/tmp/sub.vtt",
+		},
+		"/tmp/mpv.sock",
+	)
 	for _, want := range []string{
 		"--cache=yes",
 		"--alang=eng,en",
 		"--slang=tur,tr",
+		"--start=1234.5",
+		"--sub-file=/tmp/sub.vtt",
+		"--input-ipc-server=/tmp/mpv.sock",
 		"--force-media-title=Dune (2021)",
 	} {
 		if !slices.Contains(args, want) {
@@ -208,6 +221,105 @@ func TestBuildMPVArgs(t *testing.T) {
 	}
 	if args[len(args)-1] != "http://127.0.0.1:6262/api/v1/stream/s1/media/tok" {
 		t.Errorf("last arg = %q, want media URL", args[len(args)-1])
+	}
+}
+
+func TestHistoryStorePersistenceAndContinueWatching(t *testing.T) {
+	cfgDir := t.TempDir()
+	hs := NewHistoryStore(cfgDir)
+
+	// Movie in progress: should retain metadata across periodic progress ticks and appear in continue_watching.
+	if _, err := hs.Upsert(1, WatchEntry{
+		Kind:         "movie",
+		TMDB:         "27205",
+		Title:        "Inception",
+		Year:         2010,
+		Backdrop:     "/back.jpg",
+		PositionSec:  1200,
+		DurationSec:  8880,
+		SourceID:     2,
+		SourceName:   "Knaben",
+		ReleaseTitle: "Inception.2010.1080p",
+		ReleaseLink:  "magnet:?xt=urn:btih:1234",
+		Quality:      "1080p",
+		Subtitle:     &SubPref{Mode: "site", Language: "tr", DelayMS: -250},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	saved, err := hs.Upsert(1, WatchEntry{
+		Kind:        "movie",
+		TMDB:        "27205",
+		PositionSec: 1500,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.Backdrop != "/back.jpg" || saved.SourceName != "Knaben" || saved.Subtitle == nil || saved.Subtitle.Language != "tr" {
+		t.Fatalf("metadata/prefs lost across partial progress upsert: %+v", saved)
+	}
+	if saved.Completed {
+		t.Fatalf("expected movie at 1500/8880 not completed")
+	}
+
+	// Show episodes: E1 completed, E2 in progress -> continue_watching deduplicates to latest episode (E2).
+	if _, err := hs.Upsert(1, WatchEntry{
+		Kind:        "show",
+		TMDB:        "1396",
+		Title:       "Breaking Bad",
+		Season:      1,
+		Episode:     1,
+		EpisodeName: "Pilot",
+		PositionSec: 3400,
+		DurationSec: 3480,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(5 * time.Millisecond)
+	if _, err := hs.Upsert(1, WatchEntry{
+		Kind:        "show",
+		TMDB:        "1396",
+		Title:       "Breaking Bad",
+		Season:      1,
+		Episode:     2,
+		EpisodeName: "Cat's in the Bag...",
+		PositionSec: 600,
+		DurationSec: 2880,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Finished movie (>92%) must be excluded from continue_watching.
+	if _, err := hs.Upsert(1, WatchEntry{
+		Kind:        "movie",
+		TMDB:        "603",
+		Title:       "The Matrix",
+		PositionSec: 7900,
+		DurationSec: 8100,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Reload from disk into fresh HistoryStore.
+	reloaded := NewHistoryStore(cfgDir)
+	items, cw := reloaded.List(1, 50)
+	if len(items) != 4 {
+		t.Fatalf("expected 4 history items after reload, got %d", len(items))
+	}
+	if len(cw) != 2 {
+		t.Fatalf("expected 2 continue_watching entries (Inception + Breaking Bad E2), got %d: %+v", len(cw), cw)
+	}
+
+	latest, eps := reloaded.ForTitle(1, "show", "1396")
+	if latest == nil || latest.Episode != 2 || len(eps) != 2 {
+		t.Fatalf("ForTitle show mismatch: latest=%+v eps=%d", latest, len(eps))
+	}
+
+	if err := reloaded.Delete(1, "movie:27205"); err != nil {
+		t.Fatal(err)
+	}
+	_, cwAfter := reloaded.List(1, 50)
+	if len(cwAfter) != 1 {
+		t.Fatalf("expected 1 continue_watching entry after delete, got %d", len(cwAfter))
 	}
 }
 

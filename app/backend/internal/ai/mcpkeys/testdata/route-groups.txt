@@ -33,6 +33,8 @@ DELETE /api/v1/plugins/{id} admin
 DELETE /api/v1/settings/old-app-api/keys/{side} admin
 DELETE /api/v1/settings/trakt-signin delete
 DELETE /api/v1/sources/{id} delete
+DELETE /api/v1/stream/history/{key} delete
+DELETE /api/v1/stream/{id} delete
 DELETE /api/v1/subtitle-sites/{id} delete
 DELETE /api/v1/titles/{id}/follow delete
 DELETE /api/v1/titles/{id}/versions/{vid} delete
@@ -277,6 +279,14 @@ GET /api/v1/shows/lookup see
 GET /api/v1/sources see
 GET /api/v1/sources/sites see
 GET /api/v1/sources/{id}/stats see
+GET /api/v1/stream/history see
+GET /api/v1/stream/history/title/{kind}/{tmdb} see
+GET /api/v1/stream/sessions see
+GET /api/v1/stream/sources see
+GET /api/v1/stream/{id} see
+GET /api/v1/stream/{id}/hls/{token}/{gen}/{file} see
+GET /api/v1/stream/{id}/media/{token} see
+GET /api/v1/stream/{id}/sub/{token}/{idx} see
 GET /api/v1/subtitle-sites see
 GET /api/v1/subtitle-sites/kinds see
 GET /api/v1/subtitles/languages see
@@ -593,6 +603,14 @@ POST /api/v1/sources/{id}/try settings
 POST /api/v1/stages/{name}/pause admin
 POST /api/v1/stages/{name}/restart admin
 POST /api/v1/stages/{name}/resume admin
+POST /api/v1/stream/search control
+POST /api/v1/stream/start add
+POST /api/v1/stream/subtitles/fetch add
+POST /api/v1/stream/subtitles/search control
+POST /api/v1/stream/subtitles/upload add
+POST /api/v1/stream/{id}/file add
+POST /api/v1/stream/{id}/hls add
+POST /api/v1/stream/{id}/mpv add
 POST /api/v1/subtitle-sites settings
 POST /api/v1/subtitle-sites/{id}/test settings
 POST /api/v1/subtitles/clean delete
@@ -714,6 +732,8 @@ PUT /api/v1/settings/ui settings
 PUT /api/v1/settings/url-base admin
 PUT /api/v1/settings/watch-history settings
 PUT /api/v1/sources/{id} settings
+PUT /api/v1/stream/history add
+PUT /api/v1/stream/{id}/keep add
 PUT /api/v1/subtitle-sites/{id} settings
 PUT /api/v1/titles/{id} add
 PUT /api/v1/titles/{id}/artist add

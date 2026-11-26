@@ -15,7 +15,19 @@
 
 	type Ep = { number: number; name?: string; overview?: string; runtime?: number; still?: string; air_day?: string };
 
-	let { tmdb, seasons, fallback, onstream }: { tmdb: string; seasons: { number: number; episodes: number; year?: number }[]; fallback?: string | null; onstream?: (season: number, episode: number) => void } = $props();
+	let {
+		tmdb,
+		seasons,
+		fallback,
+		onstream,
+		progress = {}
+	}: {
+		tmdb: string;
+		seasons: { number: number; episodes: number; year?: number }[];
+		fallback?: string | null;
+		onstream?: (season: number, episode: number) => void;
+		progress?: Record<string, { progress_pct: number; completed: boolean; position_sec: number }>;
+	} = $props();
 
 	let picked = $state<number | null>(null);
 	let eps = $state<Record<number, Ep[] | 'error'>>({});
@@ -90,16 +102,20 @@
 				{#key shown}
 					<Shelf title={t('shows.folds.seasonEpisodes', { season: seasonName(shown) })} item="260px" placeholder="wide" whole>
 						{#each cards(shown) as c (c.key)}
+							{@const epProg = progress[`${shown}:${c.key}`]}
 							<article class="ep">
 								<span class="still">
 									{#if !c.still || stillState[`${shown}:${c.key}`] !== 'ok'}<ArtPlaceholder name={!c.still || stillState[`${shown}:${c.key}`] === 'bad' ? c.name.replace(/^\d+\.\s*/, '') : ''} shape="wide" loading={!!c.still && !stillState[`${shown}:${c.key}`]} />{/if}
 									{#if c.still && stillState[`${shown}:${c.key}`] !== 'bad'}<img src={sized(c.still, 'backdrop', 300)} alt="" loading="lazy" decoding="async" onload={() => (stillState[`${shown}:${c.key}`] = 'ok')} onerror={() => (stillState[`${shown}:${c.key}`] = 'bad')} />{/if}
+									{#if epProg?.completed}
+										<span class="ep-done" title="Watched"><Icon name="check" size={12} /></span>
+									{/if}
 									{#if onstream}
 										<button
 											type="button"
 											class="ep-play"
 											aria-label={`Stream ${seasonName(shown)} ${c.name}`}
-											title="Stream this episode"
+											title={epProg && !epProg.completed ? 'Resume episode' : 'Stream this episode'}
 											onclick={(e) => {
 												e.stopPropagation();
 												onstream(shown, c.key);
@@ -107,6 +123,9 @@
 										>
 											<Icon name="play" size={14} />
 										</button>
+									{/if}
+									{#if epProg && epProg.progress_pct > 0}
+										<span class="ep-prog"><i style="width: {Math.min(100, epProg.progress_pct)}%"></i></span>
 									{/if}
 								</span>
 								<b class="ep-name">{c.name}</b>
@@ -143,6 +162,9 @@
 	.ep-play { position: absolute; right: 8px; bottom: 8px; z-index: 2; display: inline-grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 1px solid rgb(255 255 255 / 24%); border-radius: 999px; background: rgb(15 15 18 / 78%); color: #fff; cursor: pointer; backdrop-filter: blur(8px); transition: transform var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out); }
 	.ep-play:hover { background: #fff; color: #111; transform: scale(1.06); }
 	.ep-play:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+	.ep-done { position: absolute; top: 8px; right: 8px; z-index: 2; display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 999px; background: rgb(34 197 94 / 90%); color: #fff; }
+	.ep-prog { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; height: 4px; background: rgb(255 255 255 / 26%); }
+	.ep-prog i { display: block; height: 100%; background: #e50914; }
 	.ep-name { font: 600 15px/1.3 var(--font-ui); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 	.ep-text { margin: 2px 0 0; color: var(--text-muted); font: 400 13.5px/1.4 var(--font-ui); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
 	.sk { display: flex; gap: 12px; margin-top: 12px; }

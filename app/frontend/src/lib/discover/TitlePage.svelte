@@ -52,7 +52,12 @@
 	import type { MenuItem } from '#lib/ui/Menu.svelte';
 	import HideSheet from './HideSheet.svelte';
 	import CheckReleasesSheet from './CheckReleasesSheet.svelte';
-	import StreamSheet from '#lib/stream/StreamSheet.svelte';
+	import {
+		StreamSheet,
+		formatDuration,
+		getTitleWatchHistory,
+		type WatchEntry
+	} from '#lib/stream/index.ts';
 	import { chosenToast } from '#lib/mediafiles/index.ts';
 	import type { Choice, ReleaseView } from '#lib/core/types.ts';
 	import { hiddenPill, type Hide } from './hidden.ts';
@@ -157,11 +162,53 @@
 	let streamOpen = $state(false);
 	let streamSeason = $state(1);
 	let streamEpisode = $state(1);
+	let watchLatest = $state<WatchEntry | null>(null);
+	let watchEpisodes = $state<WatchEntry[]>([]);
+	const watchEpisodesByKey = $derived.by(() => {
+		const map: Record<string, { progress_pct: number; completed: boolean; position_sec: number }> = {};
+		for (const ep of watchEpisodes) {
+			map[`${ep.season ?? 0}:${ep.episode ?? 0}`] = {
+				progress_pct: ep.progress_pct ?? 0,
+				completed: !!ep.completed,
+				position_sec: ep.position_sec
+			};
+		}
+		return map;
+	});
+	function watchHref(resume: boolean, s?: number, e?: number): string {
+		const back = detailPath(kind === 'show' ? 'show' : 'movie', tmdb);
+		if (kind === 'show') {
+			const ss = s ?? watchLatest?.season ?? seasons.find((x) => x.number > 0)?.number ?? 1;
+			const ee = e ?? watchLatest?.episode ?? 1;
+			return to(`/watch/show/${encodeURIComponent(tmdb)}?s=${ss}&e=${ee}&resume=${resume ? '1' : '0'}&from=${encodeURIComponent(back)}`);
+		}
+		return to(`/watch/movie/${encodeURIComponent(tmdb)}?resume=${resume ? '1' : '0'}&from=${encodeURIComponent(back)}`);
+	}
 	function openStream(s = 1, e = 1) {
 		streamSeason = s;
 		streamEpisode = e;
 		streamOpen = true;
 	}
+	$effect(() => {
+		const k = kind;
+		const id = tmdb;
+		watchLatest = null;
+		watchEpisodes = [];
+		if (k !== 'movie' && k !== 'show') return;
+		if (!id) return;
+		let alive = true;
+		void getTitleWatchHistory(k, id).then(
+			(res) => {
+				if (!alive) return;
+				watchLatest = res.latest;
+				watchEpisodes = res.episodes ?? [];
+			},
+			() => {}
+		);
+		return () => {
+			alive = false;
+		};
+	});
 	let askMovieDialog: ReturnType<typeof AskMovieDialog> | undefined = $state();
 	let loadedSettings = false;
 	async function load(k: string, id: string) {
@@ -506,14 +553,35 @@
 					{/if}
 				{/if}
 				{#if d.kind === 'movie' || d.kind === 'show'}
-					<ActionButton
-						icon="play"
-						pill
-						label={`Stream ${d.name}`}
-						caption="Stream"
-						onclick={() => openStream(seasons.find((s) => s.number > 0)?.number ?? 1, 1)}
-						data-testid="hero-stream"
-					/>
+					{#if watchLatest && !watchLatest.completed && watchLatest.position_sec > 10}
+						<ActionButton
+							icon="play"
+							primary
+							label={`Resume ${d.name}`}
+							caption={d.kind === 'show' && watchLatest.season
+								? `Resume S${String(watchLatest.season).padStart(2, '0')} E${String(watchLatest.episode ?? 1).padStart(2, '0')} · ${formatDuration(watchLatest.position_sec)}`
+								: `Resume · ${formatDuration(watchLatest.position_sec)}`}
+							href={watchHref(true)}
+							data-testid="hero-resume"
+						/>
+						<ActionButton
+							icon="source"
+							pill
+							label={`Pick stream source for ${d.name}`}
+							caption="Sources"
+							onclick={() => openStream(watchLatest?.season || (seasons.find((s) => s.number > 0)?.number ?? 1), watchLatest?.episode || 1)}
+							data-testid="hero-stream"
+						/>
+					{:else}
+						<ActionButton
+							icon="play"
+							pill
+							label={`Watch ${d.name}`}
+							caption="Watch"
+							href={watchHref(false)}
+							data-testid="hero-stream"
+						/>
+					{/if}
 				{/if}
 				{#if d.kind === 'show' || d.kind === 'movie'}<FollowButton titleId={owned?.id} tmdb={d.tmdb} kind={d.kind} />{/if}
 				{#if mayHide && !owned}<ActionMenu label={t('discover.titlePage.moreActions')} caption={t('discover.titlePage.more')} icon="more" items={[hideItem]} />{/if}
@@ -587,7 +655,7 @@
 			</dl>
 		</div>
 		{@render trailers()}
-		{#if d.kind === 'show'}<SeasonFolds tmdb={d.tmdb} {seasons} fallback={d.backdrop} onstream={(s, e) => openStream(s, e)} />{/if}
+		{#if d.kind === 'show'}<SeasonFolds tmdb={d.tmdb} {seasons} fallback={d.backdrop} progress={watchEpisodesByKey} onstream={(s, e) => void goto(watchHref(true, s, e))} />{/if}
 		{@render castRow()}
 		<PluginCards cards={pluginSections} testid="title-plugin-sections" />
 		<TitleRows kind={d.kind} tmdb={d.tmdb} bind:info band={false} quickAsk={QuickAsk} ownAsk={d.kind === 'movie' && d.ask?.mine ? d.ask.state : undefined} onasked={(a) => { if (details && !a.four_k) details = { ...details, ask: { id: a.id, state: a.state, state_label: a.state_label, mine: true, people: a.people.length } }; }} onadded={ownAdded} />

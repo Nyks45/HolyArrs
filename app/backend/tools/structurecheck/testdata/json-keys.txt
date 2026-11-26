@@ -236,6 +236,8 @@ attention
 attributes
 attribution
 audio
+audio_index
+audio_lang
 audio_languages
 audio_tracks
 audio_unknown
@@ -394,6 +396,8 @@ closed_at
 closed_by
 code
 codec
+codec_name
+codec_type
 codecs
 cold
 collection
@@ -488,6 +492,7 @@ default_off
 default_pick_rules_id
 default_url
 defaults
+delay_ms
 delay_profiles
 deleteFiles
 delete_files
@@ -515,6 +520,7 @@ digital
 digitalRelease
 digital_date
 dir
+direct_playable
 directors
 disabled_reason
 disambiguation
@@ -551,6 +557,7 @@ downloadCount
 downloadId
 downloadSpeed
 downloadUri
+download_bps
 download_clients
 download_count
 download_dir
@@ -558,6 +565,7 @@ download_id
 download_path
 download_payload_rate
 downloaded
+downloaded_bytes
 downloader
 downloader_folders
 downloader_gone
@@ -581,6 +589,7 @@ dry
 dry_run
 duplicates
 duration
+duration_sec
 each_limit
 early_release_grace_hours
 echoed
@@ -693,11 +702,13 @@ fields
 file
 file_id
 file_ids
+file_index
 file_lock_reason
 file_name
 file_path
 file_pattern
 file_rules
+file_size
 file_url
 filelist
 filename
@@ -746,6 +757,7 @@ foreign_parts_only
 forgotten
 format
 formatItems
+format_name
 formats
 forward
 found
@@ -932,6 +944,7 @@ ip
 isAvailable
 isUpgrade
 is_finished
+is_pack
 is_private
 iso_3166_1
 iso_639_1
@@ -957,6 +970,7 @@ k
 kbpersec
 kdf
 keep
+keep_file
 keep_specials
 keep_up_to_date
 kept
@@ -1125,6 +1139,7 @@ mediaInfo
 mediaServerType
 media_server
 media_type
+media_url
 mediatype
 meets_version
 member
@@ -1213,6 +1228,7 @@ movies_per_week
 moviethumb
 mp4_audio
 mp4_url
+mpv_running
 ms
 msg
 multi_disc_track_pattern
@@ -1476,6 +1492,7 @@ picture_big
 picture_xl
 pictures
 pin
+pix_fmt
 place
 place_of_birth
 placed_by
@@ -1487,6 +1504,7 @@ plans
 platforms
 play_count
 playabilityStatus
+playback_rate
 playerStoryboardSpecRenderer
 plays
 plex
@@ -1502,6 +1520,7 @@ pop
 popularity
 port
 position
+position_sec
 posted_at
 poster
 poster_path
@@ -1531,6 +1550,7 @@ primary_language
 primary_type
 priority
 private
+probe
 problem
 processes
 production_companies
@@ -1540,6 +1560,7 @@ profile_key
 profile_path
 profiles
 progress
+progress_pct
 proper
 proper_policy
 propertyName
@@ -1561,6 +1582,7 @@ proxy_password
 proxy_url
 public_client
 publishDate
+published
 published_at
 qbittorrent
 qid
@@ -1648,11 +1670,13 @@ release_group_id
 release_groups
 release_groups_complete
 release_id
+release_link
 release_name
 release_names
 release_profiles
 release_statuses
 release_tests
+release_title
 released
 released_at
 releases
@@ -1679,6 +1703,7 @@ reply
 repo
 report
 report_id
+request_id
 requested_by
 requests
 require_two_factor_admins
@@ -1686,6 +1711,7 @@ required
 res
 reset_time_utc
 resolution
+resolution_num
 resource
 resources
 restart_needed
@@ -1794,6 +1820,7 @@ seen_at
 seen_complete
 seerr
 selected
+selected_file
 selections
 sendUpdatesToClient
 sending
@@ -1815,6 +1842,7 @@ service
 services
 sessionId
 session_down
+session_id
 session_up
 settings
 setup_recent
@@ -1863,6 +1891,7 @@ site_kind
 site_language
 site_link
 site_login
+site_name
 site_score
 site_url
 site_user
@@ -1911,7 +1940,9 @@ sourceType
 source_data
 source_file
 source_id
+source_ids
 source_name
+source_tag
 sources
 spacing
 spec
@@ -1939,6 +1970,7 @@ stars
 start
 start_dir
 start_error
+start_sec
 started
 started_at
 starts
@@ -1959,6 +1991,7 @@ stopped
 storage
 store_albums
 storyboards
+stream_index
 streaming
 streamingData
 streaming_region
@@ -1968,12 +2001,15 @@ stuck
 studio
 studios
 sub
+sub_file
+sub_lang
 subdl
 subject
 subs
 subsonic-response
 subtitle
 subtitleId
+subtitle_tracks
 subtitles
 success_count
 suggest
@@ -2242,6 +2278,7 @@ versions
 via
 via_plugin
 videoDetails
+video_codec
 videoname
 videos
 view
@@ -2263,6 +2300,7 @@ warnings
 was_admin
 was_owner
 wasted
+watch
 watch_folders
 watched_edition
 watching

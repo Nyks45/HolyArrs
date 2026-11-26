@@ -35,7 +35,9 @@ const notWords = new Set(['dash', 'each', 'range', 'smart', 'remove', 'normal', 
 	"this plugin has too many calls open; try again when one ends", "this plugin does not give remote access",
 	"send {\"subject\": \"...\", \"text\": \"...\"}: up to 100 and 1000 characters, no markup", "the message could not be sent", "this plugin sent too many messages this hour",
 	// migrate errNotChecked: a dry run's own marker, never shown (the page says how many shows are still being checked).
-	'still being checked']);
+	'still being checked',
+	// Direct stream API validation lines.
+	'stream session not found', 'subtitle content is empty', 'subtitle file exceeds 5 MB limit', 'subtitle service is unavailable', 'watch history is unavailable']);
 // Lines the scan cannot put together: a control's Event starts with the person's name (setup ControlEvent)
 // and takes its verb from a map; a removal's reason may name who removed it.
 const handLines = { 'Because you have {name}': 'suggest', 

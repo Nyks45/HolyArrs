@@ -41,6 +41,7 @@
 	import { session } from '#lib/core/session.svelte.ts';
 	import type { Ask, TitleView } from '#lib/core/types.ts';
 	import { onTheaterExit } from '#lib/core/trailer/theater.svelte.ts';
+	import { ContinueWatchingShelf } from '#lib/stream/index.ts';
 
 	let loaded = $state(false);
 	let failed = $state(false);
@@ -624,6 +625,7 @@
 			{:else if heroWait && !genreView.genreOn}
 				<div class="hero-wait" data-testid="hero-placeholder" aria-hidden="true"><Skeleton shape="block" /></div>
 			{/if}
+			{#if !genreView.genreOn}<ContinueWatchingShelf from={to('/explore')} />{/if}
 			{#if bannerView.bannerOn && bannerView.favourite}
 				<GenreBanner
 					layout={bannerView.bannerLayout === 2 ? 2 : 1}

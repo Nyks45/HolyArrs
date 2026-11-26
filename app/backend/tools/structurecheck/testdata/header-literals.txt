@@ -1,6 +1,7 @@
 Accept
 Accept-Encoding
 Accept-Language
+Accept-Ranges
 Access-Control-Allow-Origin
 Allow
 Api-Key

@@ -359,6 +359,7 @@
 	const staff = $derived(allowed('staff'));
 	const mark = $derived(theme.value === 'light' ? '/brand/mark-color.svg' : '/brand/mark-color-on-dark.svg');
 	const bare = $derived(path === '/login' || path === '/plex-done' || path.startsWith('/invite/'));
+	const cinema = $derived(path.startsWith('/watch/') && path !== '/watch/history');
 	const firstRunWelcome = $derived(path === '/welcome' && page.url.searchParams.get('first') === '1');
 	const ready = $derived(session.s.state === 'signed_in');
 
@@ -526,6 +527,8 @@
 	<div class="boot" aria-busy="true" aria-label={t('frame.layout.loading')}><img src={to(mark)} alt="" width="40" height="40" /></div>
 {:else if firstRunWelcome}
 	<main id="main">{@render children()}</main>
+{:else if cinema}
+	{@render children()}
 {:else if session.s.setupOpen && path !== '/login'}
 	<!-- On the way to the first-run setup: draw nothing, so no app page shows before it. -->
 {:else}

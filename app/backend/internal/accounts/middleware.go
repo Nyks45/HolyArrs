@@ -320,6 +320,16 @@ func wantsPage(r *http.Request) bool {
 func mcpPath(p string) bool { return p == "/api/v1/mcp" || p == "/mcp" }
 
 func streamPublicPath(p string) bool {
+	if rest, ok := strings.CutPrefix(p, "/api/v1/streaming/proxy/"); ok {
+		parts := strings.Split(rest, "/")
+		if len(parts) == 1 && parts[0] != "" && parts[0] != "poster" {
+			return true
+		}
+		if len(parts) == 2 && parts[0] != "" && parts[0] != "poster" && parts[1] == "hls" {
+			return true
+		}
+		return false
+	}
 	rest, ok := strings.CutPrefix(p, "/api/v1/stream/")
 	if !ok {
 		return false

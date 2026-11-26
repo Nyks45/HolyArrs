@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { activeCuesAt, parseWebVTT } from './vtt.ts';
+import { resolveSubtitleStyle, scaleHexBrightness, stripSdhCueLines } from './subtitle-style.ts';
 
 describe('WebVTT cue engine', () => {
 	const sample = `WEBVTT
@@ -35,5 +36,37 @@ MM:SS timing cue`;
 		expect(activeCuesAt(cues, 9.2, 1000)).toHaveLength(1);
 		// -1000ms delay means the 5s-8.5s subtitle renders earlier (4s-7.5s).
 		expect(activeCuesAt(cues, 4.2, -1000)).toHaveLength(1);
+	});
+
+	it('strips SDH sound descriptions and speaker tags while keeping dialogue', () => {
+		const cleaned = stripSdhCueLines([
+			'[DRAMATIC MUSIC PLAYING]',
+			'(sighs heavily)',
+			'JOHN DOE: We have to leave now.',
+			'- NARRATOR: And so it began.',
+			'♪ humming softly ♪',
+			'Keep ordinary lines intact.'
+		]);
+		expect(cleaned).toEqual(['We have to leave now.', '- And so it began.', 'Keep ordinary lines intact.']);
+	});
+
+	it('scales HDR-dimmed white brightness accurately', () => {
+		expect(scaleHexBrightness('#ffffff', 40)).toBe('#949494');
+		expect(scaleHexBrightness('#ffffff', 100)).toBe('#ffffff');
+		const resolved = resolveSubtitleStyle({
+			color: '#ffffff',
+			bg_color: '#000000',
+			bg_opacity: 0.5,
+			size: 1.2,
+			offset_pct: 8,
+			hdr_dimmed: true,
+			hdr_brightness: 40,
+			strip_sdh: true,
+			font_family: 'serif'
+		});
+		expect(resolved.color).toBe('#949494');
+		expect(resolved.background).toBe('rgba(0, 0, 0, 0.50)');
+		expect(resolved.bottomPct).toBe(8);
+		expect(resolved.fontFamilyCss).toContain('Georgia');
 	});
 });

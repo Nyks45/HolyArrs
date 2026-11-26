@@ -22,6 +22,7 @@ var layers = map[string]int{
 	"subtitles":    8,
 	"mediaservers": 8,
 	"alerts":       8,
+	"stream":       9,
 	"movies":       9,
 	"shows":        9,
 	"music":        11,

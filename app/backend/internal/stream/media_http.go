@@ -2,6 +2,7 @@ package stream
 
 import (
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -38,16 +39,48 @@ func (m *Manager) ServeMedia(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sess.mu.Lock()
-	if sess.closed || sess.selected < 0 || sess.selected >= len(sess.files) {
+	if sess.closed || (!sess.hasPlayableTargetLocked() && sess.localFilePath == "") {
 		sess.mu.Unlock()
 		http.Error(w, "stream not ready", http.StatusServiceUnavailable)
 		return
 	}
-	file := sess.files[sess.selected]
+	localPath := sess.localFilePath
+	var file = (*torrent.File)(nil)
+	if localPath == "" {
+		if sess.selected < 0 || sess.selected >= len(sess.files) {
+			sess.mu.Unlock()
+			http.Error(w, "stream not ready", http.StatusServiceUnavailable)
+			return
+		}
+		file = sess.files[sess.selected]
+	}
 	createdAt := sess.createdAt
 	sess.mu.Unlock()
 
 	sess.touch()
+	if localPath != "" {
+		f, err := os.Open(localPath)
+		if err != nil {
+			http.Error(w, "local file unavailable", http.StatusNotFound)
+			return
+		}
+		defer f.Close()
+		st, err := f.Stat()
+		if err != nil || st.IsDir() {
+			http.Error(w, "local file unavailable", http.StatusNotFound)
+			return
+		}
+		name := filepath.Base(localPath)
+		w.Header().Set("Content-Type", contentTypeForExt(name))
+		w.Header().Set("Accept-Ranges", "bytes")
+		w.Header().Set("Cache-Control", "no-store")
+		mod := st.ModTime()
+		if mod.IsZero() {
+			mod = createdAt
+		}
+		http.ServeContent(w, r, name, mod, f)
+		return
+	}
 	tr := file.NewReader()
 	defer tr.Close()
 	tr.SetContext(r.Context())

@@ -81,7 +81,8 @@ func (m *Manager) LaunchMPV(id string, opts MPVOpts) error {
 	}
 
 	sess.mu.Lock()
-	if sess.closed || sess.selected < 0 || sess.selected >= len(sess.files) {
+	mediaURL, _, _, targetOK := sess.localOrMediaTargetLocked(m.localBaseURL())
+	if sess.closed || !targetOK {
 		sess.mu.Unlock()
 		return errors.New("stream file is not ready yet")
 	}
@@ -97,7 +98,6 @@ func (m *Manager) LaunchMPV(id string, opts MPVOpts) error {
 		title = sess.releaseTitle
 	}
 	ipcSock := filepath.Join(sess.dir, fmt.Sprintf("mpv-%d.sock", time.Now().UnixNano()))
-	mediaURL := m.localBaseURL() + sess.mediaPath()
 	args := buildMPVArgs(mediaURL, title, opts, ipcSock)
 	cmd := exec.Command(mpvBin, args...)
 	cmd.Env = os.Environ()

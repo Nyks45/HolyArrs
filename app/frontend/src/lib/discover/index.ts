@@ -23,6 +23,8 @@ export { default as CalListRows } from './CalListRows.svelte';
 export { default as CategoryStrip } from './CategoryStrip.svelte';
 export { default as ComingSoon } from './ComingSoon.svelte';
 export { default as ExploreHero } from './ExploreHero.svelte';
+export { default as ExploreHubBar } from './ExploreHubBar.svelte';
+export { createExploreHub, DEFAULT_HUBS, type ExploreHubInfo } from './explore-hub.svelte.ts';
 export { default as FollowWho } from './FollowWho.svelte';
 export { default as GenreBanner } from './GenreBanner.svelte';
 export { default as HiddenCard } from './HiddenCard.svelte';

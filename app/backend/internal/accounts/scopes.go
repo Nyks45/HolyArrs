@@ -701,28 +701,6 @@ var RoutePerms = map[string]webserver.Perm{
 	"POST /api/v1/reports":             webserver.NeedSignedIn,
 	"POST /api/v1/reports/{id}/fix":    webserver.PermManageLibrary,
 	"POST /api/v1/reports/{id}/reopen": webserver.PermManageLibrary,
-
-	// Direct torrent streaming.
-	"GET /api/v1/stream/sources":                       webserver.NeedSignedIn,
-	"POST /api/v1/stream/search":                       webserver.NeedSignedIn,
-	"POST /api/v1/stream/start":                        webserver.NeedSignedIn,
-	"GET /api/v1/stream/sessions":                      webserver.NeedSignedIn,
-	"GET /api/v1/stream/history":                       webserver.NeedSignedIn,
-	"GET /api/v1/stream/history/title/{kind}/{tmdb}":   webserver.NeedSignedIn,
-	"PUT /api/v1/stream/history":                       webserver.NeedSignedIn,
-	"DELETE /api/v1/stream/history/{key}":              webserver.NeedSignedIn,
-	"POST /api/v1/stream/subtitles/search":             webserver.NeedSignedIn,
-	"POST /api/v1/stream/subtitles/fetch":              webserver.NeedSignedIn,
-	"POST /api/v1/stream/subtitles/upload":             webserver.NeedSignedIn,
-	"GET /api/v1/stream/{id}":                          webserver.NeedSignedIn,
-	"POST /api/v1/stream/{id}/file":                    webserver.NeedSignedIn,
-	"POST /api/v1/stream/{id}/hls":                     webserver.NeedSignedIn,
-	"POST /api/v1/stream/{id}/mpv":                     webserver.NeedSignedIn,
-	"PUT /api/v1/stream/{id}/keep":                     webserver.NeedSignedIn,
-	"DELETE /api/v1/stream/{id}":                       webserver.NeedSignedIn,
-	"GET /api/v1/stream/{id}/media/{token}":            webserver.NeedPublic,
-	"GET /api/v1/stream/{id}/hls/{token}/{gen}/{file}": webserver.NeedPublic,
-	"GET /api/v1/stream/{id}/sub/{token}/{idx}":        webserver.NeedPublic,
 }
 
 // Scopes lists the scopes a key may be given.

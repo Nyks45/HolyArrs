@@ -21,6 +21,7 @@ Cross-Origin-Resource-Policy
 ETag
 Forwarded
 If-None-Match
+If-Range
 Last-Event-ID
 Location
 MCP-Protocol-Version
@@ -47,6 +48,7 @@ X-API-KEY
 X-API-Key
 X-Api-Key
 X-Application-Version
+X-Client-ID
 X-Content-Type-Options
 X-Emby-Token
 X-Fetch
@@ -67,5 +69,6 @@ X-Transmission-Session-Id
 X-XSRF-TOKEN
 X-YouTube-Client-Name
 X-YouTube-Client-Version
+simkl-api-key
 trakt-api-key
 trakt-api-version

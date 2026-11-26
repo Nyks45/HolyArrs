@@ -73,6 +73,7 @@ absoluteEpisodeNumber
 absoluteNumber
 absolute_digits
 absolute_from
+accent
 access
 accessToken
 access_token
@@ -100,6 +101,8 @@ added_on
 addic7ed
 adding
 addition_date
+addon_id
+addon_name
 address
 addresses
 admin
@@ -176,6 +179,7 @@ anilist
 anime
 anime_library_folder_id
 anime_pattern
+anime_skip_client_id
 answered
 apiKey
 api_compat
@@ -251,7 +255,13 @@ author_details
 authorization_endpoint
 auto_approved
 auto_browser
+auto_fallback
+auto_play_fastest
+auto_resolve_debrid
 auto_search
+auto_skip_intro
+auto_skip_outro
+auto_skip_recap
 auto_update_safe
 autoplay_trailers
 availability
@@ -268,19 +278,24 @@ back
 backdrop
 backdrop_path
 backdrops
+background
 backgrounds
 bad
 badge
 badges
 banner
 barcode
+base_url
 batch
 bazarr
+behaviorHints
 belongs_to_collection
 better
 better_days
 better_hours
 better_wanted
+bg_color
+bg_opacity
 bio
 biography
 birth_place
@@ -334,6 +349,7 @@ can_read
 can_run
 can_swap
 candidate
+candidate_id
 candidates
 cap
 caps
@@ -342,6 +358,8 @@ card_logo
 cards
 cast
 cat
+catalog_id
+catalogs
 categories
 category
 category_after_import
@@ -356,6 +374,7 @@ changed
 changelog_url
 changes
 channels
+chapters
 character
 characters
 chart_rank
@@ -420,6 +439,7 @@ conf
 confidence
 config
 config_dir
+configured
 confirm
 confirm_everyone
 confirm_no_way_in
@@ -466,6 +486,7 @@ cursor
 customFormatScore
 customFormats
 custom_formats
+customer_id
 cut
 cutoff
 cutoffFormatScore
@@ -487,6 +508,7 @@ dead_metadata_minutes
 death_place
 deathday
 deb
+debrid_provider
 decade
 decided_at
 decided_by
@@ -525,6 +547,7 @@ digitalRelease
 digital_date
 dir
 direct_playable
+direct_url
 directors
 disabled_reason
 disambiguation
@@ -612,6 +635,10 @@ enable_usenet
 enabled
 enabledFeatures
 end
+endTime
+end_ms
+end_sec
+end_time
 ended
 ended_at
 english
@@ -666,6 +693,8 @@ every_minutes
 every_s
 everyone
 exception
+exclude_3d
+exclude_terms
 exclusions
 exec_error
 exists
@@ -705,8 +734,10 @@ fell_back
 fetched_at
 fields
 file
+fileIdx
 file_id
 file_ids
+file_idx
 file_index
 file_lock_reason
 file_name
@@ -755,6 +786,7 @@ followedBy
 followed_at
 followers
 following
+font_family
 for_work
 force
 forced
@@ -845,6 +877,8 @@ have
 haves
 hdmovielogo
 hdr
+hdr_brightness
+hdr_dimmed
 head
 headers
 health
@@ -890,6 +924,8 @@ i
 icon
 icon_url
 id
+idPrefixes
+id_prefixes
 ids
 ignore_picture_tracks
 illegal
@@ -925,6 +961,7 @@ index
 indexer
 indexerFlags
 indexerId
+indexer_id
 indexer_proxies
 indexers
 indexes
@@ -945,7 +982,9 @@ installed
 installed_access
 installed_version
 instanceName
+instant
 interval
+intro
 ip
 isAvailable
 isUpgrade
@@ -1086,8 +1125,10 @@ listeners
 listeners_change_today
 live_key
 local
+local_file_id
 local_network_allowed
 local_networks
+local_only
 local_path
 local_person
 local_recent
@@ -1121,9 +1162,11 @@ main
 major
 mal
 manifest_sha256
+manifest_url
 mapped
 mappedMovieId
 mappedSeriesId
+masked_key
 match
 matched
 matched_at
@@ -1134,6 +1177,7 @@ max_age_days
 max_rating
 max_rps
 max_s
+max_size_gb
 max_uses
 may_ask
 mb
@@ -1257,6 +1301,7 @@ musicbrainz
 musicbrainz_allow_local_network
 musicbrainz_url
 must_have
+myanimelist
 n
 name
 nameTranslations
@@ -1356,6 +1401,7 @@ off_reason
 official
 offset
 offset_ms
+offset_pct
 ok
 old_episodes
 old_id
@@ -1397,6 +1443,7 @@ ours
 outcome
 outcomes
 outputPath
+outro
 outside
 outside_list
 outside_lists
@@ -1459,6 +1506,7 @@ paths
 patterns
 pause_reason
 paused
+paused_at
 paused_until
 payload
 peak
@@ -1528,6 +1576,7 @@ popularity
 port
 position
 position_sec
+post_credits
 posted_at
 poster
 poster_path
@@ -1536,6 +1585,7 @@ prebuild_min_hours
 prefer
 preferred
 preferred_protocol
+preferred_quality
 preferred_username
 prefetch
 premiered
@@ -1580,10 +1630,12 @@ provider
 provider_id
 provider_name
 provider_pages
+provider_type
 providers
 provides
 prowlarr
 proxy
+proxyHeaders
 proxy_allow_local_network
 proxy_password
 proxy_url
@@ -1633,6 +1685,7 @@ reading
 ready
 reason
 reasons
+recap
 recent
 recheck_progress
 recommendations
@@ -1654,6 +1707,7 @@ region
 regions
 rejected
 rejections
+rel_path
 related
 relations
 relativePath
@@ -1667,6 +1721,7 @@ release-groups
 releaseDate
 releaseGroup
 releaseGroups
+releaseInfo
 releaseType
 releaseWeight
 release_date
@@ -1711,6 +1766,7 @@ reply
 repo
 report
 report_id
+request
 request_id
 requested_by
 requests
@@ -1722,6 +1778,7 @@ resolution
 resolution_num
 resource
 resources
+response
 restart_needed
 restarts
 restricted
@@ -1745,6 +1802,7 @@ rollback_at
 rollout_percent
 romaji
 rootFolderPath
+root_path
 rotten_tomatoes
 routes
 routine_days
@@ -1781,8 +1839,14 @@ score
 score_parts
 scored
 scores
+scraper_enabled
+scraper_id
+scrapers
+scrobble_simkl
+scrobble_trakt
 searchForMissingEpisodes
 searchForMovie
+searchShows
 search_again
 search_hours
 search_on_add
@@ -1829,6 +1893,7 @@ seen
 seen_at
 seen_complete
 seerr
+segments
 selected
 selected_file
 selections
@@ -1862,6 +1927,7 @@ shape
 share_limit_action
 share_ratio
 shelf
+short_name
 show
 show_anime_library_folder_id
 show_colon
@@ -1891,6 +1957,9 @@ signin_library_art
 signing_secret
 sim
 similar
+simkl_client_id
+simkl_connected
+simkl_username
 since
 site
 site_agent
@@ -1914,6 +1983,7 @@ size_bytes
 size_limits
 sizeleft
 skip
+skipType
 skip_free_space_check
 skip_linked
 skip_login_local_network
@@ -1953,6 +2023,7 @@ source_file
 source_id
 source_ids
 source_name
+source_provider
 source_tag
 sources
 spacing
@@ -1979,9 +2050,12 @@ stalled_after_hours
 stand_in_repair
 stars
 start
+startTime
 start_dir
 start_error
+start_ms
 start_sec
+start_time
 started
 started_at
 starts
@@ -2003,17 +2077,20 @@ storage
 store_albums
 storyboards
 stream_index
+stream_url
 streaming
 streamingData
 streaming_region
 streaming_services
 streams
+strip_sdh
 stuck
 studio
 studios
 sub
 sub_file
 sub_lang
+sub_style
 subdl
 subject
 subs
@@ -2022,6 +2099,7 @@ subtitle
 subtitleId
 subtitle_tracks
 subtitles
+success
 success_count
 suggest
 suggest_flat
@@ -2029,6 +2107,8 @@ suggested_redirect_url
 summary
 support_email
 support_url
+supportedTypes
+supported_types
 sure
 switch
 symlink
@@ -2082,6 +2162,7 @@ time_zone
 timed
 timeleft
 timeout_ms
+timestamps
 timezone
 title
 titleSlug
@@ -2097,6 +2178,7 @@ titles
 tls
 tmdb
 tmdbId
+tmdb_api_key
 tmdb_episode
 tmdb_id
 tmdb_ids
@@ -2124,6 +2206,8 @@ torrent_controls
 torrent_delay
 torrent_duplicate
 torrent_error
+torrent_id
+torrent_url
 torrents
 torrents_removed
 total
@@ -2165,12 +2249,14 @@ trait
 trait_id
 traits
 trakt
+trakt_connected
 trakt_rating
 trakt_votes
 translate_from
 translated
 translations
 transmission
+transport
 trash_description
 trash_id
 trash_score_set
@@ -2291,7 +2377,10 @@ versions
 via
 via_plugin
 videoDetails
+videoSize
 video_codec
+video_height
+video_width
 videoname
 videos
 view

@@ -99,6 +99,7 @@ const ROUTES: [RegExp, string][] = [
 	[/^routes\/settings\/(search|sources)/, 'sources'],
 	[/^routes\/settings\/subtitles/, 'subtitles'],
 	[/^routes\/settings\/tmdb/, 'metadata'],
+	[/^routes\/settings\/streaming\b/, 'stream'],
 	[/^routes\/watch\b/, 'stream']
 ];
 

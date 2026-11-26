@@ -478,3 +478,71 @@ func (a *TraktAuth) Read(ctx context.Context, path string, into any) error {
 	}
 	return nil
 }
+
+// PostJSON POSTs path to Trakt as the signed-in person.
+func (a *TraktAuth) PostJSON(ctx context.Context, path string, body, into any) error {
+	id, token, err := a.Access(ctx)
+	if err != nil {
+		return err
+	}
+	if token == "" {
+		return ErrTraktSignedOut
+	}
+	if _, err := a.postAny(ctx, path, id, token, body, into); errors.Is(err, ErrTraktLocked) {
+		a.Refused(ctx, token)
+		return ErrTraktSignedOut
+	} else if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (a *TraktAuth) postAny(ctx context.Context, path, id, token string, body, into any) (int, error) {
+	op, err := outbound.Begin(ctx, outbound.Target{Kind: "trakt_auth", Identity: []string{a.base(), path}})
+	if err != nil {
+		return 0, err
+	}
+	outcome := outbound.Canceled
+	defer func() { op.Finish(outcome) }()
+	actx, cancel := op.AttemptContext(ctx, 15*time.Second)
+	defer cancel()
+
+	raw, err := json.Marshal(body)
+	if err != nil {
+		outcome = outbound.TerminalFailure
+		return 0, err
+	}
+	req, err := http.NewRequestWithContext(actx, http.MethodPost, a.base()+path, bytes.NewReader(raw))
+	if err != nil {
+		outcome = outbound.TerminalFailure
+		return 0, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("trakt-api-version", "2")
+	req.Header.Set("trakt-api-key", id)
+	req.Header.Set("Authorization", "Bearer "+token)
+	cl := a.HTTP
+	if cl == nil {
+		cl = &http.Client{Timeout: 15 * time.Second}
+	}
+	resp, err := cl.Do(req)
+	if err != nil {
+		outcome = outbound.HTTPOutcome(0, err, ctx)
+		return 0, errors.New("Trakt did not answer")
+	}
+	defer resp.Body.Close()
+	outcome = outbound.Success
+	if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
+		outcome = outbound.TransientFailure
+	}
+	if resp.StatusCode == http.StatusUnauthorized {
+		return resp.StatusCode, ErrTraktLocked
+	}
+	if resp.StatusCode >= 300 {
+		return resp.StatusCode, fmt.Errorf("Trakt returned HTTP %d", resp.StatusCode)
+	}
+	if into != nil {
+		_ = json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(into)
+	}
+	return resp.StatusCode, nil
+}

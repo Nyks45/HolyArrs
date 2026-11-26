@@ -29,7 +29,7 @@
 	import Icon from '#lib/ui/Icon.svelte';
 	import { artistSheets } from '#lib/requests/index.ts';
 	import { libraryTitles, ownedLibrary, partOff, partOn } from '#lib/mediafiles/index.ts';
-	import { anchorDelta, canReturn, putOffsets, readAnchor, readOffsets, type ExploreReturn, headPath, serverRow, tailPath, type HeadAnswer, type TailAnswer, markTransitions, dedupeTop, filterRows, parseType, searchAddress, typeHref, enoughCards, genreRowPath, genreCardHref, genreRowAfter, GENRE_ROW_MAX, ROW_MIN, type GenreRowCard, type ExploreType, TopServicesRow, ExploreHero, heroFallback, CategoryStrip, GenreBanner, leaveOut, newHref, newServicesPath, type NewServicesAnswer, whyShown } from '#lib/discover/index.ts';
+	import { anchorDelta, canReturn, putOffsets, readAnchor, readOffsets, type ExploreReturn, headPath, serverRow, tailPath, type HeadAnswer, type TailAnswer, markTransitions, dedupeTop, filterRows, parseType, searchAddress, typeHref, enoughCards, genreRowPath, genreCardHref, genreRowAfter, GENRE_ROW_MAX, ROW_MIN, type GenreRowCard, type ExploreType, TopServicesRow, ExploreHero, ExploreHubBar, createExploreHub, heroFallback, CategoryStrip, GenreBanner, leaveOut, newHref, newServicesPath, type NewServicesAnswer, whyShown } from '#lib/discover/index.ts';
 	import { detailPath, remember, MetadataNotice } from '#lib/metadata/index.ts';
 	import { QuickAsk } from '#lib/requests/index.ts';
 	import { MusicTrendingRows, musicCardHref, MusicGenreTiles } from '#lib/music/index.ts';
@@ -41,7 +41,7 @@
 	import { session } from '#lib/core/session.svelte.ts';
 	import type { Ask, TitleView } from '#lib/core/types.ts';
 	import { onTheaterExit } from '#lib/core/trailer/theater.svelte.ts';
-	import { ContinueWatchingShelf } from '#lib/stream/index.ts';
+	import { ContinueWatchingShelf, AddonCatalogShelves } from '#lib/stream/index.ts';
 
 	let loaded = $state(false);
 	let failed = $state(false);
@@ -109,6 +109,7 @@
 		if (t === 'all') url.searchParams.delete('type');
 		else url.searchParams.set('type', t);
 		url.searchParams.delete('genre');
+		url.searchParams.delete('hub');
 		void goto(url, { replace: true, shallow: true, reset: false });
 		// A new tab starts at its top, never at the last tab's scroll.
 		settleCancel?.();
@@ -178,39 +179,25 @@
 
 	// Music shows only music rows: the movie and show rows (services, Best new releases) never appear there. A genre page (Movies or Shows, ?genre=<TMDB id>) swaps the head and tail for its own rows.
 	const genreViewCtx = {
-		get type() {
-			return type;
-		},
-		set type(v) {
-			type = v;
-		},
-		get gone() {
-			return gone;
-		},
-		get heroAt() {
-			return heroAt;
-		},
-		set heroAt(v) {
-			heroAt = v;
-		},
-		get musicKept() {
-			return musicKept;
-		},
-		get TYPE_KEY() {
-			return TYPE_KEY;
-		},
+		get type() { return type; },
+		set type(v) { type = v; },
+		get gone() { return gone; },
+		get heroAt() { return heroAt; },
+		set heroAt(v) { heroAt = v; },
+		get musicKept() { return musicKept; },
+		get TYPE_KEY() { return TYPE_KEY; },
 		loadHead,
-		get back() {
-			return back;
-		},
-		set back(v) {
-			back = v;
-		},
-		get headLoaded() {
-			return headLoaded;
-		},
+		get back() { return back; },
+		set back(v) { back = v; },
+		get headLoaded() { return headLoaded; },
 	};
 	const genreView = createExploreGenre(genreViewCtx);
+	const hubView = createExploreHub({
+		get gone() { return gone; },
+		get heroAt() { return heroAt; },
+		set heroAt(v) { heroAt = v; },
+		loadHead,
+	});
 	// The picker spans from the left edge of the type pills to the Genres button's right edge.
 	let typesBox = $state<HTMLElement>();
 	let pickW = $state(340);
@@ -287,7 +274,7 @@
 	let heroGenres = $state<Record<string, string[]>>({});
 	let taste = $state<string[]>([]);
 	// Until the server's hero is in, the first pictured titles of the loaded rows stand in, so the hero is never an empty box.
-	const heroCards = $derived(genreView.genreOn ? genreView.genreHero : hero.length ? hero : heroFallback(head));
+	const heroCards = $derived(hubView.hubOn ? hubView.hero : genreView.genreOn ? genreView.genreHero : hero.length ? hero : heroFallback(head));
 	/** The titles of Trending on streaming, as that row shows them now. */
 	let servicesShown = $state<string[]>([]);
 	// A title shows once in the first 8 rows, counting the hero and the services row.
@@ -309,9 +296,9 @@
 		const c = newServices && !genreView.genreOn ? leaveOut(newServices.cards, taken) : [];
 		return c.length >= ROW_MIN ? c : [];
 	});
-	const rows = $derived(type === 'music' ? [] : markTransitions(enoughCards(dedupeTop(genreView.genreOn ? (genreView.genreLoaded === genreView.genre?.id ? genreView.genreRows : []) : filterRows([...head, ...tail], type), taken))));
+	const rows = $derived(type === 'music' ? [] : markTransitions(enoughCards(dedupeTop(hubView.hubOn ? hubView.rows : genreView.genreOn ? (genreView.genreLoaded === genreView.genre?.id ? genreView.genreRows : []) : filterRows([...head, ...tail], type), taken))));
 	/** Where Browse by genre goes: after this row index (-1: not shown). */
-	const genreAt = $derived(genreView.genreOn ? -1 : genreRowAfter(rows));
+	const genreAt = $derived(hubView.hubOn || genreView.genreOn ? -1 : genreRowAfter(rows));
 	// Browse by genre: read once per tab after the head (the page the server already built).
 	let genreCards = $state<GenreRowCard[]>([]);
 	let genreCardsFor = '';
@@ -485,7 +472,7 @@
 	const gone = new AbortController();
 	onMount(() => {
 		const current = here();
-		if (!current.searchParams.has('type') && !current.searchParams.has('genre')) {
+		if (!current.searchParams.has('type') && !current.searchParams.has('genre') && !current.searchParams.has('hub')) {
 			try {
 				const saved = parseType(localStorage.getItem(TYPE_KEY), musicKept);
 				if (saved !== 'all') setType(saved);
@@ -494,9 +481,10 @@
 			}
 		}
 		void load();
+		void hubView.loadHubsList();
 		// The head only needs the saved picks, not the service list: both go at once.
 		servicesView.readPicked();
-		if (!reuseKept()) void loadHead();
+		if (!hubView.hubOn && !reuseKept()) void loadHead();
 		void servicesView.loadServices();
 		return () => {
 			clearTimeout(poll);
@@ -573,6 +561,7 @@
 		{/if}
 	</div>
 	<MetadataNotice />
+	{#if type !== 'music'}<ExploreHubBar hubs={hubView.hubs} activeId={hubView.hubId} activeInfo={hubView.info} onpick={hubView.pickHub} />{/if}
 	{#if bannerView.musicBannerHold}
 		<div class="music-banner hold" aria-hidden="true" data-testid="music-banner-hold">
 			<GenreBanner layout={2} name={t('discover.explore.yourName', { name: bannerView.musicBannerName || t('discover.explore.music') })} eyebrow={t('discover.explore.pickedFromYourLibrary')} line={t('discover.explore.albumsAndArtistsFrom')} href={to('/explore?type=music')} art={[]} square>
@@ -599,12 +588,20 @@
 
 	{#if type === 'music'}
 		<!-- Music: the music rows above only. -->
-	{:else if failed && !okOnce}
+	{:else if failed && !okOnce && !hubView.hubOn}
 		<LoadError hasData={false} message={t('discover.explore.couldNotLoadExplore')} onretry={load} {busy} />
 	{:else}
-		{#if failed}<LoadError hasData={true} message={t('discover.explore.couldNotRefreshExplore')} onretry={load} {busy} />{/if}
-		<PageLoader loading={!headLoaded} label={t('discover.explore.loadingExplore')} onretry={load}>
-		{#if genreView.genreOn && genreView.genreFailed}
+		{#if failed && !hubView.hubOn}<LoadError hasData={true} message={t('discover.explore.couldNotRefreshExplore')} onretry={load} {busy} />{/if}
+		<PageLoader loading={!headLoaded && !hubView.hubOn} label={t('discover.explore.loadingExplore')} onretry={load}>
+		{#if hubView.hubOn && hubView.failed}
+			<LoadError hasData={false} message={t('discover.explore.couldNotLoadThis')} onretry={() => void hubView.reload()} {busy} />
+		{:else if hubView.hubOn && hubView.loading}
+			<div class="loading" aria-busy="true" aria-label={t('discover.explore.loadingExplore')} data-testid="explore-skeleton">
+				<SkRail kind="wide" item="var(--title-item)" count={6} titleWidth="200px" />
+				<SkRail kind="wide" item="var(--title-item)" count={6} titleWidth="160px" />
+				<SkRail kind="wide" item="var(--title-item)" count={6} titleWidth="180px" />
+			</div>
+		{:else if genreView.genreOn && genreView.genreFailed}
 			<LoadError hasData={false} message={t('discover.explore.couldNotLoadThis')} onretry={() => genreView.genre && void genreView.loadGenre(genreView.genre.id)} {busy} />
 		{:else if genreView.genreOn && rows.length === 0}
 			<div class="loading" aria-busy="true" aria-label={t('discover.explore.loadingExplore')} data-testid="explore-skeleton">
@@ -618,18 +615,19 @@
 		{:else}
 			{#if heroCards.length}
 				{@const h = live(heroCards[heroAt % heroCards.length])}
-				<ExploreHero kind={h.kind === 'show' ? 'show' : 'movie'} tmdb={cardTmdb(h)} title={h.name} href={cardHref(h)} backdrop={h.wide ?? h.image} poster={h.image} vtName={h.vtName} subtitle={h.year ? (h.kind === 'show' ? t('discover.explore.yearShow', { year: h.year }) : t('discover.explore.yearMovie', { year: h.year })) : h.subtitle} settled={headLoaded && !busy}>
+				<ExploreHero kind={h.kind === 'show' ? 'show' : 'movie'} tmdb={cardTmdb(h)} title={h.name} href={cardHref(h)} backdrop={h.wide ?? h.image} poster={h.image} vtName={h.vtName} subtitle={h.year ? (h.kind === 'show' ? t('discover.explore.yearShow', { year: h.year }) : t('discover.explore.yearMovie', { year: h.year })) : h.subtitle} settled={(headLoaded || hubView.hubOn) && !busy}>
 					{#snippet action()}{@render heroAction(h)}{/snippet}
 					{#snippet badge()}
 						{@const why = whyShown({ kind: h.kind, tmdb: cardTmdb(h) ?? '', genres: heroGenres[`${h.kind}:${cardTmdb(h)}`], fresh: h.fresh }, { taste })}
-						{#if why.length}<ul class="why" aria-label={t('discover.explore.whyItIsFeatured')}>{#each why as w (w.kind)}<li class="why-{w.kind}">{w.text}</li>{/each}</ul>{/if}
+						{#if why.length && !hubView.hubOn}<ul class="why" aria-label={t('discover.explore.whyItIsFeatured')}>{#each why as w (w.kind)}<li class="why-{w.kind}">{w.text}</li>{/each}</ul>{/if}
 					{/snippet}
 				</ExploreHero>
-			{:else if heroWait && !genreView.genreOn}
+			{:else if heroWait && !genreView.genreOn && !hubView.hubOn}
 				<div class="hero-wait" data-testid="hero-placeholder" aria-hidden="true"><Skeleton shape="block" /></div>
 			{/if}
-			{#if !genreView.genreOn}<ContinueWatchingShelf from={to('/explore')} />{/if}
-			{#if bannerView.bannerOn && bannerView.favourite}
+			{#if !genreView.genreOn && !hubView.hubOn}<ContinueWatchingShelf from={to('/explore')} />{/if}
+			{#if !genreView.genreOn && !hubView.hubOn}<AddonCatalogShelves {type} />{/if}
+			{#if bannerView.bannerOn && bannerView.favourite && !hubView.hubOn}
 				<GenreBanner
 					layout={bannerView.bannerLayout === 2 ? 2 : 1}
 					name={t('discover.explore.yourName', { name: bannerView.favourite.name })}
@@ -652,13 +650,13 @@
 					{/snippet}
 				</GenreBanner>
 			{/if}
-			{#if !genreView.genreOn && stripView.strip.length}<CategoryStrip tiles={stripView.strip} {type} onopen={stripView.stripOpened} />{/if}
+			{#if !genreView.genreOn && !hubView.hubOn && stripView.strip.length}<CategoryStrip tiles={stripView.strip} {type} onopen={stripView.stripOpened} />{/if}
 			{#each rows as row, ri (row.id)}
 				{#if row.type === 'top_services'}
 					<TopServicesRow {type} region={servicesView.region} genre={genreView.genreOn ? genreView.genre : null} {owned} {who} used={servicesView.usedServices} bind:shown={servicesShown} seeAll={genreView.genreOn ? undefined : to(newHref(type))} ask={rowAsk} />
 					{#if newServices && newCards.length}{@render newServicesRow(newServices, newCards)}{/if}
 				{:else}
-				<div class="row-wrap" class:wide-row={row.wide || row.cards.some((c) => wideKind(c.kind))} data-row={row.type ?? row.id} data-row-id={row.id} data-title-layer={row.titleLayer}>
+				<div class="row-wrap" class:wide-row={row.wide || row.cards.some((c) => wideKind(c.kind))} data-row={hubView.hubOn ? undefined : (row.type ?? row.id)} data-row-id={row.id} data-title-layer={row.titleLayer}>
 				<Shelf title={serverWords(row.title)} subtitle={serverWords(row.subtitle)} href={typeHref(row.href, type)} item={row.cards.some((c) => wideKind(c.kind)) ? 'var(--title-item)' : 'var(--explore-item)'}
 					items={row.cards} key={(c) => c.key} defer={ri >= EAGER_ROWS && !back} placeholder={row.wide || row.cards.some((c) => wideKind(c.kind)) ? 'wide' : 'poster'} lines={row.cards.some((c) => c.subtitle) ? 2 : 1}>
 					{#snippet card(raw: ExploreCard)}
@@ -717,7 +715,7 @@
 					</div>
 				{/if}
 			{/each}
-			{#if tailMore && !genreView.genreOn}<div class="sentinel" bind:this={sentinel} aria-hidden="true"></div>{/if}
+			{#if tailMore && !genreView.genreOn && !hubView.hubOn}<div class="sentinel" bind:this={sentinel} aria-hidden="true"></div>{/if}
 		{/if}
 		</PageLoader>
 	{/if}

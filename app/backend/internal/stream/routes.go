@@ -4,11 +4,15 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/HolyArrs/holyarrs/app/backend/internal/core/webserver"
+	"github.com/HolyArrs/holyarrs/app/backend/internal/mediafiles"
 	"github.com/HolyArrs/holyarrs/app/backend/internal/sources"
 	"github.com/HolyArrs/holyarrs/app/backend/internal/subtitles"
 )
@@ -42,6 +46,8 @@ func (h *Handlers) Routes(m *http.ServeMux) {
 	m.HandleFunc("GET /api/v1/stream/{id}/media/{token}", h.Mgr.ServeMedia)
 	m.HandleFunc("GET /api/v1/stream/{id}/hls/{token}/{gen}/{file}", h.Mgr.ServeHLSFile)
 	m.HandleFunc("GET /api/v1/stream/{id}/sub/{token}/{idx}", h.Mgr.ServeSubtitleVTT)
+
+	h.registerStreamingRoutes(m)
 }
 
 func callerID(r *http.Request) int64 {
@@ -57,10 +63,14 @@ func (h *Handlers) listSources(w http.ResponseWriter, r *http.Request) {
 	if kind != "show" {
 		kind = "movie"
 	}
-	srcs, err := sources.ListStreamSources(r.Context(), h.Mgr.Store.Read(), kind)
-	if err != nil {
-		webserver.Internal(w, "stream", err)
-		return
+	srcs := []sources.StreamSourceInfo{}
+	if h.Mgr.Store != nil {
+		list, err := sources.ListStreamSources(r.Context(), h.Mgr.Store.Read(), kind)
+		if err != nil {
+			webserver.Internal(w, "stream", err)
+			return
+		}
+		srcs = list
 	}
 	_, mpvErr := exec.LookPath("mpv")
 	_, ffErr := exec.LookPath("ffmpeg")
@@ -68,31 +78,324 @@ func (h *Handlers) listSources(w http.ResponseWriter, r *http.Request) {
 		"sources":          srcs,
 		"mpv_available":    mpvErr == nil,
 		"ffmpeg_available": ffErr == nil,
+		"node_available":   h.Mgr.Plugins.NodeAvailable(),
+		"debrid":           h.Mgr.Debrid.Status(r.Context()),
+		"prefs":            h.Mgr.Prefs.Get(),
 	})
 }
 
 func (h *Handlers) search(w http.ResponseWriter, r *http.Request) {
-	var in sources.StreamSearchReq
+	var in struct {
+		sources.StreamSearchReq
+		LocalOnly bool `json:"local_only"`
+	}
 	if !webserver.Decode(w, r, &in, "send {query, kind, year, season, episode, imdb, tmdb, source_ids}") {
 		return
 	}
-	cands, checks, err := sources.SearchForStream(r.Context(), h.Mgr.Store.Read(), h.Mgr.Secrets, in)
-	if err != nil {
-		webserver.Fail(w, http.StatusBadRequest, err.Error())
-		return
+	kind := "movie"
+	if in.Kind == "show" {
+		kind = "show"
 	}
+	tmdbStr := ""
+	if in.TMDB > 0 {
+		tmdbStr = strconv.Itoa(in.TMDB)
+	}
+	imdbID := strings.TrimSpace(in.IMDb)
+	prefs := h.Mgr.Prefs.Get()
+
+	var mu sync.Mutex
+	var rawCands []UnifiedCandidate
+	var checks any = []any{}
+	var warnings []string
+	var wg sync.WaitGroup
+
+	// 1. Local Library files matching TMDB/episode.
+	if h.Mgr.Store != nil && tmdbStr != "" {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			locals, err := mediafiles.FindLocalVideoFiles(r.Context(), h.Mgr.Store.Read(), kind, tmdbStr, in.Season, in.Episode)
+			if err != nil || len(locals) == 0 {
+				return
+			}
+			mu.Lock()
+			for _, lf := range locals {
+				title := filepath.Base(lf.RelPath)
+				if lf.VersionLabel != "" {
+					title = lf.VersionLabel + " · " + title
+				}
+				rawCands = append(rawCands, UnifiedCandidate{
+					Kind:         "local",
+					Instant:      true,
+					Title:        title,
+					ReleaseName:  filepath.Base(lf.RelPath),
+					Provider:     "Local Library",
+					ProviderType: "local",
+					SourceName:   "Local Library",
+					Quality:      lf.Quality,
+					Codec:        lf.Codec,
+					Size:         lf.Size,
+					LocalFileID:  lf.FileID,
+					Filename:     filepath.Base(lf.RelPath),
+				})
+			}
+			mu.Unlock()
+		}()
+	}
+
+	if !in.LocalOnly {
+		// 2. Stremio Addons.
+		if h.Mgr.Addons != nil && (imdbID != "" || tmdbStr != "") {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				cands, warns := h.Mgr.Addons.SearchStreams(r.Context(), kind, imdbID, tmdbStr, in.Season, in.Episode)
+				mu.Lock()
+				rawCands = append(rawCands, cands...)
+				warnings = append(warnings, warns...)
+				mu.Unlock()
+			}()
+		}
+
+		// 3. Nuvio JS Plugin Workers.
+		if h.Mgr.Plugins != nil && h.Mgr.Plugins.NodeAvailable() && tmdbStr != "" {
+			tmdbKey := fallbackString(prefs.TMDBAPIKey, os.Getenv("TMDB_API_KEY"))
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				cands, warns := h.Mgr.Plugins.SearchStreams(r.Context(), kind, tmdbStr, in.Season, in.Episode, tmdbKey)
+				mu.Lock()
+				rawCands = append(rawCands, cands...)
+				warnings = append(warnings, warns...)
+				mu.Unlock()
+			}()
+		}
+
+		// 4. Prowlarr / Torznab Torrent Sources.
+		if h.Mgr.Store != nil && strings.TrimSpace(in.Query) != "" {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				tCands, srcChecks, err := sources.SearchForStream(r.Context(), h.Mgr.Store.Read(), h.Mgr.Secrets, in.StreamSearchReq)
+				mu.Lock()
+				defer mu.Unlock()
+				if err != nil {
+					warnings = append(warnings, err.Error())
+					return
+				}
+				checks = srcChecks
+				for _, sc := range tCands {
+					ih := strings.ToLower(strings.TrimSpace(sc.InfoHash))
+					if ih == "" && strings.HasPrefix(strings.ToLower(sc.Link), "magnet:") {
+						ih = ExtractInfoHash(sc.Link)
+					}
+					magnet := ""
+					torrentURL := ""
+					if strings.HasPrefix(strings.ToLower(sc.Link), "magnet:") {
+						magnet = sc.Link
+					} else {
+						torrentURL = sc.Link
+					}
+					rawCands = append(rawCands, UnifiedCandidate{
+						Kind:         "torrent",
+						Instant:      false,
+						Title:        sc.Title,
+						ReleaseName:  sc.Title,
+						Provider:     sc.SourceName,
+						ProviderType: "torrent",
+						SourceID:     sc.SourceID,
+						SourceName:   sc.SourceName,
+						Link:         sc.Link,
+						Quality:      sc.Resolution,
+						Codec:        sc.Codec,
+						Audio:        sc.Audio,
+						HDR:          sc.HDR,
+						Size:         sc.Size,
+						Seeders:      sc.Seeders,
+						Peers:        sc.Peers,
+						InfoHash:     ih,
+						Magnet:       magnet,
+						TorrentURL:   torrentURL,
+						FileIdx:      -1,
+					})
+				}
+			}()
+		}
+	}
+
+	wg.Wait()
+
+	// Promote cached torrents into Debrid Instant candidates when configured.
+	if h.Mgr.Debrid != nil && len(rawCands) > 0 {
+		var hashes []string
+		for _, c := range rawCands {
+			if c.Kind == "torrent" && len(c.InfoHash) == 40 {
+				hashes = append(hashes, c.InfoHash)
+			}
+		}
+		if len(hashes) > 0 {
+			cachedMap := h.Mgr.Debrid.CheckCached(r.Context(), hashes)
+			if len(cachedMap) > 0 {
+				var promoted []UnifiedCandidate
+				for _, c := range rawCands {
+					if c.Kind == "torrent" {
+						if prov, ok := cachedMap[c.InfoHash]; ok {
+							dc := c
+							dc.Kind = "debrid_cached"
+							dc.Instant = true
+							dc.DebridProvider = prov
+							dc.ProviderType = "debrid"
+							dc.Provider = debridDisplayName(prov) + " · " + c.Provider
+							promoted = append(promoted, dc)
+						}
+					}
+				}
+				rawCands = append(promoted, rawCands...)
+			}
+		}
+	}
+
+	ranked := FilterAndRankCandidates(rawCands, prefs)
+	stored := h.Mgr.CandCache.Put(ranked)
+	if stored == nil {
+		stored = []UnifiedCandidate{}
+	}
+
+	counts := map[string]int{"local": 0, "instant": 0, "debrid": 0, "torrent": 0}
+	for _, c := range stored {
+		switch c.Kind {
+		case "local":
+			counts["local"]++
+			counts["instant"]++
+		case "debrid_cached":
+			counts["debrid"]++
+			counts["instant"]++
+		case "http", "hls":
+			counts["instant"]++
+		default:
+			counts["torrent"]++
+		}
+	}
+
 	webserver.WriteJSON(w, http.StatusOK, map[string]any{
-		"candidates": cands,
+		"candidates": stored,
 		"sources":    checks,
+		"counts":     counts,
+		"warnings":   warnings,
 	})
 }
 
 func (h *Handlers) start(w http.ResponseWriter, r *http.Request) {
 	var in StartReq
-	if !webserver.Decode(w, r, &in, "send {source_id, source_name, link, title, release_title, kind, season, episode, keep_file}") {
+	if !webserver.Decode(w, r, &in, "send {candidate_id, local_file_id, stream_url, or torrent link}") {
 		return
 	}
-	st, err := h.Mgr.Start(r.Context(), callerID(r), in)
+	uid := callerID(r)
+	prefs := h.Mgr.Prefs.Get()
+
+	if in.CandidateID != "" {
+		cand, ok := h.Mgr.CandCache.Get(in.CandidateID)
+		if !ok {
+			webserver.Fail(w, http.StatusGone, "stream candidate expired; search again")
+			return
+		}
+		if in.Title == "" {
+			in.Title = cand.Title
+		}
+		if in.ReleaseTitle == "" {
+			in.ReleaseTitle = fallbackString(cand.ReleaseName, cand.Title)
+		}
+		if in.SourceID == 0 {
+			in.SourceID = cand.SourceID
+		}
+		if in.SourceName == "" {
+			in.SourceName = cand.Provider
+		}
+		if in.Link == "" {
+			in.Link = fallbackString(cand.Magnet, fallbackString(cand.Link, cand.TorrentURL))
+		}
+		switch cand.Kind {
+		case "local":
+			in.LocalFileID = cand.LocalFileID
+		case "http", "hls":
+			st, err := h.Mgr.StartRemote(r.Context(), uid, cand.StreamURL, cand.Headers, cand.Kind == "hls", cand.Provider, in)
+			if err != nil {
+				webserver.Fail(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			webserver.WriteJSON(w, http.StatusCreated, st)
+			return
+		case "debrid_cached", "torrent":
+			prov := in.DebridProvider
+			if prov == "" {
+				prov = cand.DebridProvider
+			}
+			if prov == "" && prefs.AutoResolveDebrid && h.Mgr.Debrid != nil {
+				prov = h.Mgr.Debrid.FirstConfigured(r.Context())
+			}
+			if prov != "" && (cand.Magnet != "" || cand.InfoHash != "") {
+				dlURL, _, err := h.Mgr.Debrid.ResolveMagnet(r.Context(), prov, cand.Magnet, cand.InfoHash, cand.FileIdx)
+				if err == nil && dlURL != "" {
+					st, serr := h.Mgr.StartRemote(r.Context(), uid, dlURL, nil, false, debridDisplayName(prov), in)
+					if serr == nil {
+						webserver.WriteJSON(w, http.StatusCreated, st)
+						return
+					}
+				}
+				if !prefs.AutoFallback || in.Link == "" {
+					if err != nil {
+						webserver.Fail(w, http.StatusBadGateway, err.Error())
+						return
+					}
+				}
+			}
+		}
+	}
+
+	if in.LocalFileID > 0 {
+		if h.Mgr.Store == nil {
+			webserver.Fail(w, http.StatusServiceUnavailable, "library storage unavailable")
+			return
+		}
+		lf, err := mediafiles.FindLocalVideoByID(r.Context(), h.Mgr.Store.Read(), in.LocalFileID)
+		if err != nil {
+			webserver.Fail(w, http.StatusNotFound, err.Error())
+			return
+		}
+		st, err := h.Mgr.StartLocal(r.Context(), uid, lf, in)
+		if err != nil {
+			webserver.Fail(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		webserver.WriteJSON(w, http.StatusCreated, st)
+		return
+	}
+
+	if in.StreamURL != "" {
+		st, err := h.Mgr.StartRemote(r.Context(), uid, in.StreamURL, in.Headers, looksLikeHLSURL(in.StreamURL), in.SourceName, in)
+		if err != nil {
+			webserver.Fail(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		webserver.WriteJSON(w, http.StatusCreated, st)
+		return
+	}
+
+	if in.DebridProvider != "" && in.Link != "" && h.Mgr.Debrid != nil {
+		dlURL, _, err := h.Mgr.Debrid.ResolveMagnet(r.Context(), in.DebridProvider, in.Link, ExtractInfoHash(in.Link), -1)
+		if err == nil && dlURL != "" {
+			st, serr := h.Mgr.StartRemote(r.Context(), uid, dlURL, nil, false, debridDisplayName(in.DebridProvider), in)
+			if serr == nil {
+				webserver.WriteJSON(w, http.StatusCreated, st)
+				return
+			}
+		} else if !prefs.AutoFallback {
+			webserver.Fail(w, http.StatusBadGateway, err.Error())
+			return
+		}
+	}
+
+	st, err := h.Mgr.Start(r.Context(), uid, in)
 	if err != nil {
 		webserver.Fail(w, http.StatusBadRequest, err.Error())
 		return
@@ -252,30 +555,56 @@ func (h *Handlers) deleteHistory(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) searchSubtitles(w http.ResponseWriter, r *http.Request) {
-	if h.Mgr.Subtitles == nil {
-		webserver.Fail(w, http.StatusServiceUnavailable, "subtitle service is unavailable")
-		return
-	}
 	var in subtitles.StreamSubSearchReq
 	if !webserver.Decode(w, r, &in, "send {kind, title, year, season, episode, imdb, tmdb, release_name, languages}") {
 		return
 	}
-	cands, langs, err := h.Mgr.Subtitles.SearchForStream(r.Context(), in)
-	if err != nil {
-		webserver.Fail(w, http.StatusBadRequest, err.Error())
-		return
+	var siteCands []any
+	var langs []string
+	var addonCands []AddonSubCandidate
+	var wg sync.WaitGroup
+
+	if h.Mgr.Subtitles != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			cands, l, err := h.Mgr.Subtitles.SearchForStream(r.Context(), in)
+			if err == nil {
+				for _, c := range cands {
+					siteCands = append(siteCands, c)
+				}
+				langs = l
+			}
+		}()
+	}
+	if h.Mgr.Addons != nil && (in.IMDb != "" || in.TMDB != "") {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			kind := "movie"
+			if in.Kind == "show" {
+				kind = "show"
+			}
+			addonCands = h.Mgr.Addons.SearchSubtitles(r.Context(), kind, in.IMDb, in.TMDB, in.Season, in.Episode)
+		}()
+	}
+	wg.Wait()
+
+	merged := make([]any, 0, len(siteCands)+len(addonCands))
+	merged = append(merged, siteCands...)
+	for _, ac := range addonCands {
+		merged = append(merged, ac)
+	}
+	if langs == nil {
+		langs = []string{}
 	}
 	webserver.WriteJSON(w, http.StatusOK, map[string]any{
-		"candidates": cands,
+		"candidates": merged,
 		"languages":  langs,
 	})
 }
 
 func (h *Handlers) fetchSubtitle(w http.ResponseWriter, r *http.Request) {
-	if h.Mgr.Subtitles == nil {
-		webserver.Fail(w, http.StatusServiceUnavailable, "subtitle service is unavailable")
-		return
-	}
 	var in struct {
 		ID        string `json:"id"`
 		SessionID string `json:"session_id"`
@@ -283,7 +612,30 @@ func (h *Handlers) fetchSubtitle(w http.ResponseWriter, r *http.Request) {
 	if !webserver.Decode(w, r, &in, "send {id, session_id}") {
 		return
 	}
-	vtt, lang, err := h.Mgr.Subtitles.FetchStreamSubtitleVTT(r.Context(), in.ID)
+	var (
+		vtt  []byte
+		lang string
+		err  error
+	)
+	if strings.HasPrefix(in.ID, "stremio:") {
+		if h.Mgr.Addons == nil {
+			webserver.Fail(w, http.StatusServiceUnavailable, "addon subtitle store unavailable")
+			return
+		}
+		raw, hint, alang, ferr := h.Mgr.Addons.FetchSubtitle(r.Context(), in.ID)
+		if ferr != nil {
+			webserver.Fail(w, http.StatusBadGateway, ferr.Error())
+			return
+		}
+		lang = subtitles.NormLanguage(alang)
+		vtt, err = subtitles.ConvertToWebVTT(raw, fallbackString(hint, "subtitle.srt"), lang)
+	} else {
+		if h.Mgr.Subtitles == nil {
+			webserver.Fail(w, http.StatusServiceUnavailable, "subtitle service is unavailable")
+			return
+		}
+		vtt, lang, err = h.Mgr.Subtitles.FetchStreamSubtitleVTT(r.Context(), in.ID)
+	}
 	if err != nil {
 		webserver.Fail(w, http.StatusBadGateway, err.Error())
 		return

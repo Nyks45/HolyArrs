@@ -13,6 +13,7 @@ export interface StreamSourcesResponse {
 	sources: StreamSourceInfo[];
 	mpv_available: boolean;
 	ffmpeg_available: boolean;
+	node_available?: boolean;
 }
 
 export interface StreamSearchReq {
@@ -24,9 +25,23 @@ export interface StreamSearchReq {
 	imdb?: string;
 	tmdb?: number;
 	source_ids?: number[];
+	local_only?: boolean;
 }
 
+export type CandidateKind = 'local' | 'http' | 'hls' | 'debrid_cached' | 'torrent';
+
 export interface StreamCandidate {
+	id?: string;
+	kind?: CandidateKind;
+	instant?: boolean;
+	provider?: string;
+	provider_type?: string;
+	release_name?: string;
+	quality?: string;
+	local_file_id?: number;
+	debrid_provider?: string;
+	filename?: string;
+	score?: number;
 	source_id: number;
 	source_name: string;
 	title: string;
@@ -63,6 +78,13 @@ export interface StreamSourceCheck {
 export interface StreamSearchResponse {
 	candidates: StreamCandidate[];
 	sources: StreamSourceCheck[];
+	counts?: {
+		local: number;
+		instant: number;
+		debrid: number;
+		torrent: number;
+	};
+	warnings?: string[];
 }
 
 export interface StreamStartReq {
@@ -75,6 +97,13 @@ export interface StreamStartReq {
 	season?: number;
 	episode?: number;
 	keep_file?: boolean;
+	candidate_id?: string;
+	local_file_id?: number;
+	stream_url?: string;
+	headers?: Record<string, string>;
+	debrid_provider?: string;
+	tmdb?: number;
+	imdb?: string;
 }
 
 export interface VideoFile {
@@ -103,6 +132,13 @@ export interface SubtitleTrack {
 	text: boolean;
 }
 
+export interface ChapterMark {
+	start: number;
+	end: number;
+	title?: string;
+	kind?: string;
+}
+
 export interface MediaProbe {
 	duration_sec: number;
 	format_name?: string;
@@ -113,6 +149,7 @@ export interface MediaProbe {
 	direct_playable: boolean;
 	audio_tracks: AudioTrack[];
 	subtitle_tracks: SubtitleTrack[];
+	chapters?: ChapterMark[];
 }
 
 export interface SessionStatus {
@@ -122,6 +159,9 @@ export interface SessionStatus {
 	release_title: string;
 	source_id: number;
 	source_name: string;
+	source_provider?: string;
+	transport?: 'torrent' | 'local' | 'direct' | 'hls_remote';
+	direct_url?: string;
 	kind: 'movie' | 'show';
 	season?: number;
 	episode?: number;
@@ -139,6 +179,7 @@ export interface SessionStatus {
 	mpv_running: boolean;
 	media_url: string;
 	probe?: MediaProbe;
+	chapters?: ChapterMark[];
 }
 
 export interface HLSResponse {
@@ -351,4 +392,14 @@ export function formatTimeLeft(posSec: number, durSec: number): string {
 	const m = totalMin % 60;
 	if (h > 0) return m > 0 ? `${h}h ${m}m left` : `${h}h left`;
 	return `${totalMin}m left`;
+}
+
+export function formatEndsAt(posSec: number, durSec: number, playbackRate = 1): string {
+	if (!durSec || !Number.isFinite(durSec) || durSec <= 0) return '';
+	const remSec = Math.max(0, (durSec - Math.max(0, posSec)) / (playbackRate > 0 ? playbackRate : 1));
+	if (!Number.isFinite(remSec) || remSec <= 0) return '';
+	const endDate = new Date(Date.now() + remSec * 1000);
+	const hh = String(endDate.getHours()).padStart(2, '0');
+	const mm = String(endDate.getMinutes()).padStart(2, '0');
+	return `Ends at ${hh}:${mm}`;
 }

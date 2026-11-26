@@ -141,6 +141,8 @@ func (h *Handlers) Routes(m *http.ServeMux) {
 	m.HandleFunc("GET /api/v1/explore/browse", h.searchBrowse)
 	m.HandleFunc("GET /api/v1/explore/browse/section", h.searchBrowseSection)
 	m.HandleFunc("GET /api/v1/explore/browse/category", h.searchBrowseCategory)
+	m.HandleFunc("GET /api/v1/explore/hubs", h.listExploreHubs)
+	m.HandleFunc("GET /api/v1/explore/hub", h.exploreHub)
 	h.HiddenRoutes(m)
 }
 

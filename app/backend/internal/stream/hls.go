@@ -36,6 +36,14 @@ type SubtitleTrack struct {
 	Text     bool   `json:"text"`
 }
 
+// ChapterMark describes one chapter timestamp extracted by ffprobe.
+type ChapterMark struct {
+	Start float64 `json:"start"`
+	End   float64 `json:"end"`
+	Title string  `json:"title,omitempty"`
+	Kind  string  `json:"kind,omitempty"`
+}
+
 // MediaProbe holds container/stream metadata extracted via ffprobe.
 type MediaProbe struct {
 	DurationSec    float64         `json:"duration_sec"`
@@ -47,6 +55,7 @@ type MediaProbe struct {
 	DirectPlayable bool            `json:"direct_playable"`
 	AudioTracks    []AudioTrack    `json:"audio_tracks"`
 	SubtitleTracks []SubtitleTrack `json:"subtitle_tracks"`
+	Chapters       []ChapterMark   `json:"chapters,omitempty"`
 }
 
 type hlsState struct {
@@ -114,6 +123,7 @@ func probeMedia(ctx context.Context, mediaURL, fileExt string) (*MediaProbe, err
 		"-print_format", "json",
 		"-show_format",
 		"-show_streams",
+		"-show_chapters",
 		mediaURL,
 	)
 	out, err := cmd.Output()
@@ -135,6 +145,11 @@ func probeMedia(ctx context.Context, mediaURL, fileExt string) (*MediaProbe, err
 			Channels  int               `json:"channels"`
 			Tags      map[string]string `json:"tags"`
 		} `json:"streams"`
+		Chapters []struct {
+			StartTime string            `json:"start_time"`
+			EndTime   string            `json:"end_time"`
+			Tags      map[string]string `json:"tags"`
+		} `json:"chapters"`
 	}
 	if err := json.Unmarshal(out, &raw); err != nil {
 		return nil, err
@@ -182,6 +197,20 @@ func probeMedia(ctx context.Context, mediaURL, fileExt string) (*MediaProbe, err
 			}
 			sIdx++
 		}
+	}
+	for _, ch := range raw.Chapters {
+		st, _ := strconv.ParseFloat(strings.TrimSpace(ch.StartTime), 64)
+		en, _ := strconv.ParseFloat(strings.TrimSpace(ch.EndTime), 64)
+		if en <= st {
+			continue
+		}
+		chTitle := tagCI(ch.Tags, "title")
+		p.Chapters = append(p.Chapters, ChapterMark{
+			Start: st,
+			End:   en,
+			Title: chTitle,
+			Kind:  classifySkipTitle(chTitle),
+		})
 	}
 	p.DirectPlayable = isBrowserDirectPlayable(fileExt, p.FormatName, p.VideoCodec, p.PixFmt, p.AudioTracks)
 	return p, nil
@@ -276,7 +305,8 @@ func (m *Manager) EnsureHLS(ctx context.Context, id, quality string, audioIdx in
 	}
 
 	sess.mu.Lock()
-	if sess.closed || sess.selected < 0 || sess.selected >= len(sess.files) {
+	target, _, _, targetOK := sess.localOrMediaTargetLocked(m.localBaseURL())
+	if sess.closed || !targetOK {
 		sess.mu.Unlock()
 		return "", 0, errors.New("stream file not ready yet")
 	}
@@ -301,7 +331,7 @@ func (m *Manager) EnsureHLS(ctx context.Context, id, quality string, audioIdx in
 		return "", 0, err
 	}
 	probe := sess.probe
-	mediaURL := m.localBaseURL() + sess.mediaPath()
+	mediaURL := target
 	playlistPath := fmt.Sprintf("/api/v1/stream/%s/hls/%s/%d/index.m3u8", sess.id, sess.token, gen)
 
 	args := buildFFmpegArgs(mediaURL, outDir, probe, quality, audioIdx, startSec)
@@ -444,12 +474,12 @@ func (m *Manager) ServeSubtitleVTT(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sess.mu.Lock()
-	if sess.closed || sess.selected < 0 || sess.selected >= len(sess.files) {
+	mediaURL, _, fileIdx, targetOK := sess.localOrMediaTargetLocked(m.localBaseURL())
+	if sess.closed || !targetOK {
 		sess.mu.Unlock()
 		http.Error(w, "stream not ready", http.StatusServiceUnavailable)
 		return
 	}
-	fileIdx := sess.selected
 	subsDir := filepath.Join(sess.dir, "subs")
 	sess.lastActivity = time.Now()
 	sess.mu.Unlock()
@@ -460,7 +490,6 @@ func (m *Manager) ServeSubtitleVTT(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		mediaURL := m.localBaseURL() + sess.mediaPath()
 		ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
 		defer cancel()
 		tmpPath := vttPath + ".tmp"

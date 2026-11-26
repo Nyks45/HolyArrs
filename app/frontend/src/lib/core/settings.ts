@@ -69,6 +69,7 @@ export const sections: Section[] = [
 	{ href: '/settings/api', group: 'connections', tint: 'gray', get label() { return t('core.settings.api.label'); }, icon: 'key', get about() { return t('core.settings.api.about'); } },
 	{ href: '/settings/remote-access', group: 'connections', tint: 'blue', get label() { return t('core.settings.remoteAccess.label'); }, icon: 'globe', get about() { return t('core.settings.remoteAccess.about'); }, need: 'owner' },
 	{ href: '/settings/tmdb', group: 'connections', tint: 'purple', get label() { return t('core.settings.tmdb.label'); }, icon: 'sparkle', get about() { return t('core.settings.tmdb.about'); } },
+	{ href: '/settings/streaming', group: 'connections', tint: 'pink', label: 'Streaming & Addons', icon: 'play', about: 'Stremio addons, Nuvio scrapers, debrid and player sync' },
 
 	{ href: '/settings/health', group: 'system', tint: 'green', get label() { return t('core.settings.health.label'); }, icon: 'check', get about() { return t('core.settings.health.about'); } },
 	{ href: '/settings/backups', group: 'system', tint: 'blue', get label() { return t('core.settings.backups.label'); }, icon: 'archive', get about() { return t('core.settings.backups.about'); } },

@@ -239,7 +239,11 @@ func (s *HistoryStore) Upsert(userID int64, in WatchEntry) (WatchEntry, error) {
 			merged.Completed = true
 		}
 	} else {
-		merged.ProgressPct = 0
+		if merged.ProgressPct < 0 {
+			merged.ProgressPct = 0
+		} else if merged.ProgressPct > 100 {
+			merged.ProgressPct = 100
+		}
 	}
 	merged.UpdatedAt = time.Now().UTC()
 

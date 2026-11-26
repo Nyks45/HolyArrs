@@ -174,6 +174,7 @@ anidb
 anidb_season
 anilist
 anime
+anime_library_folder_id
 anime_pattern
 answered
 apiKey
@@ -236,6 +237,7 @@ attention
 attributes
 attribution
 audio
+audio_channels
 audio_index
 audio_lang
 audio_languages
@@ -434,6 +436,7 @@ content_path
 content_ratings
 content_urls
 controls
+cookies
 copies
 copies_expected
 copy
@@ -475,6 +478,7 @@ data
 data_compat
 date
 dateAdded
+date_uploaded_unix
 dates
 day
 day_down
@@ -564,6 +568,7 @@ download_dir
 download_id
 download_path
 download_payload_rate
+download_types
 downloaded
 downloaded_bytes
 downloader
@@ -896,6 +901,7 @@ imdb
 imdbId
 imdbRating
 imdbVotes
+imdb_code
 imdb_id
 imdb_rating
 imdb_votes
@@ -995,6 +1001,7 @@ lang
 langlist
 language
 languageProfileId
+language_packs
 language_profiles
 languages
 lastAired
@@ -1665,6 +1672,7 @@ releaseWeight
 release_date
 release_dates
 release_gate
+release_group
 release_group_count
 release_group_id
 release_groups
@@ -1751,6 +1759,7 @@ runtime_minutes
 s
 sabnzbd
 salt
+same_as
 sample_rate
 savePath
 save_path
@@ -1759,6 +1768,7 @@ saved_at
 scan
 scene
 sceneName
+scene_name
 schedule
 schema
 schema_events
@@ -1853,6 +1863,7 @@ share_limit_action
 share_ratio
 shelf
 show
+show_anime_library_folder_id
 show_colon
 show_days
 show_folder_pattern
@@ -2057,6 +2068,7 @@ text
 theaters
 theirs
 thetvdb
+through
 thumb
 ticket
 tier
@@ -2251,6 +2263,7 @@ used_at
 used_by
 usenet_delay
 user
+user_agent
 user_code
 user_fingerprint
 user_id

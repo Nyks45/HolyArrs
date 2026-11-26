@@ -3,6 +3,7 @@ module github.com/HolyArrs/holyarrs
 go 1.27.4
 
 require (
+	github.com/anacrolix/torrent v1.63.0
 	github.com/andybalholm/brotli v1.2.7
 	github.com/bodgit/sevenzip v1.6.5
 	github.com/coreos/go-oidc/v3 v3.21.0
@@ -12,12 +13,12 @@ require (
 	github.com/stangelandcl/ppmd v0.1.1
 	github.com/therootcompany/xz v1.0.1
 	github.com/ulikunitz/xz v0.5.15
-	golang.org/x/crypto v0.58.0
+	golang.org/x/crypto v0.59.0
 	golang.org/x/image v0.47.0
 	golang.org/x/oauth2 v0.37.0
-	golang.org/x/sys v0.49.0
-	golang.org/x/term v0.47.0
-	golang.org/x/text v0.43.0
+	golang.org/x/sys v0.50.0
+	golang.org/x/term v0.48.0
+	golang.org/x/text v0.44.0
 	modernc.org/sqlite v1.60.1
 )
 
@@ -39,7 +40,6 @@ require (
 	github.com/anacrolix/multiless v0.4.0 // indirect
 	github.com/anacrolix/stm v0.5.0 // indirect
 	github.com/anacrolix/sync v0.5.5-0.20251119100342-d78dd1f686f1 // indirect
-	github.com/anacrolix/torrent v1.63.0 // indirect
 	github.com/anacrolix/upnp v0.1.4 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/benbjohnson/immutable v0.4.1-0.20221220213129-8932b999621d // indirect
@@ -103,8 +103,8 @@ require (
 	go.opentelemetry.io/otel/trace v1.45.0 // indirect
 	go4.org v0.0.0-20260112195520-a5071408f32f // indirect
 	golang.org/x/exp v0.0.0-20251113190631-e25ba8c21ef6 // indirect
-	golang.org/x/net v0.60.0 // indirect
-	golang.org/x/sync v0.24.0 // indirect
+	golang.org/x/net v0.62.0 // indirect
+	golang.org/x/sync v0.25.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	lukechampine.com/blake3 v1.1.6 // indirect
 	modernc.org/libc v1.77.1 // indirect

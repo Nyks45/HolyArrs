@@ -27,6 +27,7 @@ export interface DetailCard {
 export interface TitleDetails {
 	kind: DetailKind;
 	tmdb: string;
+	imdb?: string;
 	name: string;
 	original_title?: string;
 	original_language?: string;
@@ -39,6 +40,7 @@ export interface TitleDetails {
 	runtime?: number;
 	rating?: string;
 	network?: string;
+	seasons?: { number: number; episodes: number; year?: number }[];
 	cast: DetailPerson[];
 	similar: DetailCard[];
 	titleId?: number;
@@ -76,9 +78,13 @@ export function fromMetadata(kind: DetailKind, tmdb: string, raw: Raw): TitleDet
 	const own = str(raw.rating);
 	const stars = shownScore(num(raw.vote_average) ?? num(raw.score), votes);
 	const rating = own && !/\/\s*10$/.test(own) ? own : stars !== undefined ? `${stars.toFixed(1)}/10` : undefined;
+	const seasons = list(raw.seasons)
+		.map((s) => ({ number: typeof s.number === 'number' ? s.number : -1, episodes: num(s.episode_count) ?? 0, year: num(s.year) }))
+		.filter((s) => s.number >= 0 && s.episodes > 0);
 	return {
 		kind,
 		tmdb,
+		imdb: str(raw.imdb_id) ?? str(raw.imdb) ?? str((raw.ids as Raw | undefined)?.imdb) ?? str((raw.external_ids as Raw | undefined)?.imdb),
 		name: str(raw.name) ?? str(raw.title) ?? '',
 		original_title: str(raw.original_title),
 		original_language: str(raw.original_language),
@@ -91,6 +97,7 @@ export function fromMetadata(kind: DetailKind, tmdb: string, raw: Raw): TitleDet
 		runtime: num(raw.runtime_minutes) ?? num(raw.runtime),
 		rating,
 		network: str(raw.network),
+		seasons: seasons.length ? seasons : undefined,
 		cast: list(raw.cast ?? raw.people)
 			.map((p) => ({ name: str(p.name) ?? '', role: str(p.character) ?? str(p.role), image: str(p.image) ?? str(p.profile), id: str(p.id) ?? (num(p.id) ? String(p.id) : undefined) }))
 			.filter((p) => p.name),
@@ -107,10 +114,10 @@ export function fromMetadata(kind: DetailKind, tmdb: string, raw: Raw): TitleDet
 }
 
 export function fromMovie(m: LookupMovie): TitleDetails {
-	return { kind: 'movie', tmdb: m.ids.tmdb ?? '', name: m.name, year: num(m.year), overview: m.overview || undefined, poster: m.poster, genres: [], runtime: num(m.runtime), cast: [], similar: [], titleId: m.title_id, neverAdd: m.never_add, ask: m.ask, ask4k: m.ask_4k, has4k: m.has_4k, movie: m, hidden: m.hidden || undefined };
+	return { kind: 'movie', tmdb: m.ids.tmdb ?? '', imdb: m.ids.imdb, name: m.name, year: num(m.year), overview: m.overview || undefined, poster: m.poster, genres: [], runtime: num(m.runtime), cast: [], similar: [], titleId: m.title_id, neverAdd: m.never_add, ask: m.ask, ask4k: m.ask_4k, has4k: m.has_4k, movie: m, hidden: m.hidden || undefined };
 }
 export function fromShow(s: LookupShow): TitleDetails {
-	return { kind: 'show', tmdb: s.ids.tmdb ?? '', name: s.name, year: num(s.year), overview: s.overview || undefined, poster: s.poster, genres: [], runtime: num(s.runtime), network: s.network, cast: [], similar: [], titleId: s.title_id, neverAdd: s.never_add, ask: s.ask, show: s, hidden: s.hidden || undefined };
+	return { kind: 'show', tmdb: s.ids.tmdb ?? '', imdb: s.ids.imdb, name: s.name, year: num(s.year), overview: s.overview || undefined, poster: s.poster, genres: [], runtime: num(s.runtime), network: s.network, cast: [], similar: [], titleId: s.title_id, neverAdd: s.never_add, ask: s.ask, show: s, hidden: s.hidden || undefined };
 }
 
 // A details read the server or a proxy could not answer (0, 5xx) is asked once more after this wait, then the page says so with Retry.
@@ -160,7 +167,7 @@ export async function loadDetails(get: Get, kind: DetailKind, tmdb: string, sign
 	else if (!meta || signal?.aborted) throw r.e;
 	if (!meta) return found;
 	if (!found) return meta;
-	return { ...found, ...meta, name: meta.name || found.name, overview: meta.overview ?? found.overview, poster: meta.poster ?? found.poster, year: meta.year ?? found.year, titleId: found.titleId ?? meta.titleId, neverAdd: found.neverAdd, ask: found.ask, ask4k: found.ask4k, has4k: found.has4k, movie: found.movie, show: found.show, hidden: meta.hidden || found.hidden, hides: meta.hides };
+	return { ...found, ...meta, name: meta.name || found.name, overview: meta.overview ?? found.overview, poster: meta.poster ?? found.poster, year: meta.year ?? found.year, seasons: meta.seasons, titleId: found.titleId ?? meta.titleId, neverAdd: found.neverAdd, ask: found.ask, ask4k: found.ask4k, has4k: found.has4k, movie: found.movie, show: found.show, hidden: meta.hidden || found.hidden, hides: meta.hides };
 }
 
 export function fourKOffer(d: Pick<TitleDetails, 'kind' | 'titleId' | 'neverAdd' | 'ask' | 'ask4k' | 'has4k'>): 'ask' | 'asked' | null {

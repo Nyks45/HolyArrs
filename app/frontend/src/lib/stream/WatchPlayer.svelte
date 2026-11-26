@@ -135,8 +135,6 @@
 
 	const pipAvailable = $derived(typeof document !== 'undefined' && !!document.pictureInPictureEnabled);
 
-	const extIds = $derived((details as unknown as { external_ids?: { imdb?: string } } | null)?.external_ids);
-	const imdbId = $derived(extIds?.imdb ?? '');
 	const regularSeasons = $derived(extractRegularSeasons(details));
 	const curSeasonEps = $derived(seasonEpisodes[season] ?? []);
 	const drawerEps = $derived(seasonEpisodes[drawerSeason] ?? []);
@@ -144,6 +142,7 @@
 	const activeSaved = $derived.by(() =>
 		kind === 'show' ? (historyEpisodes.find((h) => (h.season ?? 0) === season && (h.episode ?? 0) === episode) ?? null) : historyLatest
 	);
+	const imdbId = $derived(details?.imdb || activeSaved?.imdb || '');
 	const episodeProgressMap = $derived(buildEpisodeProgressMap(historyEpisodes));
 	const nextEpisodeTarget = $derived(findNextEpisodeTarget(kind, season, episode, curSeasonEps, regularSeasons));
 	const backdropUrl = $derived(details?.backdrop ? sized(details.backdrop, 'backdrop') : activeSaved?.backdrop ? sized(activeSaved.backdrop, 'backdrop') : '');
@@ -366,7 +365,7 @@
 					if (b && b.instant) void startCandidate(b, 'browser', 0, true);
 				}
 			})
-			.catch(() => {})
+			.catch((e) => { if (seq === searchSeq && candidates.length === 0) searchError = message(e); })
 			.finally(() => { if (seq === searchSeq) loadingMoreSources = false; });
 	}
 

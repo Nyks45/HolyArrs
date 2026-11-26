@@ -4,10 +4,12 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 )
 
 // UnifiedCandidate normalizes local files, instant Stremio/Nuvio HTTP/HLS streams,
@@ -256,9 +258,10 @@ func FilterAndRankCandidates(cands []UnifiedCandidate, prefs StreamPrefs) []Unif
 	})
 	if len(out) > 1 {
 		seenURLs := make(map[string]bool, len(out))
+		seenHashes := make(map[string]bool, len(out))
 		deduped := make([]UnifiedCandidate, 0, len(out))
 		for _, c := range out {
-			if c.Kind == "http" || c.Kind == "hls" {
+			if (c.Kind == "http" || c.Kind == "hls") && c.StreamURL != "" {
 				u := strings.TrimSpace(c.StreamURL)
 				if u != "" {
 					if seenURLs[u] {
@@ -266,6 +269,12 @@ func FilterAndRankCandidates(cands []UnifiedCandidate, prefs StreamPrefs) []Unif
 					}
 					seenURLs[u] = true
 				}
+			} else if (c.Kind == "torrent" || c.Kind == "debrid_cached") && c.InfoHash != "" {
+				hk := c.Kind + ":" + strings.ToLower(strings.TrimSpace(c.InfoHash))
+				if seenHashes[hk] {
+					continue
+				}
+				seenHashes[hk] = true
 			}
 			deduped = append(deduped, c)
 		}
@@ -274,15 +283,44 @@ func FilterAndRankCandidates(cands []UnifiedCandidate, prefs StreamPrefs) []Unif
 	return out
 }
 
+func tokenizeExcludeText(s string) []string {
+	return strings.FieldsFunc(strings.ToLower(s), func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	})
+}
+
 func matchesExcludeTerm(text string, terms []string) bool {
 	if len(terms) == 0 {
 		return false
 	}
-	low := strings.ToLower(text)
+	toks := tokenizeExcludeText(text)
+	if len(toks) == 0 {
+		return false
+	}
 	for _, t := range terms {
-		needle := strings.ToLower(strings.TrimSpace(t))
-		if needle != "" && strings.Contains(low, needle) {
-			return true
+		qToks := tokenizeExcludeText(t)
+		if len(qToks) == 0 {
+			continue
+		}
+		if len(qToks) == 1 {
+			q := qToks[0]
+			for _, tk := range toks {
+				if tk == q {
+					return true
+				}
+				if q == "ts" && (tk == "hdts" || tk == "tsrip" || tk == "hdtsrip" || tk == "telesync") {
+					return true
+				}
+				if q == "cam" && (tk == "hdcam" || tk == "camrip" || tk == "hdcamrip") {
+					return true
+				}
+			}
+			continue
+		}
+		for i := 0; i+len(qToks) <= len(toks); i++ {
+			if slices.Equal(toks[i:i+len(qToks)], qToks) {
+				return true
+			}
 		}
 	}
 	return false

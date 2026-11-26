@@ -301,7 +301,8 @@ func (h *Handlers) metadataDetails(w http.ResponseWriter, r *http.Request) {
 	// for a person who reads another language than English.
 	lang := metadata.TextLanguage(r)
 	text, textKnown := keptText(r.Context(), h.Metadata, kind, id, lang)
-	if cached && e.Details != nil && time.Since(e.At) >= DetailsTTL(e) && textKnown {
+	syncRefresh := metadata.NeedsAnimeSeasonSplit(e.Details)
+	if cached && e.Details != nil && !syncRefresh && time.Since(e.At) >= DetailsTTL(e) && textKnown {
 		// Stale but kept: served now, refreshed in the background.
 		metadata.RefreshOnce(key, func(ctx context.Context) {
 			if det, err := d.Details(ctx, kind, id); err == nil {
@@ -590,6 +591,36 @@ func (h *Handlers) metadataSeason(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	var groupID string
+	if season > 0 {
+		if _, ok := metadata.GroupSeasonListerFor(r.Context(), h.Metadata); ok {
+			if d, ok := metadata.DiscovererFor(r.Context(), h.Metadata); ok {
+				if det, err := h.CachedDetails(r.Context(), d, "show", id); err == nil && det != nil {
+					groupID = det.SeasonGroupID
+				}
+			}
+		}
+	}
+	if groupID != "" {
+		if gl, ok := metadata.GroupSeasonListerFor(r.Context(), h.Metadata); ok {
+			gKey := "season|" + id + "|" + groupID + "|" + strconv.Itoa(season)
+			ge, gCached := h.Cache.Get(gKey)
+			if !gCached || time.Since(ge.At) >= TTL["details"] {
+				eps, err := gl.GroupSeasonEpisodes(r.Context(), groupID, season)
+				switch {
+				case err == nil:
+					ge = Entry{At: time.Now(), Episodes: eps}
+					h.Cache.Put(gKey, ge)
+				case !(gCached && errors.Is(err, metadata.ErrRateLimited)):
+					Fail(w, err)
+					return
+				}
+			}
+			h.Caching(w, r, "")
+			webserver.WriteJSON(w, http.StatusOK, map[string]any{"tmdb_id": id, "season": season, "episodes": ge.Episodes})
+			return
+		}
+	}
 	key := "season|" + id + "|" + strconv.Itoa(season)
 	e, cached := h.Cache.Get(key)
 	if !cached || time.Since(e.At) >= TTL["details"] {
@@ -689,13 +720,23 @@ func (h *Handlers) reviewHandlers() *metadata.ReviewHandlers {
 func (h *Handlers) CachedDetails(ctx context.Context, d metadata.Discoverer, kind, id string) (*metadata.Details, error) {
 	key := "details|" + kind + "|" + id
 	e, ok := h.Cache.Get(key)
-	if !ok || time.Since(e.At) >= TTL["details"] {
+	if !ok || e.Details == nil {
+		if k, found := metadata.LoadKept[metadata.Details](ctx, h.Store, key); found {
+			e, ok = Entry{At: k.At, Details: &k.V}, true
+			h.Cache.Put(key, e)
+		}
+	}
+	if !ok || e.Details == nil || time.Since(e.At) >= DetailsTTL(e) {
 		det, err := d.Details(ctx, kind, id)
 		if err != nil {
+			if ok && e.Details != nil {
+				return e.Details, nil
+			}
 			return nil, err
 		}
 		e = Entry{At: time.Now(), Details: &det}
 		h.Cache.Put(key, e)
+		metadata.KeepOnDisk(ctx, h.Store, key, det)
 	}
 	return e.Details, nil
 }

@@ -31,6 +31,10 @@ func DetailsTTL(e Entry) time.Duration {
 	if e.Details != nil && peopleWithoutIDs(e.Details.People) {
 		return 0
 	}
+	if metadata.NeedsAnimeSeasonSplit(e.Details) {
+		// Cached single-season anime details predated episode-group splitting.
+		return 0
+	}
 	if e.Details != nil && !e.Details.LogosRead {
 		// Kept before logos were read in every language: read once more.
 		return 0

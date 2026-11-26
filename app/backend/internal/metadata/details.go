@@ -37,7 +37,8 @@ type DetailSeason struct {
 // Details is a movie or show looked up for its page, in the Library or not.
 type Details struct {
 	DiscoverItem
-	Logo string `json:"logo,omitempty"`
+	IMDbID string `json:"imdb_id,omitempty"`
+	Logo   string `json:"logo,omitempty"`
 	// Logos are the title's logos in other app languages (app language to
 	// URL); the page shows the reader's one, else Logo.
 	Logos          map[string]string `json:"logos,omitempty"`
@@ -79,8 +80,10 @@ type Details struct {
 	// show's first and last air dates, as YYYY-MM-DD.
 	Dates *DetailDates `json:"dates,omitempty"`
 	// NextEpisode is a show's next episode to air, when TMDB knows one.
-	NextEpisode *DetailNextEpisode `json:"next_episode,omitempty"`
-	Seasons     []DetailSeason     `json:"seasons,omitempty"`
+	NextEpisode        *DetailNextEpisode `json:"next_episode,omitempty"`
+	Seasons            []DetailSeason     `json:"seasons,omitempty"`
+	SeasonGroupID      string             `json:"season_group_id,omitempty"`
+	SeasonGroupChecked bool               `json:"season_group_checked,omitempty"`
 	// OriginCountry and OriginalLanguage tell anime apart (LooksAnime).
 	OriginCountry    []string       `json:"origin_country,omitempty"`
 	OriginalLanguage string         `json:"original_language,omitempty"`
@@ -179,7 +182,7 @@ func (t *TMDB) Details(ctx context.Context, kind, tmdbID string) (Details, error
 	}
 	appendTo := "release_dates,images,credits,recommendations,videos,keywords,translations"
 	if kind == "show" {
-		appendTo = "content_ratings,images,credits,recommendations,videos,keywords,translations"
+		appendTo = "content_ratings,external_ids,images,credits,recommendations,videos,keywords,translations"
 	}
 	path := "/" + tvPath(kind) + "/" + strconv.FormatInt(n, 10)
 	// English and textless logos; the reader's own comes from TitleLogo,
@@ -307,6 +310,7 @@ func (t *TMDB) Details(ctx context.Context, kind, tmdbID string) (Details, error
 		mv := m.movieWithCollection(t.images(), true)
 		d.DiscoverItem = DiscoverItem{TMDBID: tmdbID, Kind: kind, Name: mv.Name, Year: mv.Year, Poster: mv.Poster, Backdrop: mv.Backdrop,
 			Overview: mv.Overview, Genres: append([]string{}, mv.Genres...)}
+		d.IMDbID = mv.IDs["imdb"]
 		d.Logo, d.RuntimeMinutes, d.Rating = mv.Logo, mv.Runtime, mv.Rating
 		if o := strings.TrimSpace(raw.OriginalTitle); o != "" && !strings.EqualFold(o, mv.Name) {
 			d.OriginalTitle = o
@@ -327,6 +331,7 @@ func (t *TMDB) Details(ctx context.Context, kind, tmdbID string) (Details, error
 		sh := m.show(t.images())
 		d.DiscoverItem = DiscoverItem{TMDBID: tmdbID, Kind: kind, Name: sh.Name, Year: sh.Year, Poster: sh.Poster, Backdrop: sh.Backdrop,
 			Overview: sh.Overview, Genres: append([]string{}, sh.Genres...)}
+		d.IMDbID = sh.IDs["imdb"]
 		d.Logo, d.RuntimeMinutes, d.Rating = sh.Logo, sh.Runtime, sh.Rating
 		if o := strings.TrimSpace(raw.OriginalName); o != "" && !strings.EqualFold(o, sh.Name) {
 			d.OriginalTitle = o
@@ -340,6 +345,7 @@ func (t *TMDB) Details(ctx context.Context, kind, tmdbID string) (Details, error
 		for _, s := range raw.Seasons {
 			d.Seasons = append(d.Seasons, DetailSeason{Number: s.Number, EpisodeCount: s.EpisodeCount, Year: yearOf(s.AirDate)})
 		}
+		t.resolveAnimeSeasons(ctx, tmdbID, &d)
 	}
 	profile := func(p string) string {
 		if p == "" {

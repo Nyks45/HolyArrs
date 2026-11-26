@@ -112,6 +112,10 @@ func (h *Handlers) search(w http.ResponseWriter, r *http.Request) {
 		tmdbStr = strconv.Itoa(in.TMDB)
 	}
 	imdbID := strings.TrimSpace(in.IMDb)
+	if imdbID == "" && tmdbStr != "" && h.Mgr.ResolveIMDb != nil {
+		imdbID = strings.TrimSpace(h.Mgr.ResolveIMDb(r.Context(), kind, tmdbStr))
+		in.StreamSearchReq.IMDb = imdbID
+	}
 	prefs := h.Mgr.Prefs.Get()
 	if strings.TrimSpace(in.PreferredQuality) != "" {
 		prefs.PreferredQuality = strings.TrimSpace(in.PreferredQuality)
@@ -299,7 +303,7 @@ func (h *Handlers) search(w http.ResponseWriter, r *http.Request) {
 	rawCands = FilterVerifiedCandidates(rawCands, mc)
 	rawCands = PreflightAndMeasureCandidates(r.Context(), h.Mgr.Proxy, rawCands, h.Mgr.Health)
 	ranked := FilterAndRankCandidates(rawCands, prefs)
-	if canCache {
+	if canCache && len(ranked) > 0 {
 		h.Mgr.SearchCache.Set(SearchCacheKey(kind, tmdbStr, imdbID, in.Season, in.Episode, in.Query, mode), CachedSearchResult{
 			Candidates: ranked,
 			Sources:    checks,
@@ -613,6 +617,13 @@ func (h *Handlers) searchSubtitles(w http.ResponseWriter, r *http.Request) {
 	var in subtitles.StreamSubSearchReq
 	if !webserver.Decode(w, r, &in, "send {kind, title, year, season, episode, imdb, tmdb, release_name, languages}") {
 		return
+	}
+	if strings.TrimSpace(in.IMDb) == "" && strings.TrimSpace(in.TMDB) != "" && h.Mgr.ResolveIMDb != nil {
+		subKind := "movie"
+		if in.Kind == "show" {
+			subKind = "show"
+		}
+		in.IMDb = strings.TrimSpace(h.Mgr.ResolveIMDb(r.Context(), subKind, strings.TrimSpace(in.TMDB)))
 	}
 	var siteCands []any
 	var langs []string

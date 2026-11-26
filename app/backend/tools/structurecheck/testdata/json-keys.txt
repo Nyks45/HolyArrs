@@ -1875,6 +1875,8 @@ season_choice
 season_count
 season_folder_pattern
 season_folders
+season_group_checked
+season_group_id
 season_number
 season_pack_prefer
 season_pack_upgrade

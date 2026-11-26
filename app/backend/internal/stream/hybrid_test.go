@@ -573,3 +573,73 @@ func TestNuvioExtendedCheerioCryptoAndRepoDefaults(t *testing.T) {
 		t.Fatalf("expected healed JSON written to disk, got err=%v body=%q", err, string(rawAfter))
 	}
 }
+
+func TestFilterExcludeTermsTokenBoundaryAndInfoHashDedupe(t *testing.T) {
+	prefs := DefaultPrefs()
+	prefs.PreferredQuality = "1080p"
+
+	cands := []UnifiedCandidate{
+		{ID: "keep-kimetsu", Kind: "http", Provider: "Castle", Title: "Demon Slayer: Kimetsu no Yaiba Infinity Castle (2025) 1080p WEB-DL DTS-HD", StreamURL: "https://cdn.example/kimetsu.mp4"},
+		{ID: "keep-pirates", Kind: "http", Provider: "P2", Title: "Pirates of the Caribbean 1080p DTS", StreamURL: "https://cdn.example/pirates.mp4"},
+		{ID: "keep-camp", Kind: "http", Provider: "P3", Title: "Camp Rock 2008 1080p", StreamURL: "https://cdn.example/camp.mp4"},
+		{ID: "keep-camera", Kind: "http", Provider: "P4", Title: "Camera Obscura 2017 1080p", StreamURL: "https://cdn.example/camera.mp4"},
+		{ID: "drop-ts", Kind: "http", Provider: "B1", Title: "Movie 2025 TS 1080p", StreamURL: "https://cdn.example/ts.mp4"},
+		{ID: "drop-hdts", Kind: "http", Provider: "B2", Title: "Movie 2025 HDTS 1080p", StreamURL: "https://cdn.example/hdts.mp4"},
+		{ID: "drop-telesync", Kind: "http", Provider: "B3", Title: "Movie 2025 TELESYNC 1080p", StreamURL: "https://cdn.example/telesync.mp4"},
+		{ID: "drop-camrip", Kind: "http", Provider: "B4", Title: "Movie 2025 CAMRip 1080p", StreamURL: "https://cdn.example/camrip.mp4"},
+		{ID: "drop-hdcam", Kind: "http", Provider: "B5", Title: "Movie 2025 HDCAM 1080p", StreamURL: "https://cdn.example/hdcam.mp4"},
+		{ID: "tor-low", Kind: "torrent", Provider: "A", ReleaseName: "Kimetsu no Yaiba 1080p", Quality: "1080p", Seeders: 12, InfoHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Link: "magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+		{ID: "tor-high", Kind: "torrent", Provider: "B", ReleaseName: "Kimetsu no Yaiba 1080p", Quality: "1080p", Seeders: 250, InfoHash: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", Link: "magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+		{ID: "tor-debrid", Kind: "debrid_cached", Provider: "RD", ReleaseName: "Kimetsu no Yaiba 1080p", Quality: "1080p", Seeders: 250, InfoHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Link: "magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+	}
+
+	got := FilterAndRankCandidates(cands, prefs)
+	kept := map[string]bool{}
+	torCount := 0
+	for _, c := range got {
+		kept[c.ID] = true
+		if c.Kind == "torrent" {
+			torCount++
+		}
+	}
+	for _, wantID := range []string{"keep-kimetsu", "keep-pirates", "keep-camp", "keep-camera", "tor-high", "tor-debrid"} {
+		if !kept[wantID] {
+			t.Fatalf("expected candidate %q to be kept; got %+v", wantID, kept)
+		}
+	}
+	for _, dropID := range []string{"drop-ts", "drop-hdts", "drop-telesync", "drop-camrip", "drop-hdcam", "tor-low"} {
+		if kept[dropID] {
+			t.Fatalf("expected candidate %q to be dropped; got %+v", dropID, kept)
+		}
+	}
+	if torCount != 1 {
+		t.Fatalf("expected duplicate torrent infohash to dedupe to 1 torrent entry, got %d", torCount)
+	}
+}
+
+func TestFastScraperPriorityAndMagnetOutput(t *testing.T) {
+	if fastScraperPriority("castle") != 0 || fastScraperPriority("movix-vf") != 0 || fastScraperPriority("torrentio") != 0 {
+		t.Fatalf("expected core reliable scrapers to have priority 0")
+	}
+	if fastScraperPriority("unknown-random-site") != 1 {
+		t.Fatalf("expected unknown scraper to have priority 1")
+	}
+
+	ps := NewPluginStore(t.TempDir())
+	if !ps.NodeAvailable() {
+		t.Skip("node runtime unavailable")
+	}
+	code := `
+	async function getStreams() {
+		return [
+			{ name: 'MagnetOne', title: 'Demon Slayer 1080p', url: 'magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=Test', quality: '1080p', size: 1234567 }
+		];
+	}`
+	cands, err := ps.runScraperCodeWithBudget(context.Background(), "mag", "MagnetOne", code, "1311031", "movie", 0, 0, nil, "", 5*time.Second)
+	if err != nil || len(cands) != 1 {
+		t.Fatalf("expected 1 magnet candidate, got err=%v cands=%+v", err, cands)
+	}
+	if cands[0].Kind != "torrent" || cands[0].Instant || cands[0].InfoHash != "0123456789abcdef0123456789abcdef01234567" || cands[0].Magnet == "" {
+		t.Fatalf("unexpected magnet candidate fields: %+v", cands[0])
+	}
+}

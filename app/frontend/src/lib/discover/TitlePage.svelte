@@ -276,7 +276,9 @@
 		const ss = kind === 'show' ? (watchLatest?.season || seasons.find((s) => s.number > 0)?.number || 1) : 0;
 		const ee = kind === 'show' ? (watchLatest?.episode || 1) : 0;
 		const ext = (kind === 'movie' ? details.movie?.ids : details.show?.ids) as Record<string, string | undefined> | undefined;
-		prefetchStreamSources({ query: details.name, kind: kind as 'movie' | 'show', year: details.year || 0, season: ss, episode: ee, imdb: ext?.imdb ?? '', tmdb: Number(tmdb) || 0, original_title: details.original_title, genres: details.genres, original_language: details.original_language, origin_country: details.origin_country });
+		const req = { query: details.name, kind: kind as 'movie' | 'show', year: details.year || 0, season: ss, episode: ee, imdb: details.imdb ?? ext?.imdb ?? '', tmdb: Number(tmdb) || 0, original_title: details.original_title, genres: details.genres, original_language: details.original_language, origin_country: details.origin_country };
+		const timer = setTimeout(() => prefetchStreamSources(req), 500);
+		return () => clearTimeout(timer);
 	});
 	// The Library folders and Pick rules the add sheets offer; a failed load shows in the sheet with Try again.
 	let choicesLoaded = $state(false);
@@ -372,7 +374,7 @@
 	const certOf = (r?: string) => (r && !/\/\s*10$/.test(r) ? r : undefined);
 	// The details answer read by the rows (seasons for a show).
 	let info = $state<InfoDetails | null>(null);
-	const seasons = $derived(info?.seasons ?? []);
+	const seasons = $derived((info?.tmdb === details?.tmdb ? info?.seasons : undefined) ?? details?.seasons ?? []);
 	const regular = $derived(seasons.filter((s) => s.number > 0).length);
 	const networkOf = (d: TitleDetails) => d.network ?? d.show?.network ?? '';
 	// The hero says what it is (year, length or seasons, genres, age rating, scores); the details under the story say only what the hero does not.

@@ -41,3 +41,28 @@ func TestDetailsTTLReadsPreLogoPagesOnce(t *testing.T) {
 		t.Fatalf("read with logos: ttl %v", got)
 	}
 }
+
+func TestDetailsTTLRefreshesUncheckedSingleSeasonAnimeAndClearsInternalFlags(t *testing.T) {
+	vid := []metadata.DetailVideo{{Key: "k"}}
+	d := metadata.Details{
+		DiscoverItem:       metadata.DiscoverItem{Kind: "show", Genres: []string{"Animation"}},
+		OriginCountry:      []string{"JP"},
+		OriginalLanguage:   "ja",
+		LogosRead:          true,
+		Videos:             vid,
+		Seasons:            []metadata.DetailSeason{{Number: 1, EpisodeCount: 60}},
+		SeasonGroupID:      "6782169d78cfcd77ed4e89be",
+		SeasonGroupChecked: false,
+	}
+	if got := DetailsTTL(Entry{Details: &d}); got != 0 {
+		t.Fatalf("unchecked single-season anime ttl = %v, want 0", got)
+	}
+	d.SeasonGroupChecked = true
+	if got := DetailsTTL(Entry{Details: &d}); got != TTL["details"] {
+		t.Fatalf("checked anime ttl = %v, want %v", got, TTL["details"])
+	}
+	detailsText(&d, metadata.TitleText{}, "en")
+	if d.SeasonGroupID != "" || d.SeasonGroupChecked {
+		t.Fatalf("detailsText leaked internal season group fields: %+v", d)
+	}
+}

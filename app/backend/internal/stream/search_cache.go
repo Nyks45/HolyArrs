@@ -255,8 +255,8 @@ func PreflightAndMeasureCandidates(ctx context.Context, pm *ProxyManager, cands 
 		deduped = append(deduped, c)
 	}
 
-	// Pick up to 24 instant candidates round-robin across providers so every healthy provider gets probed.
-	const maxProbes = 24
+	// Pick up to 32 instant candidates round-robin across providers so every healthy provider gets probed.
+	const maxProbes = 32
 	probeIndices := make([]int, 0, maxProbes)
 	round := 0
 	for len(probeIndices) < maxProbes {
@@ -281,10 +281,10 @@ func PreflightAndMeasureCandidates(ctx context.Context, pm *ProxyManager, cands 
 	}
 
 	dropped := make([]bool, len(deduped))
-	pctx, cancelAll := context.WithTimeout(ctx, 3600*time.Millisecond)
+	pctx, cancelAll := context.WithTimeout(ctx, 4500*time.Millisecond)
 	defer cancelAll()
 
-	sem := make(chan struct{}, 12)
+	sem := make(chan struct{}, 16)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 
@@ -300,7 +300,7 @@ func PreflightAndMeasureCandidates(ctx context.Context, pm *ProxyManager, cands 
 			defer func() { <-sem }()
 
 			c := deduped[i]
-			ic, icCancel := context.WithTimeout(pctx, 3200*time.Millisecond)
+			ic, icCancel := context.WithTimeout(pctx, 3800*time.Millisecond)
 			t0 := time.Now()
 			ct, isHLS, err := pm.Preflight(ic, c.StreamURL, c.Headers)
 			elapsed := time.Since(t0)

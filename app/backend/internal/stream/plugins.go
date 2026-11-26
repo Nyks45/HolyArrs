@@ -530,7 +530,9 @@ func (p *PluginStore) SearchStreams(ctx context.Context, kind, tmdbID string, se
 		jobs = matching
 	}
 	sort.SliceStable(jobs, func(i, j int) bool {
-		return jobs[i].latency < jobs[j].latency
+		si := jobs[i].latency + float64(fastScraperPriority(jobs[i].scraper.ID))*2000
+		sj := jobs[j].latency + float64(fastScraperPriority(jobs[j].scraper.ID))*2000
+		return si < sj
 	})
 
 	mediaType := "movie"
@@ -538,15 +540,17 @@ func (p *PluginStore) SearchStreams(ctx context.Context, kind, tmdbID string, se
 		mediaType = "tv"
 	}
 
-	totalBudget := 8 * time.Second
+	totalBudget := 12 * time.Second
+	perTimeout := 6500 * time.Millisecond
 	if fast {
-		totalBudget = 4500 * time.Millisecond
+		totalBudget = 5500 * time.Millisecond
+		perTimeout = 3500 * time.Millisecond
 	}
 	sctx, cancelAll := context.WithTimeout(ctx, totalBudget)
 	defer cancelAll()
 
 	startedAt := time.Now()
-	sem := make(chan struct{}, 16)
+	sem := make(chan struct{}, 32)
 	var mu sync.Mutex
 	var out []UnifiedCandidate
 	var warnings []string
@@ -584,7 +588,7 @@ func (p *PluginStore) SearchStreams(ctx context.Context, kind, tmdbID string, se
 			defer func() { <-sem }()
 
 			t0 := time.Now()
-			cands, err := p.runScraperCode(sctx, jb.scraper.ID, jb.scraper.Name, jb.code, tmdbID, mediaType, season, episode, jb.scraper.Settings, tmdbAPIKey)
+			cands, err := p.runScraperCodeWithBudget(sctx, jb.scraper.ID, jb.scraper.Name, jb.code, tmdbID, mediaType, season, episode, jb.scraper.Settings, tmdbAPIKey, perTimeout)
 			dur := time.Since(t0)
 
 			mu.Lock()
@@ -607,8 +611,30 @@ func (p *PluginStore) SearchStreams(ctx context.Context, kind, tmdbID string, se
 	return out, warnings
 }
 
+var fastPriorityScraperIDs = map[string]bool{
+	"castle": true, "movix": true, "movix-vf": true, "purstream": true, "vidrock": true,
+	"4khdhub": true, "desiflix": true, "hianime": true, "animetsu": true, "reanime": true,
+	"anikage": true, "anikototv": true, "animekai": true, "anizone": true, "kurage": true,
+	"allanime": true, "torrentio": true, "movieblast": true, "moviesdrive": true, "uhdmovies": true,
+	"hdhub4u": true, "vidlink": true, "videasy": true, "showbox": true, "redflix": true, "anizen": true,
+}
+
+func fastScraperPriority(id string) int {
+	if fastPriorityScraperIDs[strings.ToLower(strings.TrimSpace(id))] {
+		return 0
+	}
+	return 1
+}
+
 func (p *PluginStore) runScraperCode(ctx context.Context, scraperID, scraperName, code, tmdbID, mediaType string, season, episode int, settings map[string]any, tmdbKey string) ([]UnifiedCandidate, error) {
-	cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	return p.runScraperCodeWithBudget(ctx, scraperID, scraperName, code, tmdbID, mediaType, season, episode, settings, tmdbKey, 10*time.Second)
+}
+
+func (p *PluginStore) runScraperCodeWithBudget(ctx context.Context, scraperID, scraperName, code, tmdbID, mediaType string, season, episode int, settings map[string]any, tmdbKey string, timeout time.Duration) ([]UnifiedCandidate, error) {
+	if timeout <= 0 {
+		timeout = 10 * time.Second
+	}
+	cctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	payload := map[string]any{
@@ -626,7 +652,7 @@ func (p *PluginStore) runScraperCode(ctx context.Context, scraperID, scraperName
 		return nil, err
 	}
 
-	cmd := exec.CommandContext(cctx, p.nodeBin, "--no-warnings", "--max-old-space-size=512", "--input-type=module", "-e", nuvioRunnerScript)
+	cmd := exec.CommandContext(cctx, p.nodeBin, "--no-warnings", "--max-old-space-size=256", "--input-type=module", "-e", nuvioRunnerScript)
 	cmd.Stdin = bytes.NewReader(inBytes)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -637,12 +663,13 @@ func (p *PluginStore) runScraperCode(ctx context.Context, scraperID, scraperName
 
 	var parsed struct {
 		Streams []struct {
-			Name    string            `json:"name"`
-			Title   string            `json:"title"`
-			URL     string            `json:"url"`
-			Quality string            `json:"quality"`
-			Size    float64           `json:"size"`
-			Headers map[string]string `json:"headers"`
+			Name     string            `json:"name"`
+			Title    string            `json:"title"`
+			URL      string            `json:"url"`
+			InfoHash string            `json:"infoHash"`
+			Quality  string            `json:"quality"`
+			Size     float64           `json:"size"`
+			Headers  map[string]string `json:"headers"`
 		} `json:"streams"`
 		Error string `json:"error"`
 	}
@@ -654,7 +681,41 @@ func (p *PluginStore) runScraperCode(ctx context.Context, scraperID, scraperName
 	}
 	var out []UnifiedCandidate
 	for _, st := range parsed.Streams {
-		u, perr := url.Parse(strings.TrimSpace(st.URL))
+		rawURL := strings.TrimSpace(st.URL)
+		relTitle := fallbackString(st.Title, st.Name)
+		q := normalizeQualityTag(st.Quality)
+		if strings.HasPrefix(strings.ToLower(rawURL), "magnet:") || (rawURL == "" && strings.TrimSpace(st.InfoHash) != "") {
+			ih := strings.ToLower(strings.TrimSpace(st.InfoHash))
+			if ih == "" {
+				ih = ExtractInfoHash(rawURL)
+			}
+			if rawURL == "" && ih != "" {
+				rawURL = buildMagnetFromHash(ih, relTitle, nil)
+			}
+			if rawURL == "" {
+				continue
+			}
+			if relTitle == "" {
+				relTitle = scraperName + " torrent"
+			}
+			out = append(out, UnifiedCandidate{
+				Kind:         "torrent",
+				Instant:      false,
+				Title:        relTitle,
+				ReleaseName:  relTitle,
+				Provider:     scraperName,
+				ProviderType: "nuvio",
+				SourceName:   scraperName,
+				Quality:      q,
+				Size:         int64(st.Size),
+				Link:         rawURL,
+				Magnet:       rawURL,
+				InfoHash:     ih,
+				FileIdx:      -1,
+			})
+			continue
+		}
+		u, perr := url.Parse(rawURL)
 		if perr != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 			continue
 		}
@@ -662,11 +723,9 @@ func (p *PluginStore) runScraperCode(ctx context.Context, scraperID, scraperName
 		if looksLikeHLSURL(u.String()) {
 			kind = "hls"
 		}
-		relTitle := fallbackString(st.Title, st.Name)
 		if relTitle == "" {
 			relTitle = scraperName + " stream"
 		}
-		q := normalizeQualityTag(st.Quality)
 		out = append(out, UnifiedCandidate{
 			Kind:         kind,
 			Instant:      true,

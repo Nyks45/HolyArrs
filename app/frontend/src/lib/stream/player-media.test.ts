@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
 	canSeekInLocalHlsBuffer,
+	extractRegularSeasons,
 	formatSyncDelta,
 	pickBestSubtitleCandidate,
 	resolveTotalDuration,
 	shouldAcceptEnded,
 	sortCandidatesForQuality
 } from './player-media.ts';
+import type { TitleDetails } from '#lib/metadata/index.ts';
 import type { StreamCandidate, StreamSubCandidate } from './stream-api.ts';
 
 function cand(over: Partial<StreamCandidate>): StreamCandidate {
@@ -182,5 +184,42 @@ describe('pickBestSubtitleCandidate & formatSyncDelta', () => {
 		expect(formatSyncDelta(30)).toBe('Already in sync');
 		expect(formatSyncDelta(1450)).toBe('Synced +1.45s');
 		expect(formatSyncDelta(-800)).toBe('Synced -0.80s');
+	});
+});
+
+describe('extractRegularSeasons', () => {
+	it('extracts sorted regular seasons from details.seasons and falls back to details.show.seasons', () => {
+		const fromMeta = {
+			kind: 'show',
+			tmdb: '220542',
+			name: 'The Apothecary Diaries',
+			genres: ['Animation'],
+			cast: [],
+			similar: [],
+			seasons: [
+				{ number: 3, episodes: 12 },
+				{ number: 0, episodes: 58 },
+				{ number: 1, episodes: 24 },
+				{ number: 2, episodes: 24 }
+			]
+		} as TitleDetails;
+		expect(extractRegularSeasons(fromMeta).map((s) => s.number)).toEqual([1, 2, 3]);
+
+		const fromShow = {
+			kind: 'show',
+			tmdb: '1',
+			name: 'Fallback',
+			genres: [],
+			cast: [],
+			similar: [],
+			show: {
+				source: 'tmdb',
+				name: 'Fallback',
+				status: 'running',
+				ids: { tmdb: '1' },
+				seasons: [{ number: 0 }, { number: 2 }, { number: 1 }]
+			}
+		} as TitleDetails;
+		expect(extractRegularSeasons(fromShow).map((s) => s.number)).toEqual([1, 2]);
 	});
 });

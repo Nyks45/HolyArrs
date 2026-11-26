@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { serverWords } from '#lib/core/i18n/server-words.ts';
 	// Season pills with a scrollable episode browser in list or grid mode.
 	import Skeleton from '#lib/ui/Skeleton.svelte';
@@ -45,14 +46,41 @@
 	// Specials sort last, the rest newest first.
 	const ordered = $derived([...seasons].sort((a, b) => Number(a.number === 0) - Number(b.number === 0) || b.number - a.number));
 	const fresh = $derived(newSeason(seasons));
-	const shown = $derived(picked ?? newestSeason(seasons) ?? null);
+	const validPicked = $derived(picked !== null && seasons.some((s) => s.number === picked) ? picked : null);
+	const shown = $derived(validPicked ?? newestSeason(seasons) ?? null);
 	const cur = $derived(shown === null ? undefined : seasons.find((s) => s.number === shown));
+	let retryTick = $state(0);
+	let hoverPrefetchTimer: ReturnType<typeof setTimeout> | null = null;
+
+	function clearHoverPrefetch() {
+		if (hoverPrefetchTimer) {
+			clearTimeout(hoverPrefetchTimer);
+			hoverPrefetchTimer = null;
+		}
+	}
+
+	function scheduleHoverPrefetch(sNum: number, epNum: number) {
+		if (!onstream || !tmdb) return;
+		clearHoverPrefetch();
+		hoverPrefetchTimer = setTimeout(() => {
+			hoverPrefetchTimer = null;
+			prefetchStreamSources({ query: '', kind: 'show', tmdb: Number(tmdb) || 0, season: sNum, episode: epNum });
+		}, 350);
+	}
+
+	function retrySeason(n: number) {
+		const next = { ...eps };
+		delete next[n];
+		eps = next;
+		retryTick++;
+	}
 
 	// A new show drops the old pick and cached episodes.
 	$effect(() => {
 		void tmdb;
 		picked = null;
 		eps = {};
+		stillState = {};
 		epSearch = '';
 		expanded = false;
 	});
@@ -60,8 +88,23 @@
 		void shown;
 		expanded = false;
 	});
+	$effect(() => () => clearHoverPrefetch());
 	$effect(() => {
-		if (shown !== null && !eps[shown]) read(shown);
+		const id = tmdb;
+		const n = shown;
+		void retryTick;
+		if (!id || n === null || !seasons.some((s) => s.number === n)) return;
+		const existing = untrack(() => eps[n]);
+		if (Array.isArray(existing) || existing === 'error') return;
+		const ctl = new AbortController();
+		api.get<{ episodes?: Ep[] }>(`/metadata/show/${encodeURIComponent(id)}/seasons/${n}`, ctl.signal)
+			.then((r) => {
+				if (!ctl.signal.aborted && id === tmdb) eps[n] = r.episodes ?? [];
+			})
+			.catch(() => {
+				if (!ctl.signal.aborted && id === tmdb) eps[n] = 'error';
+			});
+		return () => ctl.abort();
 	});
 	$effect(() => {
 		const id = tmdb;
@@ -72,20 +115,6 @@
 			.catch(() => {});
 		return () => ctl.abort();
 	});
-
-	const asked = new Set<string>();
-	// The set stops the effect from refetching a season while its request is in flight.
-	function read(n: number) {
-		const id = tmdb;
-		if (asked.has(`${id}:${n}`)) return;
-		asked.add(`${id}:${n}`);
-		api.get<{ episodes?: Ep[] }>(`/metadata/show/${encodeURIComponent(id)}/seasons/${n}`)
-			.then((r) => id === tmdb && (eps[n] = r.episodes ?? []))
-			.catch(() => {
-				asked.delete(`${id}:${n}`);
-				if (id === tmdb) eps[n] = 'error';
-			});
-	}
 
 	const visibleCards = $derived.by((): EpCard[] => {
 		if (shown === null) return [];
@@ -133,7 +162,7 @@
 		<h2 id="h-seasons" class="tp-h2">{t('shows.folds.seasons')}</h2>
 		<div class="pills" role="group" aria-label={t('shows.picker.season')} use:wheelX>
 			{#each ordered as s (s.number)}
-				<button type="button" class="pill" aria-pressed={shown === s.number} onclick={() => (picked = s.number)}>{seasonName(s.number)}{#if fresh === s.number}<span class="dot" aria-label={t('shows.picker.new')}></span>{/if}</button>
+				<button type="button" class="pill" aria-pressed={shown === s.number} onclick={() => { if (eps[s.number] === 'error') retrySeason(s.number); picked = s.number; }}>{seasonName(s.number)}{#if fresh === s.number}<span class="dot" aria-label={t('shows.picker.new')}></span>{/if}</button>
 			{/each}
 		</div>
 		<div class="ep-bar">
@@ -168,7 +197,10 @@
 
 		{#if shown !== null}
 			{#if eps[shown] === 'error'}
-				<p class="small muted">{t('shows.list.readFailed', { season: seasonName(shown) })}</p>
+				<div class="ep-err">
+					<p class="small muted">{t('shows.list.readFailed', { season: seasonName(shown) })}</p>
+					<button type="button" class="ep-tool-btn" onclick={() => retrySeason(shown)}>Retry</button>
+				</div>
 			{:else if Array.isArray(eps[shown])}
 				{#if visibleCards.length === 0}
 					<p class="small muted">{epSearch.trim() ? 'No matching episodes.' : t('shows.list.none')}</p>
@@ -180,7 +212,8 @@
 								<article
 									class="ep"
 									class:row={viewMode === 'list'}
-									onmouseenter={() => { if (onstream && tmdb) prefetchStreamSources({ query: '', kind: 'show', tmdb: Number(tmdb) || 0, season: shown, episode: c.key }); }}
+									onmouseenter={() => scheduleHoverPrefetch(shown, c.key)}
+									onmouseleave={clearHoverPrefetch}
 								>
 									{#if onstream}
 										<button
@@ -208,7 +241,7 @@
 					</div>
 				{/if}
 			{:else}
-				<div class="sk" aria-busy="true">{#each [0, 1, 2] as i (i)}<Skeleton lines={3} />{/each}</div>
+				<div class="ep-sk" aria-busy="true">{#each [0, 1, 2] as i (i)}<Skeleton lines={3} />{/each}</div>
 			{/if}
 		{/if}
 	</section>
@@ -262,6 +295,8 @@
 	.ep-name { font: 600 15px/1.3 var(--font-ui); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 	.ep.row .ep-name { white-space: normal; display: -webkit-box; -webkit-line-clamp: 1; line-clamp: 1; -webkit-box-orient: vertical; }
 	.ep-text { margin: 2px 0 0; color: var(--text-muted); font: 400 13.5px/1.4 var(--font-ui); display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-	.sk { display: flex; gap: 12px; margin-top: 12px; }
-	.sk > :global(*) { flex: 1; }
+	.ep-err { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+	.ep-err p { margin: 0; }
+	.ep-sk { display: flex; gap: 12px; margin-top: 12px; }
+	.ep-sk > :global(*) { flex: 1; }
 </style>

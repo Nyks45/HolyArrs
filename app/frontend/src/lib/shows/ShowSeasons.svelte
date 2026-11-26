@@ -34,7 +34,12 @@
 	const curSeason = $derived(seasons.find((s) => s.number === cur));
 	const animeLine = $derived(curSeason ? seasonAnimeLine(anime, cur, curSeason.episodes) : '');
 
-	// Each season loads once, on first view.
+	// Each show resets its picked season and cached episodes; each season loads once.
+	$effect(() => {
+		void tmdb;
+		picked = null;
+		eps = {};
+	});
 	$effect(() => {
 		const n = cur;
 		const id = tmdb;
@@ -75,12 +80,12 @@
 		{:else if list}
 			<EpisodeList {rows} {fallback} />
 		{:else}
-			<div class="sk" aria-busy="true">{#each [0, 1, 2] as i (i)}<Skeleton lines={2} />{/each}</div>
+			<div class="ep-sk" aria-busy="true">{#each [0, 1, 2] as i (i)}<Skeleton lines={2} />{/each}</div>
 		{/if}
 	</section>
 {/if}
 
 <style>
-	.sk { display: flex; flex-direction: column; gap: 12px; }
+	.ep-sk { display: flex; flex-direction: column; gap: 12px; }
 	[data-testid='season-line'], [data-testid='anime-names'], [data-testid='anime-season'] { margin: 0 0 4px; }
 </style>

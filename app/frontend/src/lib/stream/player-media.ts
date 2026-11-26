@@ -48,6 +48,7 @@ export interface HlsQualityLevel {
 
 let cachedHlsCtor: Promise<typeof HlsType> | null = null;
 const prefetchedKeys = new Map<string, number>();
+let prefetchInFlight = false;
 const PREFETCH_TTL_MS = 90_000;
 
 export function loadHlsCtor(): Promise<typeof HlsType> {
@@ -149,7 +150,7 @@ export function mergeCandidateLists(current: StreamCandidate[], incoming: Stream
 }
 
 export function prefetchStreamSources(req: StreamSearchReq): void {
-	if (!req.tmdb && !req.imdb && !req.query) return;
+	if (prefetchInFlight || (!req.tmdb && !req.imdb && !req.query)) return;
 	const key = `${req.kind}:${req.tmdb ?? 0}:${req.season ?? 0}:${req.episode ?? 0}`;
 	const now = Date.now();
 	const prev = prefetchedKeys.get(key);
@@ -159,9 +160,14 @@ export function prefetchStreamSources(req: StreamSearchReq): void {
 		const first = prefetchedKeys.keys().next().value;
 		if (first) prefetchedKeys.delete(first);
 	}
-	void searchStreamReleases({ ...req, mode: 'fast' }).catch(() => {
-		prefetchedKeys.delete(key);
-	});
+	prefetchInFlight = true;
+	void searchStreamReleases({ ...req, mode: 'fast' })
+		.catch(() => {
+			prefetchedKeys.delete(key);
+		})
+		.finally(() => {
+			prefetchInFlight = false;
+		});
 }
 
 export async function attachHlsMedia(opts: {
@@ -413,9 +419,15 @@ export function candidateKey(c: StreamCandidate): string {
 }
 
 export function extractRegularSeasons(details: TitleDetails | null): { number: number; name?: string }[] {
-	const raw = details && 'seasons' in details && Array.isArray(details.seasons) ? (details.seasons as { number: number; name?: string }[]) : [];
+	const raw =
+		details?.seasons?.length
+			? details.seasons
+			: Array.isArray(details?.show?.seasons)
+				? details.show.seasons
+				: [];
 	const nonZero = raw.filter((s) => s.number > 0);
-	return nonZero.length > 0 ? nonZero : raw;
+	const picked = nonZero.length > 0 ? nonZero : raw;
+	return [...picked].sort((a, b) => a.number - b.number);
 }
 
 export function buildEpisodeProgressMap(historyEpisodes: WatchEntry[]): Record<string, WatchEntry> {

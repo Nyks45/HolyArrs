@@ -71,6 +71,7 @@ func detailsText(d *metadata.Details, x metadata.TitleText, lang string) {
 		d.Logo = l
 	}
 	d.Logos, d.LogosRead = nil, false
+	d.SeasonGroupID, d.SeasonGroupChecked = "", false
 	if x.Name != "" && x.Name != d.Name {
 		switch {
 		case d.OriginalTitle == "":

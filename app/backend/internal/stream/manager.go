@@ -56,9 +56,10 @@ var videoExts = map[string]bool{
 type Manager struct {
 	Store      *database.Store
 	Secrets    sources.SecretReader
-	Vault      *secrets.Vault
-	Trakt      *metadata.TraktAuth
-	Subtitles  *subtitles.Service
+	Vault       *secrets.Vault
+	Trakt       *metadata.TraktAuth
+	ResolveIMDb func(ctx context.Context, kind, tmdbID string) string
+	Subtitles   *subtitles.Service
 	History    *HistoryStore
 	Prefs      *PrefsStore
 	Addons     *AddonStore

@@ -9,7 +9,7 @@
 	import { detailPath, loadDetails, type TitleDetails } from '#lib/metadata/index.ts';
 	import { ensureStreamHLS, formatEndsAt, formatTimeLeft, getStreamStatus, getTitleWatchHistory, launchStreamMPV, listStreamSources, saveWatchProgress, searchStreamReleases, searchStreamSubtitles, selectStreamFile, setStreamKeep, startStream, stopStream, type SessionStatus, type StreamCandidate, type StreamSubCandidate, type SubPref, type WatchEntry } from './stream-api.ts';
 	import { getStreamingPrefs, saveStreamingPrefs, type SkipSegment, type StreamPrefs, type SubStylePrefs } from './streaming-config-api.ts';
-	import { attachHlsMedia, buildEpisodeProgressMap, buildResumeCandidate, buildSearchReq, buildWatchEntryPayload, candidateKey, canSeekInLocalHlsBuffer, clearPlayerTimers, countCandidateKinds, DEFAULT_SUB_STYLE, extractRegularSeasons, fetchTitleSkips, findNextEpisodeTarget, matchPlayerHotkey, mergeCandidateLists, mergeWatchHistory, normQualityChoice, parseSavedPlayerPrefs, postWatchScrobble, prefetchStreamSources, resolveEmbeddedSub, resolveSiteSub, resolveTotalDuration, resolveUploadedSub, runAutoFindAndSyncSubtitle, selectAutoPlayCandidate, shouldAcceptEnded, sortCandidatesForQuality, syncVttToSessionAudio, type HlsQualityLevel, type SeasonEp } from './player-media.ts';
+	import { attachHlsMedia, buildEpisodeProgressMap, buildResumeCandidate, buildSearchReq, buildWatchEntryPayload, candidateKey, canSeekInLocalHlsBuffer, clearPlayerTimers, countCandidateKinds, DEFAULT_SUB_STYLE, extractRegularSeasons, fetchTitleSkips, findNextEpisodeTarget, isTimeBuffered, matchPlayerHotkey, mergeCandidateLists, mergeWatchHistory, normQualityChoice, parseSavedPlayerPrefs, postWatchScrobble, prefetchStreamSources, resolveEmbeddedSub, resolveSiteSub, resolveTotalDuration, resolveUploadedSub, runAutoFindAndSyncSubtitle, selectAutoPlayCandidate, shouldAcceptEnded, shouldAcceptTimeUpdate, shouldFallbackDirectSeekToTranscode, sortCandidatesForQuality, syncVttToSessionAudio, type HlsQualityLevel, type SeasonEp } from './player-media.ts';
 	import { resolveSubtitleStyle, stripSdhCueLines } from './subtitle-style.ts';
 	import { activeCuesAt, type VTTCue } from './vtt.ts';
 	import PlayerHud from './PlayerHud.svelte';
@@ -123,11 +123,11 @@
 	let waitingTimer: ReturnType<typeof setTimeout> | null = null;
 	let nextTimer: ReturnType<typeof setInterval> | null = null;
 	let attachedSessionKey = '';
-	let loadReqSeq = 0;
-	let searchSeq = 0;
+	let loadReqSeq = 0, searchSeq = 0, startSeq = 0;
 	let didInitialResumeDecision = false;
 	let autoSubSessionId = '';
 	let destroyed = false;
+	let reseekingHls = false, sourceStarted = false, sameSourceRetries = 0;
 
 	const pipAvailable = $derived(typeof document !== 'undefined' && !!document.pictureInPictureEnabled);
 	const prefQuality = $derived(prefs ? normQualityChoice(prefs.preferred_quality) : '1080p');
@@ -148,7 +148,7 @@
 	const headerTitle = $derived(details?.name || activeSaved?.title || 'Watch');
 	const headerSub = $derived(kind === 'show' ? `S${String(season).padStart(2, '0')}E${String(episode).padStart(2, '0')}${curEpObj?.name ? ` · ${curEpObj.name}` : ''}` : '');
 	const isLocalEventHls = $derived(pipelineMode === 'hls' && session?.transport !== 'hls_remote');
-	const currentPos = $derived(isScrubbing ? scrubValue : pipelineMode === 'hls' ? seekOffset + videoTime : videoTime);
+	const currentPos = $derived(isScrubbing ? scrubValue : pendingSeekTarget !== null ? pendingSeekTarget : pipelineMode === 'hls' ? seekOffset + videoTime : videoTime);
 	const totalDuration = $derived(resolveTotalDuration({ probeDuration: session?.probe?.duration_sec, videoDuration, knownDuration: knownDurationSec, savedDuration: activeSaved?.duration_sec, metadataRuntimeMin: curEpObj?.runtime || details?.runtime, isLocalEventHls, seekOffset, currentPos }));
 	const remainingText = $derived(formatTimeLeft(currentPos, totalDuration));
 	const endsAtText = $derived(formatEndsAt(currentPos, totalDuration, playbackRate));
@@ -163,19 +163,9 @@
 	const activeSkip = $derived(pipelineMode === 'none' ? null : (skipSegments.find((s) => currentPos >= s.start && currentPos < s.end - 1) ?? null));
 	const nearEpisodeEnd = $derived(kind === 'show' && !!nextEpisodeTarget && pipelineMode !== 'none' && totalDuration > 180 && totalDuration - currentPos <= 25 && currentPos > 30);
 
-	function showFeedback(text: string) {
-		feedbackText = text;
-		if (feedbackTimer) clearTimeout(feedbackTimer);
-		feedbackTimer = setTimeout(() => { feedbackText = ''; }, 900);
-	}
-	function wakeHud() {
-		hudVisible = true;
-		if (hudTimer) clearTimeout(hudTimer);
-		if (!paused && drawer === 'none') hudTimer = setTimeout(() => { hudVisible = false; }, 2800);
-	}
-	function currentSubPref(): SubPref {
-		return { mode: subMode, language: subLang, label: subLabel, index: subIndex, site_id: subSiteId, site_key: subSiteKey, delay_ms: subDelayMS, size: subSize };
-	}
+	function showFeedback(text: string) { feedbackText = text; if (feedbackTimer) clearTimeout(feedbackTimer); feedbackTimer = setTimeout(() => { feedbackText = ''; }, 900); }
+	function wakeHud() { hudVisible = true; if (hudTimer) clearTimeout(hudTimer); if (!paused && drawer === 'none') hudTimer = setTimeout(() => { hudVisible = false; }, 2800); }
+	function currentSubPref(): SubPref { return { mode: subMode, language: subLang, label: subLabel, index: subIndex, site_id: subSiteId, site_key: subSiteKey, delay_ms: subDelayMS, size: subSize }; }
 
 	async function persistProgress(posOverride?: number, keepalive = false, completedOverride?: boolean) {
 		const entry = buildWatchEntryPayload({
@@ -198,21 +188,32 @@
 		await postWatchScrobble({ action, kind, tmdb, imdbId, season, episode, currentPos, totalDuration });
 	}
 
-	function clearStall(keepSeamless = false) {
-		if (waitingTimer) { clearTimeout(waitingTimer); waitingTimer = null; }
-		stalled = false;
-		if (!keepSeamless) { seamlessStatus = ''; pendingSeekTarget = null; }
-	}
-	function syncVideoDuration() {
-		if (!switchingSource && videoEl && Number.isFinite(videoEl.duration) && videoEl.duration > 0) {
-			videoDuration = videoEl.duration;
-			if (!isLocalEventHls && videoEl.duration > 10) knownDurationSec = videoEl.duration;
-		}
-	}
+	function clearStall(keepSeamless = false) { if (waitingTimer) { clearTimeout(waitingTimer); waitingTimer = null; } stalled = false; if (!keepSeamless) { seamlessStatus = ''; pendingSeekTarget = null; } }
+	function syncVideoDuration() { if (!switchingSource && videoEl && Number.isFinite(videoEl.duration) && videoEl.duration > 0) { videoDuration = videoEl.duration; if (!isLocalEventHls && videoEl.duration > 10) knownDurationSec = videoEl.duration; } }
 	function onVideoWaiting() {
 		if (pipelineMode === 'none' || switchingSource) return;
 		if (waitingTimer) clearTimeout(waitingTimer);
 		waitingTimer = setTimeout(() => { if (!paused && pipelineMode !== 'none' && !switchingSource) stalled = true; }, 1200);
+	}
+	function onVideoTimeUpdate() {
+		if (!videoEl) return;
+		if (videoEl.buffered.length > 0) bufferedEnd = videoEl.buffered.end(videoEl.buffered.length - 1);
+		const pos = pipelineMode === 'hls' ? seekOffset + videoEl.currentTime : videoEl.currentTime;
+		const decision = shouldAcceptTimeUpdate({ switchingSource, reseekingHls, videoSeeking: videoEl.seeking, pendingSeekTarget, actualPos: pos });
+		if (decision === 'ignore') return;
+		videoTime = videoEl.currentTime;
+		if (decision === 'landed') { clearStall(); sameSourceRetries = 0; } else { clearStall(true); }
+	}
+	function onVideoSeeked() {
+		if (switchingSource || reseekingHls || !videoEl || videoEl.seeking) return;
+		const seekableEnd = videoEl.seekable.length > 0 ? videoEl.seekable.end(videoEl.seekable.length - 1) : 0;
+		if (shouldFallbackDirectSeekToTranscode({ pipelineMode, ffmpegAvailable, pendingSeekTarget, videoTime: videoEl.currentTime, videoDuration, seekableEnd })) {
+			const t = videoDuration > 0 ? Math.min(pendingSeekTarget!, videoDuration) : pendingSeekTarget!;
+			void attachPlayback(t, true, true, 'Seeking...');
+			return;
+		}
+		videoTime = videoEl.currentTime;
+		clearStall();
 	}
 	function destroyVideoPipeline() {
 		loadingMedia = false; switchingSource = false; clearStall(); hlsLevels = []; hlsLevelIdx = -1; videoDuration = 0; bufferedEnd = 0;
@@ -383,13 +384,14 @@
 
 	async function startCandidate(c: StreamCandidate, mode: 'browser' | 'mpv', startAt = 0, keepExternalSubs = true) {
 		if (pipelineMode !== 'none' && currentPos > 5) await persistProgress(currentPos);
+		const myStart = ++startSeq;
 		const keepLiveFrame = mode === 'browser' && pipelineMode !== 'none';
 		if (!keepLiveFrame) destroyVideoPipeline(); else { switchingSource = true; seamlessStatus = 'Switching source...'; }
 		stopPolling();
 		const prevSession = session;
 		attachedSessionKey = ''; activeCandidate = c; triedCandKeys.add(candidateKey(c));
 		playMode = mode; pendingMPV = mode === 'mpv'; pendingStartSec = Math.max(0, startAt);
-		starting = true; playerError = '';
+		sourceStarted = false; sameSourceRetries = 0; reseekingHls = false; starting = true; playerError = '';
 		if (!keepLiveFrame) { session = null; seekOffset = pendingStartSec; videoTime = pendingStartSec; }
 		if (!keepExternalSubs || subMode === 'embedded') { subMode = 'off'; parsedCues = []; subFile = ''; activeSubVtt = ''; syncNote = ''; }
 
@@ -401,27 +403,46 @@
 				kind, season: kind === 'show' ? season : 0, episode: kind === 'show' ? episode : 0, keep_file: false,
 				tmdb: Number(tmdb) || 0, imdb: imdbId
 			});
-			if (destroyed) return;
+			if (destroyed || myStart !== startSeq) { void stopStream(st.id).catch(() => {}); return; }
 			if (prevSession && prevSession.id !== st.id && !prevSession.mpv_running) void stopStream(prevSession.id).catch(() => {});
 			if (st.probe?.duration_sec && st.probe.duration_sec > 0) knownDurationSec = st.probe.duration_sec;
 			session = st; startPolling(st.id);
 			if (st.state === 'ready' || (pendingMPV && st.state !== 'resolving')) void pollSession(st.id);
 			wakeHud(); warmNextEpisode();
 		} catch (e) {
+			if (myStart !== startSeq) return;
 			switchingSource = false; pendingMPV = false; seamlessStatus = ''; playerError = message(e);
 			toasts.push('Could not start stream', 'fail', { body: playerError });
-			tryFallbackSource();
-		} finally { starting = false; }
+			tryFallbackSource(pendingStartSec);
+		} finally { if (myStart === startSeq) starting = false; }
 	}
 
-	function tryFallbackSource() {
+	function tryFallbackSource(resumeAt?: number) {
 		if ((prefs && !prefs.auto_fallback) || autoFallbacks >= 5) return;
 		const pool = sortCandidatesForQuality(candidates, targetQuality);
 		const next = pool.find((c) => !triedCandKeys.has(candidateKey(c)) && (c.instant || c.seeders > 0));
 		if (!next) return;
 		autoFallbacks++;
 		fallbackNotice = `Switching to fallback: ${next.provider || next.source_name}`;
-		void startCandidate(next, playMode, currentPos > 10 ? currentPos : 0, true);
+		const pos = resumeAt ?? pendingSeekTarget ?? currentPos;
+		void startCandidate(next, playMode, pos > 10 ? pos : 0, true);
+	}
+
+	function handlePlaybackFailure(errText: string, preferLocalTranscode = false) {
+		const resumeAt = pendingSeekTarget ?? currentPos;
+		switchingSource = false; reseekingHls = false; playerError = errText;
+		if (sourceStarted && session && playMode === 'browser') {
+			if (preferLocalTranscode && pipelineMode === 'direct' && ffmpegAvailable && sameSourceRetries < 2) {
+				sameSourceRetries++; pendingSeekTarget = resumeAt; void attachPlayback(resumeAt, true, true, 'Seeking stream...'); return;
+			}
+			if (sameSourceRetries < 1) {
+				sameSourceRetries++; pendingSeekTarget = resumeAt;
+				void attachPlayback(resumeAt, pipelineMode === 'hls' && session.transport !== 'hls_remote', true, 'Retrying position...');
+				return;
+			}
+		}
+		clearStall();
+		tryFallbackSource(resumeAt);
 	}
 
 	function maybeAutoSub(sid: string) {
@@ -433,6 +454,7 @@
 		if (!st || !videoEl) return;
 		const req = ++loadReqSeq;
 		const keepLive = seamless && pipelineMode !== 'none';
+		if (startSec > 0.5) pendingSeekTarget = startSec;
 		if (!keepLive) {
 			destroyVideoPipeline(); loadReqSeq = req; loadingMedia = true; seekOffset = startSec; videoTime = 0;
 		} else {
@@ -446,8 +468,9 @@
 			const isCancelled = () => req !== loadReqSeq || destroyed || !videoEl;
 			const hlsOpts = (url: string, at: number) => attachHlsMedia({
 				video: videoEl!, srcUrl: url, startSec: at, playbackRate, volume, muted, isCancelled,
-				onFatalError: (d) => { if (isCancelled() || switchingSource) return; clearStall(); playerError = `Playback error (${d})`; tryFallbackSource(); },
-				onStarted: () => { switchingSource = false; clearStall(); loadingMedia = false; void sendScrobble('start'); maybeAutoSub(st.id); },
+				onRecovering: (s) => { if (!isCancelled()) seamlessStatus = s; },
+				onFatalError: (d) => { if (isCancelled() || switchingSource) return; handlePlaybackFailure(`Playback error (${d})`); },
+				onStarted: () => { switchingSource = false; clearStall(!!videoEl?.seeking || pendingSeekTarget !== null); loadingMedia = false; void sendScrobble('start'); maybeAutoSub(st.id); },
 				onLevelsLoaded: (levels) => { if (!isCancelled()) { hlsLevels = levels; hlsLevelIdx = -1; } }
 			});
 
@@ -464,15 +487,17 @@
 				if (startSec > 0.5) videoEl.addEventListener('loadedmetadata', () => { if (videoEl) videoEl.currentTime = startSec; }, { once: true });
 				videoEl.src = playURL; videoEl.playbackRate = playbackRate; videoEl.volume = volume; videoEl.muted = muted;
 				await videoEl.play().catch(() => {});
-				clearStall(); void sendScrobble('start'); wakeHud(); maybeAutoSub(st.id); return;
+				clearStall(startSec > 0.5 || !!videoEl.seeking); void sendScrobble('start'); wakeHud(); maybeAutoSub(st.id); return;
 			}
 			if (!ffmpegAvailable) throw new Error('ffmpeg is not installed for transcoding');
+			if (keepLive) reseekingHls = true;
 			const hlsRes = await ensureStreamHLS(st.id, browserQuality, audioIdx, startSec);
+			if (req === loadReqSeq) reseekingHls = false;
 			if (isCancelled() || !session || session.id !== st.id) return;
 			const oldHls = hlsInstance; hlsInstance = null; oldHls?.destroy();
 			switchingSource = false; seekOffset = hlsRes.start_sec; videoTime = 0; videoDuration = 0; bufferedEnd = 0; pipelineMode = 'hls';
 			hlsInstance = await hlsOpts(to(hlsRes.playlist_url), 0);
-		} catch (e) { if (req === loadReqSeq) { switchingSource = false; clearStall(); playerError = message(e); tryFallbackSource(); } } finally { if (req === loadReqSeq) loadingMedia = false; }
+		} catch (e) { if (req === loadReqSeq) handlePlaybackFailure(message(e)); } finally { if (req === loadReqSeq) { loadingMedia = false; reseekingHls = false; } }
 	}
 
 	async function triggerMPV(id: string, atSec = currentPos) {
@@ -496,38 +521,24 @@
 		isScrubbing = false;
 		if (!session || !videoEl) return;
 		const t = Math.max(0, totalDuration > 0 ? Math.min(totalDuration, target) : target);
+		const actualNow = pipelineMode === 'hls' ? seekOffset + videoTime : videoTime;
+		if (Math.abs(t - actualNow) < 0.25 && !videoEl.seeking) { clearStall(); return; }
 		pendingSeekTarget = t;
-		if (pipelineMode === 'direct' || session.transport === 'hls_remote') { if (videoEl.readyState < 2) seamlessStatus = 'Seeking...'; videoEl.currentTime = t; videoTime = t; return; }
+		if (pipelineMode === 'direct' || session.transport === 'hls_remote') {
+			if (!isTimeBuffered(videoEl.buffered, t)) seamlessStatus = 'Seeking...';
+			videoEl.currentTime = t; videoTime = t; return;
+		}
 		if (pipelineMode === 'hls' && canSeekInLocalHlsBuffer(videoEl, seekOffset, t, bufferedEnd)) {
-			const rel = Math.max(0, t - seekOffset);
-			videoEl.currentTime = rel; videoTime = rel;
-			return;
+			const rel = Math.max(0, t - seekOffset); videoEl.currentTime = rel; videoTime = rel; return;
 		}
 		void attachPlayback(t, true, true, 'Jumping...');
 	}
-	function selectSpeed(spd: number) {
-		playbackRate = spd;
-		if (videoEl) videoEl.playbackRate = playbackRate;
-		showFeedback(`${playbackRate}x`);
-	}
-	function selectHlsLevel(idx: number) {
-		hlsLevelIdx = idx;
-		if (hlsInstance) hlsInstance.currentLevel = idx;
-		showFeedback(idx < 0 ? 'Quality: Auto' : `Quality: ${hlsLevels.find((l) => l.index === idx)?.label || ''}`);
-	}
-	async function togglePiP() {
-		if (typeof document === 'undefined' || !videoEl) return;
-		try {
-			if (document.pictureInPictureElement) await document.exitPictureInPicture();
-			else await videoEl.requestPictureInPicture();
-		} catch { /* Ignore PiP denial. */ }
-	}
+	function selectSpeed(spd: number) { playbackRate = spd; if (videoEl) videoEl.playbackRate = playbackRate; showFeedback(`${playbackRate}x`); }
+	function selectHlsLevel(idx: number) { hlsLevelIdx = idx; if (hlsInstance) hlsInstance.currentLevel = idx; showFeedback(idx < 0 ? 'Quality: Auto' : `Quality: ${hlsLevels.find((l) => l.index === idx)?.label || ''}`); }
+	async function togglePiP() { if (typeof document === 'undefined' || !videoEl) return; try { if (document.pictureInPictureElement) await document.exitPictureInPicture(); else await videoEl.requestPictureInPicture(); } catch {} }
 	function setVolumeLevel(v: number) { volume = Math.min(1, Math.max(0, v)); muted = volume === 0; if (videoEl) { videoEl.volume = volume; videoEl.muted = muted; } }
 	function toggleMute() { muted = !muted; if (videoEl) videoEl.muted = muted; showFeedback(muted ? 'Muted' : 'Unmuted'); }
-	async function toggleFullscreen() {
-		if (typeof document === 'undefined' || !stageEl) return;
-		try { if (document.fullscreenElement) await document.exitFullscreen(); else await stageEl.requestFullscreen(); } catch { /* Ignore fullscreen denial. */ }
-	}
+	async function toggleFullscreen() { if (typeof document === 'undefined' || !stageEl) return; try { if (document.fullscreenElement) await document.exitFullscreen(); else await stageEl.requestFullscreen(); } catch {} }
 
 	function turnOffSubtitles() { subMode = 'off'; subLabel = ''; subSiteId = ''; subFile = ''; activeSubVtt = ''; syncNote = ''; parsedCues = []; void persistProgress(); }
 	async function loadEmbeddedSubtitle(idx: number, silent = false) {
@@ -584,10 +595,8 @@
 	async function syncCurrentSubtitleToAudio() {
 		if (!session || !activeSubVtt || syncingSub) return;
 		syncingSub = true; subError = ''; syncNote = 'Listening to audio...';
-		try {
-			const res = await syncVttToSessionAudio({ sessionId: session.id, rawVtt: activeSubVtt, startSec: currentPos });
-			subDelayMS = res.offsetMs; syncNote = res.note; showFeedback(res.note); void persistProgress();
-		} catch (e) { subError = message(e); syncNote = ''; } finally { syncingSub = false; }
+		try { const res = await syncVttToSessionAudio({ sessionId: session.id, rawVtt: activeSubVtt, startSec: currentPos }); subDelayMS = res.offsetMs; syncNote = res.note; showFeedback(res.note); void persistProgress(); }
+		catch (e) { subError = message(e); syncNote = ''; } finally { syncingSub = false; }
 	}
 
 	async function switchEpisode(nextSeason: number, nextEpisode: number, autoPlayBest = true) {
@@ -595,7 +604,7 @@
 		if (pipelineMode !== 'none' && currentPos > 5) await persistProgress(currentPos);
 		destroyVideoPipeline(); stopPolling();
 		if (session) { void stopStream(session.id).catch(() => {}); session = null; }
-		season = nextSeason; drawerSeason = nextSeason; episode = nextEpisode;
+		season = nextSeason; drawerSeason = nextSeason; episode = nextEpisode; activeCandidate = null;
 		attachedSessionKey = ''; pendingStartSec = 0; seekOffset = 0; videoTime = 0; knownDurationSec = 0; autoSubSessionId = ''; activeSubVtt = ''; syncNote = ''; drawer = 'none'; triedCandKeys.clear(); fallbackNotice = '';
 		await loadSeasonEpisodes(nextSeason);
 		const savedEp = episodeProgressMap[`${nextSeason}:${nextEpisode}`];
@@ -604,8 +613,8 @@
 		void fetchSkips(); await runSearch();
 		if (!autoPlayBest) return;
 		if (savedEp?.release_link && !savedEp.completed && savedEp.position_sec > 10) { await resumeFromSaved(savedEp, savedEp.position_sec); return; }
-		const best = pickBestCandidate();
-		if (best) await startCandidate(best, 'browser', 0, true); else drawer = 'sources';
+		const best = selectAutoPlayCandidate(candidates, targetQuality, !loadingMoreSources);
+		if (best) await startCandidate(best, 'browser', 0, true); else if (!loadingMoreSources) drawer = 'sources';
 	}
 	async function shuffleEpisode() {
 		if (kind !== 'show' || curSeasonEps.length <= 1) return;
@@ -616,38 +625,28 @@
 	function executeSkip(seg: SkipSegment) {
 		if (!videoEl) return;
 		if (skipTimer) { clearInterval(skipTimer); skipTimer = null; }
-		skipCountdown = 0; autoSkipDismissed = { ...autoSkipDismissed, [seg.kind]: true };
-		commitSeek(seg.end); showFeedback(`Skipped ${seg.kind}`);
+		skipCountdown = 0; autoSkipDismissed = { ...autoSkipDismissed, [seg.kind]: true }; commitSeek(seg.end); showFeedback(`Skipped ${seg.kind}`);
 	}
 	function onKeyDown(e: KeyboardEvent) {
 		const act = matchPlayerHotkey(e, kind === 'show');
 		if (!act) return;
 		wakeHud();
 		if (act === 'togglePlay' || act === 'back10' || act === 'fwd10') e.preventDefault();
-		if (act === 'togglePlay') togglePlayPause();
-		else if (act === 'back10') seekBy(-10);
-		else if (act === 'fwd10') seekBy(10);
-		else if (act === 'mute') toggleMute();
-		else if (act === 'fullscreen') void toggleFullscreen();
-		else if (act === 'sources') drawer = drawer === 'sources' ? 'none' : 'sources';
-		else if (act === 'episodes') drawer = drawer === 'episodes' ? 'none' : 'episodes';
-		else if (act === 'closeDrawer' && drawer !== 'none') drawer = 'none';
+		const map: Record<string, () => void> = { togglePlay: togglePlayPause, back10: () => seekBy(-10), fwd10: () => seekBy(10), mute: toggleMute, fullscreen: () => void toggleFullscreen(), sources: () => { drawer = drawer === 'sources' ? 'none' : 'sources'; }, episodes: () => { drawer = drawer === 'episodes' ? 'none' : 'episodes'; }, closeDrawer: () => { if (drawer !== 'none') drawer = 'none'; } };
+		map[act]?.();
 	}
 
 	$effect(() => { if (drawer === 'audioSubs' && siteSubCandidates.length === 0 && !searchingSubs && details) void searchSubtitlesOnline(); });
 	$effect(() => {
-		if (nearEpisodeEnd && !nextTimer) {
-			nextCountdown = 10;
-			nextTimer = setInterval(() => { if (nextCountdown <= 1 && nextEpisodeTarget) { clearInterval(nextTimer!); nextTimer = null; void switchEpisode(nextEpisodeTarget.season, nextEpisodeTarget.episode, true); } else nextCountdown--; }, 1000);
-		} else if (!nearEpisodeEnd && nextTimer) { clearInterval(nextTimer); nextTimer = null; }
+		if (nearEpisodeEnd && !nextTimer) { nextCountdown = 10; nextTimer = setInterval(() => { if (nextCountdown <= 1 && nextEpisodeTarget) { clearInterval(nextTimer!); nextTimer = null; void switchEpisode(nextEpisodeTarget.season, nextEpisodeTarget.episode, true); } else nextCountdown--; }, 1000); }
+		else if (!nearEpisodeEnd && nextTimer) { clearInterval(nextTimer); nextTimer = null; }
 	});
 	$effect(() => {
 		const seg = activeSkip;
 		if (!seg || !prefs || autoSkipDismissed[seg.kind]) { if (skipTimer) { clearInterval(skipTimer); skipTimer = null; } skipCountdown = 0; return; }
 		const wantAuto = (seg.kind === 'intro' && prefs.auto_skip_intro) || (seg.kind === 'recap' && prefs.auto_skip_recap) || (seg.kind === 'outro' && prefs.auto_skip_outro);
 		if (!wantAuto || skipTimer) return;
-		skipCountdown = 3;
-		skipTimer = setInterval(() => { if (skipCountdown <= 1) executeSkip(seg); else skipCountdown--; }, 1000);
+		skipCountdown = 3; skipTimer = setInterval(() => { if (skipCountdown <= 1) executeSkip(seg); else skipCountdown--; }, 1000);
 	});
 
 	onMount(() => {
@@ -658,16 +657,9 @@
 		const onPip = () => { isPiP = typeof document !== 'undefined' && document.pictureInPictureElement === videoEl; };
 		const onUnload = () => { if (pipelineMode !== 'none' && currentPos > 5) { void persistProgress(currentPos, true); void sendScrobble('stop'); } if (session && !session.mpv_running) void stopStream(session.id).catch(() => {}); };
 		const vid = videoEl;
-		vid?.addEventListener('enterpictureinpicture', onPip);
-		vid?.addEventListener('leavepictureinpicture', onPip);
-		document.addEventListener('fullscreenchange', onFs);
-		window.addEventListener('beforeunload', onUnload);
-		return () => {
-			vid?.removeEventListener('enterpictureinpicture', onPip);
-			vid?.removeEventListener('leavepictureinpicture', onPip);
-			document.removeEventListener('fullscreenchange', onFs);
-			window.removeEventListener('beforeunload', onUnload);
-		};
+		vid?.addEventListener('enterpictureinpicture', onPip); vid?.addEventListener('leavepictureinpicture', onPip);
+		document.addEventListener('fullscreenchange', onFs); window.addEventListener('beforeunload', onUnload);
+		return () => { vid?.removeEventListener('enterpictureinpicture', onPip); vid?.removeEventListener('leavepictureinpicture', onPip); document.removeEventListener('fullscreenchange', onFs); window.removeEventListener('beforeunload', onUnload); };
 	});
 	onDestroy(() => {
 		destroyed = true;
@@ -692,18 +684,18 @@
 	<video
 		bind:this={videoEl} class="wp-video" class:cover={fitMode === 'cover'} playsinline
 		onclick={() => (drawer !== 'none' ? (drawer = 'none') : togglePlayPause())}
-		ontimeupdate={() => { clearStall(true); if (!switchingSource && videoEl) { videoTime = videoEl.currentTime; if (videoEl.buffered.length > 0) bufferedEnd = videoEl.buffered.end(videoEl.buffered.length - 1); } }}
+		ontimeupdate={onVideoTimeUpdate}
 		onwaiting={onVideoWaiting}
-		onplaying={() => { paused = false; clearStall(switchingSource); wakeHud(); }}
-		oncanplay={() => clearStall(switchingSource)}
-		onseeked={() => clearStall()}
+		onplaying={() => { paused = false; sourceStarted = true; const hold = switchingSource || reseekingHls || pendingSeekTarget !== null; clearStall(hold); if (!hold) sameSourceRetries = 0; wakeHud(); }}
+		oncanplay={() => clearStall(switchingSource || reseekingHls || pendingSeekTarget !== null)}
+		onseeked={onVideoSeeked}
 		onplay={() => { paused = false; wakeHud(); }}
 		onpause={() => { paused = true; clearStall(); wakeHud(); }}
 		onloadedmetadata={syncVideoDuration}
 		ondurationchange={syncVideoDuration}
 		onloadeddata={() => { if (!switchingSource && pipelineMode === 'direct' && videoEl && videoEl.videoWidth === 0 && ffmpegAvailable && session) { void attachPlayback(currentPos, true, true, 'Transcoding video...'); } }}
 		onended={() => { if (!shouldAcceptEnded({ switchingSource, seamlessStatus, pipelineMode, currentPos, totalDuration })) return; paused = true; void persistProgress(totalDuration, false, true); void sendScrobble('stop'); if (nextEpisodeTarget) void switchEpisode(nextEpisodeTarget.season, nextEpisodeTarget.episode, true); }}
-		onerror={() => { if (switchingSource || pipelineMode === 'none' || !session) return; if (pipelineMode === 'direct' && ffmpegAvailable) void attachPlayback(currentPos, true, true, 'Transcoding stream...'); else tryFallbackSource(); }}
+		onerror={() => { if (switchingSource || pipelineMode === 'none' || !session) return; handlePlaybackFailure('Playback error', pipelineMode === 'direct'); }}
 	></video>
 
 	{#if visibleCues.length > 0 && pipelineMode !== 'none'}
@@ -720,7 +712,7 @@
 
 	{#if pipelineMode === 'none'}
 		<PlayerLandingOverlay
-			{loadingPage} {pageError} {playMode} {session} {loadingMedia} {headerTitle} {headerSub}
+			{loadingPage} {pageError} {playMode} {session} {loadingMedia} {loadingMoreSources} {autoPlayOn} sourcesOpen={drawer === 'sources'} {headerTitle} {headerSub}
 			overview={details?.overview ?? ''} {activeSaved} bestCandidate={pickBestCandidate()}
 			candidatesCount={candidates.length} {starting} {searching} {playerError}
 			onRetryLoad={() => void loadInitial()}

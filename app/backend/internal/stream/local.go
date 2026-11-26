@@ -111,27 +111,44 @@ func (m *Manager) StartLocal(ctx context.Context, userID int64, file mediafiles.
 // StartRemote starts an instant playback session for an HTTP or HLS stream,
 // terminating upstream headers cleanly through ProxyManager.
 func (m *Manager) StartRemote(ctx context.Context, userID int64, streamURL string, headers map[string]string, isHLS bool, provider string, req StartReq) (SessionStatus, error) {
+	return m.startRemote(ctx, userID, streamURL, headers, isHLS, provider, req, false, false)
+}
+
+// StartVerifiedRemote starts a cached remote candidate session without repeating
+// upstream preflight when the candidate was already verified during search.
+func (m *Manager) StartVerifiedRemote(ctx context.Context, userID int64, cand UnifiedCandidate, req StartReq) (SessionStatus, error) {
+	isHLS := cand.Kind == "hls" || looksLikeHLSURL(cand.StreamURL)
+	return m.startRemote(ctx, userID, cand.StreamURL, cand.Headers, isHLS, cand.Provider, req, cand.Verified, cand.FastStart)
+}
+
+func (m *Manager) startRemote(ctx context.Context, userID int64, streamURL string, headers map[string]string, isHLS bool, provider string, req StartReq, verified bool, fastStart bool) (SessionStatus, error) {
 	if m.Proxy == nil {
 		return SessionStatus{}, errors.New("stream proxy unavailable")
 	}
 	if !isHLS && looksLikeHLSURL(streamURL) {
 		isHLS = true
 	}
-	t0 := time.Now()
-	ct, detectedHLS, err := m.Proxy.Preflight(ctx, streamURL, headers)
-	elapsed := time.Since(t0)
-	provKey := fallbackString(provider, req.SourceName)
-	if err != nil {
-		if m.Health != nil {
-			m.Health.RecordFailure(provKey)
+	relTitle := fallbackString(req.ReleaseTitle, req.Title)
+	var ct string
+	if !verified {
+		t0 := time.Now()
+		var detectedHLS bool
+		var err error
+		ct, detectedHLS, err = m.Proxy.Preflight(ctx, streamURL, headers)
+		elapsed := time.Since(t0)
+		provKey := fallbackString(provider, req.SourceName)
+		if err != nil {
+			if m.Health != nil {
+				m.Health.RecordFailure(provKey)
+			}
+			return SessionStatus{}, err
 		}
-		return SessionStatus{}, err
-	}
-	if m.Health != nil {
-		m.Health.RecordSuccess(provKey, elapsed)
-	}
-	if detectedHLS {
-		isHLS = true
+		if m.Health != nil {
+			m.Health.RecordSuccess(provKey, elapsed)
+		}
+		if detectedHLS {
+			isHLS = true
+		}
 	}
 	proxyTok, _, err := m.Proxy.Register(streamURL, headers, userID)
 	if err != nil {
@@ -160,8 +177,10 @@ func (m *Manager) StartRemote(ctx context.Context, userID int64, streamURL strin
 	if kind != "show" {
 		kind = "movie"
 	}
-	relTitle := fallbackString(req.ReleaseTitle, req.Title)
 	needsTranscode := !isHLS && looksIncompatibleForDirectPlay(relTitle, streamURL, ct)
+	if verified {
+		needsTranscode = !isHLS && (!fastStart || looksIncompatibleForDirectPlay(relTitle, streamURL, ""))
+	}
 	sctx, cancel := context.WithCancel(context.Background())
 	now := time.Now()
 	sess := &Session{

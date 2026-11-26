@@ -653,3 +653,75 @@ func TestDefaultPrefsAutoPlay1080p(t *testing.T) {
 		t.Fatalf("expected default AutoPlayFastest true")
 	}
 }
+
+func TestStartVerifiedRemoteSkipsDuplicatePreflight(t *testing.T) {
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		switch r.URL.Path {
+		case "/master.m3u8":
+			w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
+			_, _ = io.WriteString(w, "#EXTM3U\n#EXT-X-TARGETDURATION:4\nseg0.ts\n")
+		case "/seg0.ts":
+			w.Header().Set("Content-Type", "video/mp2t")
+			_, _ = io.WriteString(w, "TSDATA")
+		case "/page.html":
+			w.Header().Set("Content-Type", "text/html")
+			_, _ = io.WriteString(w, "<html>nope</html>")
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	mgr := NewManager(nil, nil, t.TempDir(), nil)
+	mgr.Proxy.SetHTTPClient(srv.Client())
+	t.Cleanup(func() { mgr.Close() })
+
+	// Verified HLS candidate should skip duplicate Preflight (0 upstream HTTP requests during start).
+	st, err := mgr.StartVerifiedRemote(context.Background(), 1, UnifiedCandidate{
+		Kind:      "hls",
+		Provider:  "VidRock",
+		StreamURL: srv.URL + "/master.m3u8",
+		Verified:  true,
+		FastStart: true,
+	}, StartReq{Title: "VisionQuest", Kind: "show"})
+	if err != nil {
+		t.Fatalf("StartVerifiedRemote verified HLS failed: %v", err)
+	}
+	if st.State != "ready" || st.Transport != "hls_remote" || st.NeedsTranscode {
+		t.Fatalf("unexpected verified HLS session status: %+v", st)
+	}
+	if hits.Load() != 0 {
+		t.Fatalf("expected 0 preflight requests for verified candidate, got %d", hits.Load())
+	}
+
+	// Verified HTTP candidate with FastStart=false marks NeedsTranscode immediately without blocking on Preflight.
+	stSlow, err := mgr.StartVerifiedRemote(context.Background(), 1, UnifiedCandidate{
+		Kind:      "http",
+		Provider:  "SlowCDN",
+		StreamURL: srv.URL + "/page.html",
+		Verified:  true,
+		FastStart: false,
+	}, StartReq{Title: "VisionQuest", ReleaseTitle: "VisionQuest.1080p.WEB.mkv", Kind: "show"})
+	if err != nil {
+		t.Fatalf("StartVerifiedRemote verified http failed: %v", err)
+	}
+	if !stSlow.NeedsTranscode || stSlow.Transport != "direct" {
+		t.Fatalf("expected NeedsTranscode=true and Transport=direct, got %+v", stSlow)
+	}
+	_ = mgr.Stop(stSlow.ID)
+
+	// Unverified HTML candidate must still run Preflight and fail cleanly.
+	if _, err := mgr.StartVerifiedRemote(context.Background(), 1, UnifiedCandidate{
+		Kind:      "http",
+		Provider:  "Unverified",
+		StreamURL: srv.URL + "/page.html",
+		Verified:  false,
+	}, StartReq{Title: "Bad", Kind: "movie"}); err == nil {
+		t.Fatal("expected unverified text/html candidate to fail Preflight")
+	}
+	if hits.Load() == 0 {
+		t.Fatal("expected unverified candidate to hit upstream Preflight")
+	}
+}

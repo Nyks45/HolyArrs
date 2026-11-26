@@ -3,10 +3,13 @@ import {
 	canSeekInLocalHlsBuffer,
 	extractRegularSeasons,
 	formatSyncDelta,
+	isTimeBuffered,
 	pickBestSubtitleCandidate,
 	resolveTotalDuration,
 	selectAutoPlayCandidate,
 	shouldAcceptEnded,
+	shouldAcceptTimeUpdate,
+	shouldFallbackDirectSeekToTranscode,
 	sortCandidatesForQuality
 } from './player-media.ts';
 import type { TitleDetails } from '#lib/metadata/index.ts';
@@ -226,8 +229,9 @@ describe('extractRegularSeasons', () => {
 });
 
 describe('selectAutoPlayCandidate', () => {
-	it('picks fastest 1080p instant source over higher/lower resolutions and defers only when top 1080p is non-instant on fast pass', () => {
+	it('always prefers instant sources over torrents and picks fastest 1080p within instant', () => {
 		const mixedInstant = [
+			cand({ id: '1080-tor', kind: 'torrent', instant: false, resolution: '1080p', resolution_num: 1080, seeders: 400 }),
 			cand({ id: '4k-fast', kind: 'hls', instant: true, resolution: '2160p', resolution_num: 2160, probe_ms: 50, fast_start: true }),
 			cand({ id: '720-fast', kind: 'hls', instant: true, resolution: '720p', resolution_num: 720, probe_ms: 40, fast_start: true }),
 			cand({ id: '1080-slow', kind: 'hls', instant: true, resolution: '1080p', resolution_num: 1080, probe_ms: 350, fast_start: true }),
@@ -235,16 +239,96 @@ describe('selectAutoPlayCandidate', () => {
 		];
 		expect(selectAutoPlayCandidate(mixedInstant, '1080p', false)?.id).toBe('1080-fast');
 
-		const torrentFirst = [
+		const non1080InstantVs1080Torrent = [
+			cand({ id: '1080-tor', kind: 'torrent', instant: false, resolution: '1080p', resolution_num: 1080, seeders: 250 }),
 			cand({ id: '720-inst', kind: 'hls', instant: true, resolution: '720p', resolution_num: 720, probe_ms: 80, fast_start: true }),
+			cand({ id: 'auto-inst', kind: 'hls', instant: true, resolution: '', resolution_num: 0, probe_ms: 90, fast_start: true })
+		];
+		expect(selectAutoPlayCandidate(non1080InstantVs1080Torrent, '1080p', false)?.id).toBe('720-inst');
+		expect(selectAutoPlayCandidate(non1080InstantVs1080Torrent, '1080p', true)?.id).toBe('720-inst');
+		expect(sortCandidatesForQuality(non1080InstantVs1080Torrent, '1080p').map((c) => c.id)).toEqual([
+			'720-inst',
+			'auto-inst',
+			'1080-tor'
+		]);
+
+		const torrentOnly = [
+			cand({ id: '720-tor', kind: 'torrent', instant: false, resolution: '720p', resolution_num: 720, seeders: 50 }),
 			cand({ id: '1080-tor', kind: 'torrent', instant: false, resolution: '1080p', resolution_num: 1080, seeders: 120 })
 		];
-		expect(selectAutoPlayCandidate(torrentFirst, '1080p', false)).toBeNull();
-		expect(selectAutoPlayCandidate(torrentFirst, '1080p', true)?.id).toBe('1080-tor');
+		expect(selectAutoPlayCandidate(torrentOnly, '1080p', false)).toBeNull();
+		expect(selectAutoPlayCandidate(torrentOnly, '1080p', true)?.id).toBe('1080-tor');
+	});
+});
 
-		const fallbackOnly = [
-			cand({ id: '720-only', kind: 'http', instant: true, resolution: '720p', resolution_num: 720, probe_ms: 90, fast_start: true })
-		];
-		expect(selectAutoPlayCandidate(fallbackOnly, '1080p', false)?.id).toBe('720-only');
+describe('seek helpers', () => {
+	it('ignores stale pre-seek timeupdate and accepts target once landed', () => {
+		expect(
+			shouldAcceptTimeUpdate({
+				switchingSource: false,
+				reseekingHls: false,
+				videoSeeking: true,
+				pendingSeekTarget: 900,
+				actualPos: 12
+			})
+		).toBe('ignore');
+		expect(
+			shouldAcceptTimeUpdate({
+				switchingSource: false,
+				reseekingHls: false,
+				videoSeeking: false,
+				pendingSeekTarget: 900,
+				actualPos: 12
+			})
+		).toBe('ignore');
+		expect(
+			shouldAcceptTimeUpdate({
+				switchingSource: false,
+				reseekingHls: false,
+				videoSeeking: false,
+				pendingSeekTarget: 900,
+				actualPos: 899.2
+			})
+		).toBe('landed');
+		expect(
+			shouldAcceptTimeUpdate({
+				switchingSource: false,
+				reseekingHls: false,
+				videoSeeking: false,
+				pendingSeekTarget: null,
+				actualPos: 45
+			})
+		).toBe('accept');
+	});
+
+	it('detects buffered ranges and unseekable direct streams needing ffmpeg fallback', () => {
+		const fakeRanges = {
+			length: 1,
+			start: () => 10,
+			end: () => 120
+		} as unknown as TimeRanges;
+		expect(isTimeBuffered(fakeRanges, 60)).toBe(true);
+		expect(isTimeBuffered(fakeRanges, 900)).toBe(false);
+
+		expect(
+			shouldFallbackDirectSeekToTranscode({
+				pipelineMode: 'direct',
+				ffmpegAvailable: true,
+				pendingSeekTarget: 900,
+				videoTime: 14,
+				videoDuration: 3600,
+				seekableEnd: 400
+			})
+		).toBe(true);
+		expect(
+			shouldFallbackDirectSeekToTranscode({
+				pipelineMode: 'direct',
+				ffmpegAvailable: true,
+				pendingSeekTarget: 900,
+				videoTime: 899,
+				videoDuration: 3600,
+				seekableEnd: 3600
+			})
+		).toBe(false);
 	});
 });

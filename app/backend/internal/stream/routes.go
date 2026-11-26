@@ -377,7 +377,7 @@ func (h *Handlers) start(w http.ResponseWriter, r *http.Request) {
 		case "local":
 			in.LocalFileID = cand.LocalFileID
 		case "http", "hls":
-			st, err := h.Mgr.StartRemote(r.Context(), uid, cand.StreamURL, cand.Headers, cand.Kind == "hls", cand.Provider, in)
+			st, err := h.Mgr.StartVerifiedRemote(r.Context(), uid, cand, in)
 			if err != nil {
 				webserver.Fail(w, http.StatusBadRequest, err.Error())
 				return

@@ -346,10 +346,13 @@ func scoreCandidate(c UnifiedCandidate, prefQ string) int {
 	if prefQ != "" && ql == prefQ {
 		score += 8000
 	}
-	if (c.Kind == "http" || c.Kind == "hls") && c.Verified && c.ProbeMS > 0 {
-		latBoost := 2000 - c.ProbeMS
-		if latBoost > 0 {
-			score += latBoost
+	if (c.Kind == "http" || c.Kind == "hls") && c.Verified {
+		score += 500
+		if c.ProbeMS > 0 {
+			latBoost := 2000 - c.ProbeMS
+			if latBoost > 0 {
+				score += latBoost
+			}
 		}
 	}
 	switch ql {

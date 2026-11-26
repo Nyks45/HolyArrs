@@ -74,6 +74,59 @@ export function matchesQualityFilter(c: StreamCandidate, resFilter: 'all' | '216
 	return (c.resolution_num > 0 && c.resolution_num < 720) || res.includes('480') || res.includes('360');
 }
 
+export function isTimeBuffered(buffered: TimeRanges | null | undefined, t: number): boolean {
+	if (!buffered) return false;
+	for (let i = 0; i < buffered.length; i++) {
+		if (t >= buffered.start(i) - 0.5 && t <= buffered.end(i) + 0.5) return true;
+	}
+	return false;
+}
+
+export function shouldAcceptTimeUpdate(opts: {
+	switchingSource: boolean;
+	reseekingHls: boolean;
+	videoSeeking: boolean;
+	pendingSeekTarget: number | null;
+	actualPos: number;
+}): 'ignore' | 'accept' | 'landed' {
+	if (opts.switchingSource || opts.reseekingHls || opts.videoSeeking) return 'ignore';
+	if (opts.pendingSeekTarget !== null) {
+		return Math.abs(opts.actualPos - opts.pendingSeekTarget) <= 4 ? 'landed' : 'ignore';
+	}
+	return 'accept';
+}
+
+export function shouldFallbackDirectSeekToTranscode(opts: {
+	pipelineMode: string;
+	ffmpegAvailable: boolean;
+	pendingSeekTarget: number | null;
+	videoTime: number;
+	videoDuration: number;
+	seekableEnd: number;
+}): boolean {
+	if (opts.pipelineMode !== 'direct' || !opts.ffmpegAvailable || opts.pendingSeekTarget === null) return false;
+	const target = opts.videoDuration > 0 ? Math.min(opts.pendingSeekTarget, opts.videoDuration) : opts.pendingSeekTarget;
+	return (
+		target > 10 &&
+		Math.abs(opts.videoTime - target) > 20 &&
+		(opts.seekableEnd <= 0 || target > opts.seekableEnd + 5 || opts.videoTime < target - 20)
+	);
+}
+
+function sourceClass(c: StreamCandidate): number {
+	switch (c.kind) {
+		case 'local':
+			return 3;
+		case 'debrid_cached':
+			return 2;
+		case 'http':
+		case 'hls':
+			return 1;
+		default:
+			return c.instant ? 1 : 0;
+	}
+}
+
 export function selectAutoPlayCandidate(
 	cands: StreamCandidate[],
 	preferredQuality: PlayerQualityFilter = '1080p',
@@ -82,23 +135,9 @@ export function selectAutoPlayCandidate(
 	const ranked = sortCandidatesForQuality(cands, preferredQuality);
 	const top = ranked[0];
 	if (!top) return null;
-	if (top.instant) return top;
+	if (sourceClass(top) > 0) return top;
 	if (!allowTorrent) return null;
-	return ranked.find((c) => c.instant || c.seeders > 0) ?? top;
-}
-
-function kindTier(c: StreamCandidate): number {
-	switch (c.kind) {
-		case 'local':
-			return 4;
-		case 'debrid_cached':
-			return 3;
-		case 'http':
-		case 'hls':
-			return c.fast_start !== false ? 2 : 1;
-		default:
-			return 0;
-	}
+	return ranked.find((c) => sourceClass(c) > 0 || c.seeders > 0) ?? top;
 }
 
 export function sortCandidatesForQuality(
@@ -106,15 +145,18 @@ export function sortCandidatesForQuality(
 	resFilter: 'all' | '2160p' | '1080p' | '720p' | 'sd' = 'all'
 ): StreamCandidate[] {
 	return [...cands].sort((a, b) => {
+		const ca = sourceClass(a);
+		const cb = sourceClass(b);
+		if (ca !== cb) return cb - ca;
+
 		const aMatch = matchesQualityFilter(a, resFilter) ? 1 : 0;
 		const bMatch = matchesQualityFilter(b, resFilter) ? 1 : 0;
 		if (aMatch !== bMatch) return bMatch - aMatch;
 
-		const ta = kindTier(a);
-		const tb = kindTier(b);
-		if (ta !== tb) return tb - ta;
-
-		if (ta === 1 || ta === 2) {
+		if (ca === 1) {
+			const fa = a.fast_start !== false ? 1 : 0;
+			const fb = b.fast_start !== false ? 1 : 0;
+			if (fa !== fb) return fb - fa;
 			const pa = a.probe_ms ?? 0;
 			const pb = b.probe_ms ?? 0;
 			if (pa > 0 && pb > 0 && Math.abs(pa - pb) > 15) return pa - pb;
@@ -192,6 +234,7 @@ export async function attachHlsMedia(opts: {
 	muted: boolean;
 	isCancelled: () => boolean;
 	onFatalError: (details: string) => void;
+	onRecovering?: (status: string) => void;
 	onStarted: () => void;
 	onLevelsLoaded?: (levels: HlsQualityLevel[]) => void;
 }): Promise<HlsType | null> {
@@ -208,7 +251,11 @@ export async function attachHlsMedia(opts: {
 			maxBufferHole: 1.5,
 			nudgeOffset: 0.2,
 			nudgeMaxRetry: 5,
-			fragLoadingMaxRetry: 3,
+			fragLoadingMaxRetry: 6,
+			fragLoadingRetryDelay: 1000,
+			fragLoadingMaxRetryTimeout: 15000,
+			manifestLoadingMaxRetry: 4,
+			levelLoadingMaxRetry: 4,
 			startFragPrefetch: true,
 			lowLatencyMode: false,
 			fragLoadingTimeOut: 30000,
@@ -217,18 +264,38 @@ export async function attachHlsMedia(opts: {
 		});
 		let mediaRecoveries = 0;
 		let netRecoveries = 0;
+		let retryTimer: ReturnType<typeof setTimeout> | null = null;
+		hls.on(Hls.Events.DESTROYING, () => {
+			if (retryTimer) {
+				clearTimeout(retryTimer);
+				retryTimer = null;
+			}
+		});
+		hls.on(Hls.Events.FRAG_BUFFERED, () => {
+			mediaRecoveries = 0;
+			netRecoveries = 0;
+		});
 		hls.on(Hls.Events.ERROR, (_ev, data) => {
 			if (opts.isCancelled() || !data.fatal) return;
-			if (data.type === Hls.ErrorTypes.MEDIA_ERROR && mediaRecoveries < 2) {
+			if (data.type === Hls.ErrorTypes.MEDIA_ERROR && mediaRecoveries < 3) {
 				mediaRecoveries++;
 				if (mediaRecoveries === 2) hls.swapAudioCodec();
+				opts.onRecovering?.('Recovering playback...');
 				hls.recoverMediaError();
 				return;
 			}
 			const code = (data as { response?: { code?: number } }).response?.code;
-			if (data.type === Hls.ErrorTypes.NETWORK_ERROR && netRecoveries < 1 && code !== 403 && code !== 404) {
+			const isPermManifest =
+				(code === 403 || code === 404) &&
+				(data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR || data.details === Hls.ErrorDetails.LEVEL_LOAD_ERROR);
+			if (data.type === Hls.ErrorTypes.NETWORK_ERROR && !isPermManifest && netRecoveries < 3) {
 				netRecoveries++;
-				hls.startLoad();
+				opts.onRecovering?.('Loading seek position...');
+				if (retryTimer) clearTimeout(retryTimer);
+				retryTimer = setTimeout(() => {
+					retryTimer = null;
+					if (!opts.isCancelled()) hls.startLoad(opts.video.currentTime > 0.5 ? opts.video.currentTime : -1);
+				}, 700 * netRecoveries);
 				return;
 			}
 			opts.onFatalError(data.details);

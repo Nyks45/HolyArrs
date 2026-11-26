@@ -8,6 +8,9 @@
 		playMode,
 		session,
 		loadingMedia,
+		loadingMoreSources = false,
+		autoPlayOn = true,
+		sourcesOpen = false,
 		headerTitle,
 		headerSub,
 		overview = '',
@@ -28,6 +31,9 @@
 		playMode: 'browser' | 'mpv';
 		session: SessionStatus | null;
 		loadingMedia: boolean;
+		loadingMoreSources?: boolean;
+		autoPlayOn?: boolean;
+		sourcesOpen?: boolean;
 		headerTitle: string;
 		headerSub: string;
 		overview?: string;
@@ -43,11 +49,21 @@
 		onPlayBest: () => void;
 		onOpenSources: () => void;
 	} = $props();
+
+	const pendingAutoPlay = $derived(autoPlayOn && loadingMoreSources && !session && !playerError);
+	const activeSessionLoading = $derived(!!session && playMode === 'browser' && session.state !== 'error');
+	const isBusy = $derived(loadingPage || searching || starting || loadingMedia || activeSessionLoading || pendingAutoPlay);
+	const loaderText = $derived.by(() => {
+		if (loadingPage && !searching) return 'Loading title...';
+		if (searching || pendingAutoPlay) return 'Finding best source...';
+		if (starting || session?.state === 'resolving') return 'Connecting to stream...';
+		return 'Buffering playback...';
+	});
 </script>
 
 <div class="wp-center-panel">
 	{#if loadingPage}
-		<div class="wp-loader"><div class="wp-spin"></div><p>Loading title...</p></div>
+		<div class="wp-loader"><div class="wp-spin"></div><div class="wp-load-title">{loaderText}</div></div>
 	{:else if pageError}
 		<div class="wp-card">
 			<h2>Could not load player</h2>
@@ -60,10 +76,12 @@
 			<p class="wp-muted">{session.release_title}</p>
 			<button type="button" class="wp-cta wp-cta-glass" onclick={onSwitchToBrowser}>Play in Browser Instead</button>
 		</div>
-	{:else if session && (session.state === 'resolving' || session.state === 'buffering' || loadingMedia)}
+	{:else if sourcesOpen}
+		<!-- Keep center clean while user picks from the Sources drawer -->
+	{:else if isBusy}
 		<div class="wp-loader">
 			<div class="wp-spin"></div>
-			<div class="wp-load-title">{session.state === 'resolving' ? 'Connecting to stream...' : 'Buffering playback...'}</div>
+			<div class="wp-load-title">{loaderText}</div>
 		</div>
 	{:else}
 		<div class="wp-card wp-landing">
@@ -88,7 +106,7 @@
 				</button>
 				<button type="button" class="wp-cta wp-cta-glass" onclick={onOpenSources}>Sources ({candidatesCount})</button>
 			</div>
-			{#if playerError}<div class="wp-err-inline">{playerError}</div>{/if}
+			{#if playerError || session?.error}<div class="wp-err-inline">{playerError || session?.error}</div>{/if}
 		</div>
 	{/if}
 </div>

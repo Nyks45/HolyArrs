@@ -17,7 +17,7 @@ func TestTitleDefaultsBuiltIn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := TitleDefaults{Movie: KindDefaults{KeepUpToDate: true, SearchOnAdd: true}, Show: KindDefaults{KeepUpToDate: true}}
+	want := TitleDefaults{Movie: KindDefaults{KeepUpToDate: false, SearchOnAdd: false}, Show: KindDefaults{KeepUpToDate: false, SearchOnAdd: false}}
 	if d != want || len(saved) != 0 {
 		t.Fatalf("built in %+v saved %v", d, saved)
 	}

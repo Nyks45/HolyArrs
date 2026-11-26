@@ -36,7 +36,7 @@ func TestPinAddReadsFoldersAndPickRules(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if l.LibraryFolderID != e.lf.ID || l.PickRulesID != nil || l.TitleKind != "movie" || l.SyncEveryHours != 12 || !l.Enabled || !l.KeepUpToDate {
+	if l.LibraryFolderID != e.lf.ID || l.PickRulesID != nil || l.TitleKind != "movie" || l.SyncEveryHours != 12 || !l.Enabled || l.KeepUpToDate {
 		t.Fatalf("defaults %+v", l)
 	}
 	// A show list takes the first show folder, not the movie one.

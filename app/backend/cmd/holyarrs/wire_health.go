@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/HolyArrs/holyarrs/app/backend/internal/updates"
-
 	"log"
 	"net/http"
 	"strconv"
@@ -117,7 +115,7 @@ func (a *handlers) searchMetadata(w http.ResponseWriter, r *http.Request) {
 func (a *handlers) healthHandlers() *health.Handlers {
 	h := &health.Handlers{Store: a.s.Store, Engine: a.s.Health, States: a.s.States, SafeMode: a.s.SafeMode,
 		SyncTrouble: func(ctx context.Context) any { return a.dl.SyncTrouble(ctx) },
-		DefaultFeed: updates.DefaultReleaseFeed, ResetUpdate: a.s.Updates.ResetUpdate}
+		DefaultFeed: env("HOLYARRS_RELEASE_FEED", ""), ResetUpdate: a.s.Updates.ResetUpdate}
 	if a.s.Parts != nil {
 		h.PartStatuses = func() []jobs.Status { return a.s.Parts.Statuses() }
 	}

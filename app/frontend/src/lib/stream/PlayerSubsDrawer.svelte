@@ -13,6 +13,9 @@
 		subLabel,
 		subDelayMS,
 		subSize,
+		activeSubVtt = '',
+		syncingSub = false,
+		syncNote = '',
 		subStyle = $bindable<SubStylePrefs>(),
 		siteSubLangsInput = $bindable('en, tr'),
 		siteSubCandidates,
@@ -25,6 +28,8 @@
 		onLoadEmbedded,
 		onSearchOnline,
 		onLoadSiteSub,
+		onAutoFindAndSync,
+		onSyncCurrentSub,
 		onAdjustDelay,
 		onChangeSize,
 		onUploadFile,
@@ -39,6 +44,9 @@
 		subLabel: string;
 		subDelayMS: number;
 		subSize: 'sm' | 'md' | 'lg' | 'xl';
+		activeSubVtt?: string;
+		syncingSub?: boolean;
+		syncNote?: string;
 		subStyle: SubStylePrefs;
 		siteSubLangsInput: string;
 		siteSubCandidates: StreamSubCandidate[];
@@ -51,6 +59,8 @@
 		onLoadEmbedded: (idx: number) => void;
 		onSearchOnline: () => void;
 		onLoadSiteSub: (c: StreamSubCandidate) => void;
+		onAutoFindAndSync?: () => void;
+		onSyncCurrentSub?: () => void;
 		onAdjustDelay: (deltaMS: number) => void;
 		onChangeSize: (sz: 'sm' | 'md' | 'lg' | 'xl') => void;
 		onUploadFile: (e: Event) => void;
@@ -107,6 +117,21 @@
 						<button type="button" class="wp-mini-btn" onclick={() => onAdjustDelay(250)}>+0.25s</button>
 					</div>
 				</div>
+				{#if session && ffmpegAvailable && (onAutoFindAndSync || onSyncCurrentSub)}
+					<div class="wp-btns">
+						{#if onAutoFindAndSync}
+							<button type="button" class="wp-mini-btn accent" disabled={syncingSub || loadingSub} onclick={onAutoFindAndSync}>
+								{syncingSub ? 'Listening to audio...' : 'Auto-Find & Sync (Audio)'}
+							</button>
+						{/if}
+						{#if onSyncCurrentSub && activeSubVtt && subMode !== 'off'}
+							<button type="button" class="wp-mini-btn" disabled={syncingSub || loadingSub} onclick={onSyncCurrentSub}>
+								{syncingSub ? '...' : 'Sync to Audio'}
+							</button>
+						{/if}
+					</div>
+					{#if syncNote}<small class="wp-sync-note">{syncNote}</small>{/if}
+				{/if}
 				<div class="wp-tab-row">
 					{#each ['sm', 'md', 'lg', 'xl'] as sz (sz)}
 						<button type="button" class="wp-chip" class:on={subSize === sz} onclick={() => onChangeSize(sz as typeof subSize)}>{sz.toUpperCase()}</button>
@@ -191,7 +216,8 @@
 	.wp-pop-head { display: flex; align-items: center; justify-content: space-between; padding: 13px 16px; border-bottom: 1px solid rgb(255 255 255 / 10%); }
 	.wp-pop-head h3 { margin: 0; font-size: 15px; font-weight: 700; }
 	.wp-close { width: 28px; height: 28px; border-radius: 50%; border: 0; background: rgb(255 255 255 / 12%); color: #fff; display: grid; place-items: center; cursor: pointer; }
-	.wp-pop-body { flex: 1; overflow-y: auto; padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+	.wp-pop-body { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+	.wp-sync-note { color: #86efac; font-size: 11.5px; }
 	.wp-box { padding: 11px; border-radius: 10px; background: rgb(255 255 255 / 5%); display: flex; flex-direction: column; gap: 9px; }
 	.wp-box-title { font-size: 11px; font-weight: 700; color: rgb(255 255 255 / 66%); text-transform: uppercase; letter-spacing: .04em; }
 	.wp-row-between, .wp-sync-row, .wp-slider-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12.5px; }

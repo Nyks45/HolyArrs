@@ -37,6 +37,7 @@ func (h *Handlers) Routes(m *http.ServeMux) {
 	m.HandleFunc("POST /api/v1/stream/subtitles/search", h.searchSubtitles)
 	m.HandleFunc("POST /api/v1/stream/subtitles/fetch", h.fetchSubtitle)
 	m.HandleFunc("POST /api/v1/stream/subtitles/upload", h.uploadSubtitle)
+	m.HandleFunc("POST /api/v1/stream/subtitles/autosync", h.autoSyncSubtitle)
 	m.HandleFunc("GET /api/v1/stream/{id}", h.status)
 	m.HandleFunc("POST /api/v1/stream/{id}/file", h.selectFile)
 	m.HandleFunc("POST /api/v1/stream/{id}/hls", h.startHLS)
@@ -137,6 +138,7 @@ func (h *Handlers) search(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	mc := NewSearchMatchContext(kind, in.Query, in.OriginalTitle, in.Year, in.Season, in.Episode, in.Genres, in.OriginalLanguage, in.OriginCountry, in.Anime)
+	mc.TMDB = tmdbStr
 
 	var mu sync.Mutex
 	var rawCands []UnifiedCandidate
@@ -752,4 +754,24 @@ func (h *Handlers) uploadSubtitle(w http.ResponseWriter, r *http.Request) {
 		"language": lang,
 		"sub_file": subFile,
 	})
+}
+
+func (h *Handlers) autoSyncSubtitle(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		SessionID    string  `json:"session_id"`
+		VTT          string  `json:"vtt"`
+		StartSec     float64 `json:"start_sec"`
+		MaxOffsetSec float64 `json:"max_offset_sec"`
+	}
+	if !webserver.Decode(w, r, &in, "send {session_id, vtt, start_sec, max_offset_sec}") {
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 35*time.Second)
+	defer cancel()
+	res, err := h.Mgr.AutoSyncSubtitle(ctx, in.SessionID, in.VTT, in.StartSec, in.MaxOffsetSec)
+	if err != nil {
+		webserver.Fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	webserver.WriteJSON(w, http.StatusOK, res)
 }

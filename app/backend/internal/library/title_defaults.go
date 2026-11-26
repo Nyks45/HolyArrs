@@ -32,10 +32,10 @@ type TitleDefaults struct {
 	Show  KindDefaults `json:"show"`
 }
 
-// BuiltInTitleDefaults are the values before anything is saved: keep up to
-// date on for both, search when added on for movies and off for shows.
+// BuiltInTitleDefaults are the values before anything is saved: adding a title
+// or list does not auto-download unless the user turns it on.
 func BuiltInTitleDefaults() TitleDefaults {
-	return TitleDefaults{Movie: KindDefaults{KeepUpToDate: true, SearchOnAdd: true}, Show: KindDefaults{KeepUpToDate: true}}
+	return TitleDefaults{Movie: KindDefaults{KeepUpToDate: false, SearchOnAdd: false}, Show: KindDefaults{KeepUpToDate: false, SearchOnAdd: false}}
 }
 
 // TitleDefaultKeys are the settings keys (group what_to_pick).

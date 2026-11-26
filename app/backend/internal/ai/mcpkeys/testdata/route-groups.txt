@@ -629,6 +629,7 @@ POST /api/v1/stages/{name}/restart admin
 POST /api/v1/stages/{name}/resume admin
 POST /api/v1/stream/search control
 POST /api/v1/stream/start add
+POST /api/v1/stream/subtitles/autosync add
 POST /api/v1/stream/subtitles/fetch add
 POST /api/v1/stream/subtitles/search control
 POST /api/v1/stream/subtitles/upload add

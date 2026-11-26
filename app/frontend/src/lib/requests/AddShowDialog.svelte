@@ -46,7 +46,7 @@
 	let newSeasons = $state('all');
 	let order = $state('aired');
 	let source = $state('tmdb');
-	let keep = $state(true);
+	let keep = $state(false);
 	let searchOnAdd = $state(false);
 	// A second Version, such as 4K, next to the main one.
 	let more = $state(false);

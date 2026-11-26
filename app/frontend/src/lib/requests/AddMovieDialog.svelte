@@ -41,8 +41,8 @@
 	let folderId = $state(0);
 	let rulesId = $state(0);
 	let gate = $state('released');
-	let keep = $state(true);
-	let searchOnAdd = $state(true);
+	let keep = $state(false);
+	let searchOnAdd = $state(false);
 	// Opened from Choose a release: added without a search, then the person picks the release.
 	let choose = $state(false);
 	// A second Version, such as 4K, next to the main one.

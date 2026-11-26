@@ -257,12 +257,14 @@ authorization_endpoint
 auto_approved
 auto_browser
 auto_fallback
+auto_find_subtitles
 auto_play_fastest
 auto_resolve_debrid
 auto_search
 auto_skip_intro
 auto_skip_outro
 auto_skip_recap
+auto_sync_subtitles
 auto_update_safe
 autoplay_trailers
 availability
@@ -483,6 +485,7 @@ created_by
 created_unix
 credits
 crew
+cues_matched
 current
 cursor
 customFormatScore
@@ -1178,6 +1181,7 @@ matched_by_id
 matchingSubtitles
 max
 max_age_days
+max_offset_sec
 max_rating
 max_rps
 max_s
@@ -1592,6 +1596,7 @@ prefer
 preferred
 preferred_protocol
 preferred_quality
+preferred_sub_langs
 preferred_username
 prefetch
 premiered
@@ -1827,6 +1832,7 @@ sabnzbd
 salt
 same_as
 sample_rate
+sampled_sec
 savePath
 save_path
 saved
@@ -2398,6 +2404,7 @@ vote
 vote_average
 vote_count
 votes
+vtt
 w
 wait_days
 wait_minutes_torrent

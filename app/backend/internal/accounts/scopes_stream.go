@@ -17,6 +17,7 @@ func init() {
 		"POST /api/v1/stream/subtitles/search",
 		"POST /api/v1/stream/subtitles/fetch",
 		"POST /api/v1/stream/subtitles/upload",
+		"POST /api/v1/stream/subtitles/autosync",
 		"GET /api/v1/stream/{id}",
 		"POST /api/v1/stream/{id}/file",
 		"POST /api/v1/stream/{id}/hls",

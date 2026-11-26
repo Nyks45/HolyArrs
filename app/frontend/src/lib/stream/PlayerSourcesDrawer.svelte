@@ -171,7 +171,7 @@
 	.wp-pop-head h3 { margin: 0; font-size: 15px; font-weight: 700; }
 	.wp-loading-tag { font-size: 11px; font-weight: 600; color: #7dd3fc; }
 	.wp-close { width: 28px; height: 28px; border-radius: 50%; border: 0; background: rgb(255 255 255 / 12%); color: #fff; display: grid; place-items: center; cursor: pointer; }
-	.wp-pop-body { flex: 1; overflow-y: auto; padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+	.wp-pop-body { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 10px; }
 	.wp-fallback-banner { padding: 7px 10px; border-radius: 8px; background: rgb(245 158 11 / 20%); color: #fcd34d; font-size: 12px; }
 	.wp-box { padding: 10px; border-radius: 10px; background: rgb(255 255 255 / 5%); display: flex; flex-direction: column; gap: 8px; }
 	.wp-label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: rgb(255 255 255 / 72%); }

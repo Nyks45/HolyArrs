@@ -554,8 +554,8 @@ func TestNuvioExtendedCheerioCryptoAndRepoDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AddRepoWithDefaults failed: %v", err)
 	}
-	if len(repo.Scrapers) != 2 || repo.Scrapers[0].Enabled || !repo.Scrapers[1].Enabled {
-		t.Fatalf("unexpected deduplicated defaultEnabled state: %+v", repo.Scrapers)
+	if len(repo.Scrapers) != 2 || !repo.Scrapers[0].Enabled || !repo.Scrapers[1].Enabled {
+		t.Fatalf("expected all scrapers enabled by default on install, got: %+v", repo.Scrapers)
 	}
 
 	// Verify load() heals pre-existing duplicate scraper IDs persisted on disk.

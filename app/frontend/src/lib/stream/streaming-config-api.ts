@@ -24,6 +24,9 @@ export interface StreamPrefs {
 	auto_skip_recap: boolean;
 	auto_skip_outro: boolean;
 	anime_skip_client_id?: string;
+	auto_find_subtitles?: boolean;
+	auto_sync_subtitles?: boolean;
+	preferred_sub_langs?: string[];
 	scrobble_trakt: boolean;
 	scrobble_simkl: boolean;
 	tmdb_api_key?: string;

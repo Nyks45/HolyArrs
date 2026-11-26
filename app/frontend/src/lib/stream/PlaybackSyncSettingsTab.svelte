@@ -18,6 +18,7 @@
 	let prefs = $state<StreamPrefs | null>(null);
 	let sync = $state<SyncStatus | null>(null);
 	let excludeInput = $state('');
+	let subLangsInput = $state('en, tr');
 	let simklClientId = $state('');
 	let pinChallenge = $state<SimklPINChallenge | null>(null);
 	let saving = $state(false);
@@ -32,6 +33,7 @@
 			prefs = p;
 			sync = s;
 			excludeInput = (p.exclude_terms ?? []).join(', ');
+			subLangsInput = (p.preferred_sub_langs?.length ? p.preferred_sub_langs : ['en', 'tr']).join(', ');
 		} catch (e) {
 			toasts.push(message(e), 'fail');
 		}
@@ -43,10 +45,12 @@
 		try {
 			const next: StreamPrefs = {
 				...prefs,
-				exclude_terms: excludeInput.split(',').map((t) => t.trim()).filter(Boolean)
+				exclude_terms: excludeInput.split(',').map((t) => t.trim()).filter(Boolean),
+				preferred_sub_langs: subLangsInput.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean)
 			};
 			prefs = await saveStreamingPrefs(next);
 			excludeInput = prefs.exclude_terms.join(', ');
+			subLangsInput = (prefs.preferred_sub_langs ?? ['en', 'tr']).join(', ');
 			toasts.push('Streaming preferences saved', 'ok');
 		} catch (e) {
 			toasts.push(message(e), 'fail');
@@ -149,6 +153,12 @@
 			<label class="toggle"><input type="checkbox" bind:checked={prefs.auto_skip_intro} /><span>Auto-skip Intro (IntroDB / AniSkip / Chapters)</span></label>
 			<label class="toggle"><input type="checkbox" bind:checked={prefs.auto_skip_recap} /><span>Auto-skip Recap</span></label>
 			<label class="toggle"><input type="checkbox" bind:checked={prefs.auto_skip_outro} /><span>Auto-skip Outro</span></label>
+			<label class="toggle"><input type="checkbox" bind:checked={prefs.auto_find_subtitles} /><span>Auto-find best subtitles when starting playback</span></label>
+			<label class="toggle"><input type="checkbox" bind:checked={prefs.auto_sync_subtitles} /><span>Auto-sync subtitles by listening to audio (ffmpeg)</span></label>
+			<label class="field">
+				<span>Preferred subtitle languages (comma-separated)</span>
+				<input type="text" bind:value={subLangsInput} placeholder="en, tr, ja" />
+			</label>
 			<label class="toggle"><input type="checkbox" bind:checked={prefs.sub_style.strip_sdh} /><span>Strip SDH cues ([music], speaker names)</span></label>
 			<label class="toggle"><input type="checkbox" bind:checked={prefs.sub_style.hdr_dimmed} /><span>HDR-dimmed white subtitles (comfortable in dark rooms)</span></label>
 			<label class="field">

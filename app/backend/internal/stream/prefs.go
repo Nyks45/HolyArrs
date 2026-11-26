@@ -35,6 +35,9 @@ type StreamPrefs struct {
 	AutoSkipRecap     bool          `json:"auto_skip_recap"`
 	AutoSkipOutro     bool          `json:"auto_skip_outro"`
 	AnimeSkipClientID string        `json:"anime_skip_client_id,omitempty"`
+	AutoFindSubtitles bool          `json:"auto_find_subtitles"`
+	AutoSyncSubtitles bool          `json:"auto_sync_subtitles"`
+	PreferredSubLangs []string      `json:"preferred_sub_langs"`
 	ScrobbleTrakt     bool          `json:"scrobble_trakt"`
 	ScrobbleSimkl     bool          `json:"scrobble_simkl"`
 	TMDBAPIKey        string        `json:"tmdb_api_key,omitempty"`
@@ -54,6 +57,9 @@ func DefaultPrefs() StreamPrefs {
 		AutoSkipIntro:     false,
 		AutoSkipRecap:     false,
 		AutoSkipOutro:     false,
+		AutoFindSubtitles: false,
+		AutoSyncSubtitles: true,
+		PreferredSubLangs: []string{"en", "tr"},
 		ScrobbleTrakt:     true,
 		ScrobbleSimkl:     true,
 		SubStyle: SubStylePrefs{
@@ -110,6 +116,11 @@ func (p *PrefsStore) Get() StreamPrefs {
 	} else {
 		out.ExcludeTerms = []string{}
 	}
+	if len(p.data.PreferredSubLangs) > 0 {
+		out.PreferredSubLangs = append([]string(nil), p.data.PreferredSubLangs...)
+	} else {
+		out.PreferredSubLangs = []string{"en", "tr"}
+	}
 	return out
 }
 
@@ -126,6 +137,7 @@ func (p *PrefsStore) Save(in StreamPrefs) (StreamPrefs, error) {
 	p.data = norm
 	out := norm
 	out.ExcludeTerms = append([]string(nil), norm.ExcludeTerms...)
+	out.PreferredSubLangs = append([]string(nil), norm.PreferredSubLangs...)
 	return out, nil
 }
 
@@ -161,6 +173,19 @@ func normalizePrefs(in StreamPrefs) StreamPrefs {
 	}
 	in.AnimeSkipClientID = strings.TrimSpace(in.AnimeSkipClientID)
 	in.TMDBAPIKey = strings.TrimSpace(in.TMDBAPIKey)
+	var langs []string
+	seenLang := map[string]bool{}
+	for _, l := range in.PreferredSubLangs {
+		l = strings.ToLower(strings.TrimSpace(l))
+		if l != "" && !seenLang[l] {
+			seenLang[l] = true
+			langs = append(langs, l)
+		}
+	}
+	if len(langs) == 0 {
+		langs = append([]string(nil), def.PreferredSubLangs...)
+	}
+	in.PreferredSubLangs = langs
 
 	if strings.TrimSpace(in.SubStyle.Color) == "" {
 		in.SubStyle.Color = def.SubStyle.Color

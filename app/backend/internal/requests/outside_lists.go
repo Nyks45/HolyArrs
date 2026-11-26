@@ -266,7 +266,7 @@ func fill(ctx context.Context, tx *sql.Tx, in OutsideListInput, l *domain.Outsid
 		return ErrNameTaken
 	}
 	l.Name, l.Kind, l.TitleKind, l.Ref, l.LibraryFolderID, l.PickRulesID = name, in.Kind, kind, ref, folder, rules
-	l.KeepUpToDate = in.KeepUpToDate == nil || *in.KeepUpToDate
+	l.KeepUpToDate = in.KeepUpToDate != nil && *in.KeepUpToDate
 	l.Enabled = in.Enabled == nil || *in.Enabled
 	l.SearchOnAdd, l.ReleaseGate, l.SyncEveryHours = in.SearchOnAdd, gate, every
 	l.Seasons, l.NewSeasons = seasons, newSeasons

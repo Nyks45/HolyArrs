@@ -109,3 +109,18 @@ export function dragScroll(el: HTMLElement) {
 		}
 	};
 }
+
+// Translates vertical mouse wheel gestures into horizontal scrolling when a row overflows.
+export function wheelX(el: HTMLElement) {
+	function onWheel(e: WheelEvent) {
+		if (el.scrollWidth <= el.clientWidth + 1) return;
+		if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && e.deltaY !== 0) {
+			e.preventDefault();
+			el.scrollLeft += e.deltaY;
+		}
+	}
+	el.addEventListener('wheel', onWheel, { passive: false });
+	return {
+		destroy: () => el.removeEventListener('wheel', onWheel)
+	};
+}

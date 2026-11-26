@@ -237,7 +237,8 @@ func TestSync_TMDBShowListUsesItsSeasonChoice(t *testing.T) {
 	if _, _, err := shows.New(e.svc.Library).AddShow(ctx, "tmdb:700002", shows.ShowAddOptions{LibraryFolderID: lf.ID}, domain.System); err != nil {
 		t.Fatal(err)
 	}
-	l, err := AddOutsideList(ctx, e.s, OutsideListInput{Name: "Shows", Kind: ListTMDB, Ref: "61", TitleKind: "show", Seasons: SeasonsFirst, NewSeasons: "none", SearchOnAdd: true}, domain.System)
+	keepTrue := true
+	l, err := AddOutsideList(ctx, e.s, OutsideListInput{Name: "Shows", Kind: ListTMDB, Ref: "61", TitleKind: "show", KeepUpToDate: &keepTrue, Seasons: SeasonsFirst, NewSeasons: "none", SearchOnAdd: true}, domain.System)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -277,7 +278,8 @@ func TestSync_TMDBShowListUsesItsSeasonChoice(t *testing.T) {
 func TestSync_TraktShowListAndWatchlist(t *testing.T) {
 	e, _ := showEnv(t)
 	ctx := context.Background()
-	l, err := AddOutsideList(ctx, e.s, OutsideListInput{Name: "Trakt shows", Kind: ListTrakt, Ref: "kim/shows", TitleKind: "show", Seasons: library.SeasonsLatest}, domain.System)
+	keepTrue := true
+	l, err := AddOutsideList(ctx, e.s, OutsideListInput{Name: "Trakt shows", Kind: ListTrakt, Ref: "kim/shows", TitleKind: "show", KeepUpToDate: &keepTrue, Seasons: library.SeasonsLatest}, domain.System)
 	if err != nil {
 		t.Fatal(err)
 	}

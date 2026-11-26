@@ -17,6 +17,7 @@ import (
 // to gate specialty scrapers and reject mismatched instant/addon candidates.
 type SearchMatchContext struct {
 	Kind             string
+	TMDB             string
 	Title            string
 	OriginalTitle    string
 	Year             int
@@ -175,6 +176,7 @@ var (
 	reServerNumLabel    = regexp.MustCompile(`(?i)\b(?:server|srv|mirror|source|link|node|cdn|ep|episode|part)\s*#?\d+\b`)
 	reSceneIndicators   = regexp.MustCompile(`(?i)(moviesdrive|hdhub4u|4khdhub|uhdmovies|web-dl|webrip|bluray|dual audio)`)
 	reStatsLineCheck    = regexp.MustCompile(`(?i)^(server|source|quality|auto|hls|mp4|hd|4k|1080p|720p|480p|\d+(\.\d+)?\s*(gb|mb))`)
+	reURLTMDBID         = regexp.MustCompile(`(?i)/(?:tv|movie)/(\d+)(?:[-/]|$)`)
 	videoExtSuffixes    = []string{".mkv", ".mp4", ".avi", ".webm", ".mov", ".m4v", ".ts"}
 	docEmojiMarker      = "\U0001F4C4" // document page emoji used by Nuvio scrapers before filename
 	emojiStopMarkers    = []string{"\U0001F310", "\U0001F4E6", "\U0001F3F7", "\U0001F517", "\U0001F4BE", "\U0001F464", "\U0001F3AC"}
@@ -236,6 +238,11 @@ func FilterVerifiedCandidates(cands []UnifiedCandidate, mc SearchMatchContext) [
 func VerifyCandidate(c UnifiedCandidate, mc SearchMatchContext) bool {
 	if c.Kind == "local" {
 		return true
+	}
+	if mc.TMDB != "" && c.StreamURL != "" && (c.ProviderType == "nuvio" || c.ProviderType == "stremio") {
+		if m := reURLTMDBID.FindStringSubmatch(c.StreamURL); len(m) == 2 && m[1] != mc.TMDB {
+			return false
+		}
 	}
 	if strings.TrimSpace(mc.Title) == "" && strings.TrimSpace(mc.OriginalTitle) == "" {
 		return true

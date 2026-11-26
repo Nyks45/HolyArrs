@@ -3,12 +3,15 @@ import { to } from '#lib/core/paths.ts';
 import { hlsScript } from '#lib/core/trailer/hls-player.ts';
 import type { TitleDetails } from '#lib/metadata/index.ts';
 import {
+	autoSyncStreamSubtitle,
 	fetchStreamSubtitle,
 	searchStreamReleases,
+	searchStreamSubtitles,
 	uploadStreamSubtitle,
 	type SessionStatus,
 	type StreamCandidate,
 	type StreamSearchReq,
+	type StreamSubCandidate,
 	type SubPref,
 	type WatchEntry
 } from './stream-api.ts';
@@ -179,17 +182,37 @@ export async function attachHlsMedia(opts: {
 	if (Hls.isSupported()) {
 		const hls = new Hls({
 			enableWorker: true,
+			startPosition: opts.startSec > 0.5 ? opts.startSec : -1,
 			backBufferLength: 180,
 			maxBufferLength: 60,
 			maxMaxBufferLength: 120,
+			maxBufferHole: 1.5,
+			nudgeOffset: 0.2,
+			nudgeMaxRetry: 5,
+			fragLoadingMaxRetry: 3,
 			startFragPrefetch: true,
 			lowLatencyMode: false,
 			fragLoadingTimeOut: 30000,
 			manifestLoadingTimeOut: 25000,
 			renderTextTracksNatively: false
 		});
+		let mediaRecoveries = 0;
+		let netRecoveries = 0;
 		hls.on(Hls.Events.ERROR, (_ev, data) => {
-			if (data.fatal) opts.onFatalError(data.details);
+			if (opts.isCancelled() || !data.fatal) return;
+			if (data.type === Hls.ErrorTypes.MEDIA_ERROR && mediaRecoveries < 2) {
+				mediaRecoveries++;
+				if (mediaRecoveries === 2) hls.swapAudioCodec();
+				hls.recoverMediaError();
+				return;
+			}
+			const code = (data as { response?: { code?: number } }).response?.code;
+			if (data.type === Hls.ErrorTypes.NETWORK_ERROR && netRecoveries < 1 && code !== 403 && code !== 404) {
+				netRecoveries++;
+				hls.startLoad();
+				return;
+			}
+			opts.onFatalError(data.details);
 		});
 		hls.loadSource(opts.srcUrl);
 		hls.attachMedia(opts.video);
@@ -331,24 +354,25 @@ export async function resolveEmbeddedSub(
 	token: string,
 	idx: number,
 	track?: { language?: string; title?: string }
-): Promise<{ cues: VTTCue[]; lang: string; label: string }> {
+): Promise<{ cues: VTTCue[]; rawVtt: string; lang: string; label: string }> {
 	const res = await fetch(to(`/api/v1/stream/${encodeURIComponent(sessionId)}/sub/${encodeURIComponent(token)}/${idx}`), { credentials: 'same-origin' });
 	if (!res.ok) throw new Error(await res.text());
-	const cues = parseWebVTT(await res.text());
+	const rawVtt = await res.text();
+	const cues = parseWebVTT(rawVtt);
 	const lang = track?.language ?? '';
 	const label = [track?.language?.toUpperCase(), track?.title].filter(Boolean).join(' · ') || `Track ${idx + 1}`;
-	return { cues, lang, label };
+	return { cues, rawVtt, lang, label };
 }
 
-export async function resolveSiteSub(id: string, lang: string, label: string, sessionId: string): Promise<{ cues: VTTCue[]; lang: string; label: string; subFile: string }> {
+export async function resolveSiteSub(id: string, lang: string, label: string, sessionId: string): Promise<{ cues: VTTCue[]; rawVtt: string; lang: string; label: string; subFile: string }> {
 	const res = await fetchStreamSubtitle(id, sessionId);
 	const resolvedLang = res.language || lang;
-	return { cues: parseWebVTT(res.vtt), lang: resolvedLang, label: label || resolvedLang.toUpperCase(), subFile: res.sub_file ?? '' };
+	return { cues: parseWebVTT(res.vtt), rawVtt: res.vtt, lang: resolvedLang, label: label || resolvedLang.toUpperCase(), subFile: res.sub_file ?? '' };
 }
 
-export async function resolveUploadedSub(file: File, sessionId: string): Promise<{ cues: VTTCue[]; label: string; subFile: string }> {
+export async function resolveUploadedSub(file: File, sessionId: string): Promise<{ cues: VTTCue[]; rawVtt: string; label: string; subFile: string }> {
 	const res = await uploadStreamSubtitle(file.name, await file.text(), '', sessionId);
-	return { cues: parseWebVTT(res.vtt), label: file.name, subFile: res.sub_file ?? '' };
+	return { cues: parseWebVTT(res.vtt), rawVtt: res.vtt, label: file.name, subFile: res.sub_file ?? '' };
 }
 
 export function matchPlayerHotkey(e: KeyboardEvent, isShow: boolean): PlayerHotkeyAction | null {
@@ -509,4 +533,146 @@ export function parseSavedPlayerPrefs(sv: WatchEntry) {
 		subIndex: sv.subtitle?.index ?? 0,
 		subMode: (sv.subtitle?.mode === 'embedded' ? 'embedded' : 'off') as 'embedded' | 'off'
 	};
+}
+
+export function resolveTotalDuration(args: {
+	probeDuration?: number;
+	videoDuration: number;
+	knownDuration: number;
+	savedDuration?: number;
+	metadataRuntimeMin?: number;
+	isLocalEventHls: boolean;
+	seekOffset: number;
+	currentPos: number;
+}): number {
+	const metaSec = args.metadataRuntimeMin && args.metadataRuntimeMin > 0 ? args.metadataRuntimeMin * 60 : 0;
+	let dur = 0;
+	if (args.probeDuration && args.probeDuration > 0) dur = args.probeDuration;
+	else if (!args.isLocalEventHls && args.videoDuration > 0) dur = args.videoDuration;
+	else if (args.knownDuration > 0) dur = args.knownDuration;
+	else if (args.savedDuration && args.savedDuration > 0) dur = args.savedDuration;
+	else if (metaSec > 0) dur = metaSec;
+	else dur = args.isLocalEventHls ? args.seekOffset + args.videoDuration : args.videoDuration;
+
+	if (dur > 0 && args.currentPos > dur) return args.currentPos;
+	return dur;
+}
+
+export function shouldAcceptEnded(args: {
+	switchingSource: boolean;
+	seamlessStatus: string;
+	pipelineMode: string;
+	currentPos: number;
+	totalDuration: number;
+}): boolean {
+	if (args.switchingSource || args.seamlessStatus !== '' || args.pipelineMode === 'none') return false;
+	if (args.totalDuration > 60 && args.currentPos < args.totalDuration - 20) return false;
+	return true;
+}
+
+export function pickBestSubtitleCandidate(cands: StreamSubCandidate[], preferredLangs: string[], releaseName: string): StreamSubCandidate | null {
+	if (!cands || cands.length === 0) return null;
+	const langs = preferredLangs.map((l) => l.trim().toLowerCase()).filter(Boolean);
+	const relToks = new Set((releaseName || '').toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length >= 3));
+	const score = (c: StreamSubCandidate) => {
+		let sc = 0;
+		const cl = (c.language || '').toLowerCase();
+		const li = langs.indexOf(cl);
+		if (li >= 0) sc += 5000 - li * 500;
+		if (!c.hearing_impaired && !c.forced) sc += 300;
+		if (c.forced) sc -= 800;
+		const rel = (c.release_names ?? []).join(' ').toLowerCase();
+		for (const tk of relToks) if (rel.includes(tk)) sc += 80;
+		sc += Math.min(200, Math.round(Math.log10((c.downloads ?? 0) + 1) * 40));
+		return sc;
+	};
+	return [...cands].sort((a, b) => score(b) - score(a))[0] ?? null;
+}
+
+export function formatSyncDelta(ms: number): string {
+	if (Math.abs(ms) < 80) return 'Already in sync';
+	const sec = (ms / 1000).toFixed(2);
+	return `Synced ${ms > 0 ? `+${sec}` : sec}s`;
+}
+
+export async function syncVttToSessionAudio(args: {
+	sessionId: string;
+	rawVtt: string;
+	startSec?: number;
+	maxOffsetSec?: number;
+}): Promise<{ offsetMs: number; confidence: number; cuesMatched: number; note: string }> {
+	const res = await autoSyncStreamSubtitle({
+		session_id: args.sessionId,
+		vtt: args.rawVtt,
+		start_sec: args.startSec,
+		max_offset_sec: args.maxOffsetSec
+	});
+	const confPct = Math.round((res.confidence ?? 0) * 100);
+	const note =
+		res.confidence < 0.08
+			? `Low confidence (${confPct}%) · ${res.cues_matched} cues checked`
+			: `${formatSyncDelta(res.offset_ms)} (${confPct}% match · ${res.cues_matched} cues)`;
+	return { offsetMs: res.offset_ms, confidence: res.confidence, cuesMatched: res.cues_matched, note };
+}
+
+export async function runAutoFindAndSyncSubtitle(args: {
+	sessionId: string;
+	kind: 'movie' | 'show';
+	title: string;
+	year: number;
+	season: number;
+	episode: number;
+	imdb: string;
+	tmdb: string;
+	releaseName: string;
+	preferredLangs: string[];
+	startSec: number;
+	existingCandidates?: StreamSubCandidate[];
+	autoSync?: boolean;
+}): Promise<{
+	cands: StreamSubCandidate[];
+	best: StreamSubCandidate;
+	cues: VTTCue[];
+	rawVtt: string;
+	lang: string;
+	label: string;
+	subFile: string;
+	delayMs: number;
+	note: string;
+}> {
+	let cands = args.existingCandidates ?? [];
+	if (cands.length === 0) {
+		const res = await searchStreamSubtitles({
+			kind: args.kind,
+			title: args.title,
+			year: args.year,
+			season: args.kind === 'show' ? args.season : 0,
+			episode: args.kind === 'show' ? args.episode : 0,
+			imdb: args.imdb,
+			tmdb: args.tmdb,
+			release_name: args.releaseName,
+			languages: args.preferredLangs
+		});
+		cands = res.candidates ?? [];
+	}
+	const best = pickBestSubtitleCandidate(cands, args.preferredLangs, args.releaseName);
+	if (!best) throw new Error('No matching subtitles found online');
+	const label = `${best.language.toUpperCase()} · ${best.site_name}`;
+	const loaded = await resolveSiteSub(best.id, best.language, label, args.sessionId);
+	let delayMs = 0;
+	let note = `Loaded ${loaded.label}`;
+	if (args.autoSync !== false && loaded.rawVtt) {
+		try {
+			const synced = await syncVttToSessionAudio({
+				sessionId: args.sessionId,
+				rawVtt: loaded.rawVtt,
+				startSec: args.startSec
+			});
+			if (synced.confidence >= 0.08) delayMs = synced.offsetMs;
+			note = synced.note;
+		} catch (e) {
+			note = e instanceof Error && e.message ? `${loaded.label} · audio sync unavailable` : note;
+		}
+	}
+	return { cands, best, ...loaded, delayMs, note };
 }

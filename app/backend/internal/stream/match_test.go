@@ -82,6 +82,26 @@ func TestVerifyCandidateMatchesAndRejects(t *testing.T) {
 		t.Fatal("expected wrong MoviesDrive filename He.Is.Psychometric to be rejected")
 	}
 
+	repressCtx := NewSearchMatchContext("show", "The Remarried Empress", "", 2026, 1, 1, []string{"Drama"}, "ko", []string{"KR"}, false)
+	repressCtx.TMDB = "279246"
+	wrongTMDBUrl := UnifiedCandidate{
+		Kind:         "hls",
+		Instant:      true,
+		Provider:     "Purstream",
+		ProviderType: "nuvio",
+		Title:        "The Remarried Empress",
+		ReleaseName:  "S1 E1 - Episode 1 | The Remarried Empress",
+		StreamURL:    "https://free.finepulfe.xyz/tv/37680-l7487/S01/E01/master.m3u8",
+	}
+	if VerifyCandidate(wrongTMDBUrl, repressCtx) {
+		t.Fatal("expected Purstream URL pointing to wrong TMDB /tv/37680- to be rejected")
+	}
+	goodTMDBUrl := wrongTMDBUrl
+	goodTMDBUrl.StreamURL = "https://free.finepulfe.xyz/tv/279246-slug/S01/E01/master.m3u8"
+	if !VerifyCandidate(goodTMDBUrl, repressCtx) {
+		t.Fatal("expected matching TMDB path URL to be accepted")
+	}
+
 	goodMoviesDrive := UnifiedCandidate{
 		Kind:         "http",
 		Instant:      true,

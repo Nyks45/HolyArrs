@@ -157,8 +157,8 @@ func (p *PluginStore) AddRepo(ctx context.Context, rawURL string) (NuvioRepo, er
 	return p.AddRepoWithDefaults(ctx, rawURL, nil)
 }
 
-// AddRepoWithDefaults fetches a Nuvio manifest URL, caches all JS files, and when installing
-// a repo for the first time with non-empty defaultEnabled, enables only matching scraper IDs.
+// AddRepoWithDefaults fetches a Nuvio manifest URL and caches all JS scraper files with every
+// scraper enabled by default. defaultEnabled is retained for signature compatibility.
 func (p *PluginStore) AddRepoWithDefaults(ctx context.Context, rawURL string, defaultEnabled []string) (NuvioRepo, error) {
 	u, err := url.Parse(strings.TrimSpace(rawURL))
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
@@ -180,12 +180,7 @@ func (p *PluginStore) AddRepoWithDefaults(ctx context.Context, rawURL string, de
 			}
 		}
 	}
-	allowSet := map[string]bool{}
-	for _, id := range defaultEnabled {
-		if sid := sanitizeID(id); sid != "" {
-			allowSet[sid] = true
-		}
-	}
+	_ = defaultEnabled
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	for i := range p.repos {
@@ -213,10 +208,8 @@ func (p *PluginStore) AddRepoWithDefaults(ctx context.Context, rawURL string, de
 			return repo, nil
 		}
 	}
-	if len(allowSet) > 0 {
-		for si := range repo.Scrapers {
-			repo.Scrapers[si].Enabled = allowSet[repo.Scrapers[si].ID]
-		}
+	for si := range repo.Scrapers {
+		repo.Scrapers[si].Enabled = true
 	}
 	p.repos = append(p.repos, repo)
 	if err := p.saveLocked(); err != nil {
@@ -547,13 +540,13 @@ func (p *PluginStore) SearchStreams(ctx context.Context, kind, tmdbID string, se
 
 	totalBudget := 8 * time.Second
 	if fast {
-		totalBudget = 5 * time.Second
+		totalBudget = 4500 * time.Millisecond
 	}
 	sctx, cancelAll := context.WithTimeout(ctx, totalBudget)
 	defer cancelAll()
 
 	startedAt := time.Now()
-	sem := make(chan struct{}, 12)
+	sem := make(chan struct{}, 16)
 	var mu sync.Mutex
 	var out []UnifiedCandidate
 	var warnings []string

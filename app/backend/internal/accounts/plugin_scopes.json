@@ -660,6 +660,7 @@
   "POST /api/v1/stages/{name}/resume",
   "POST /api/v1/stream/search",
   "POST /api/v1/stream/start",
+  "POST /api/v1/stream/subtitles/autosync",
   "POST /api/v1/stream/subtitles/fetch",
   "POST /api/v1/stream/subtitles/search",
   "POST /api/v1/stream/subtitles/upload",

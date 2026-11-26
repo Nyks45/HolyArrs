@@ -30,10 +30,10 @@ const saved = (movie: Partial<TitleDefaults['movie']>, show: Partial<TitleDefaul
 });
 
 describe('builtInDefaults', () => {
-	it('keeps both up to date, searches when a movie is added and not when a show is', () => {
+	it('leaves automatic downloads and initial searches off by default', () => {
 		expect(builtInDefaults).toEqual({
-			movie: { library_folder_id: 0, pick_rules_id: 0, keep_up_to_date: true, search_on_add: true },
-			show: { library_folder_id: 0, pick_rules_id: 0, keep_up_to_date: true, search_on_add: false }
+			movie: { library_folder_id: 0, pick_rules_id: 0, keep_up_to_date: false, search_on_add: false },
+			show: { library_folder_id: 0, pick_rules_id: 0, keep_up_to_date: false, search_on_add: false }
 		});
 	});
 });
@@ -48,9 +48,9 @@ describe('foldersFor and rulesFor', () => {
 });
 
 describe('startChoices', () => {
-	it('with nothing saved: the first healthy folder, its own Pick rules, keep on, search for movies', () => {
-		expect(startChoices(null, folders, rules, 'movie')).toEqual({ folderId: 2, rulesId: 11, keep: true, searchOnAdd: true });
-		expect(startChoices(builtInDefaults, folders, rules, 'show')).toEqual({ folderId: 4, rulesId: 13, keep: true, searchOnAdd: false });
+	it('with nothing saved: the first healthy folder, its own Pick rules, keep off, search off', () => {
+		expect(startChoices(null, folders, rules, 'movie')).toEqual({ folderId: 2, rulesId: 11, keep: false, searchOnAdd: false });
+		expect(startChoices(builtInDefaults, folders, rules, 'show')).toEqual({ folderId: 4, rulesId: 13, keep: false, searchOnAdd: false });
 	});
 
 	it('uses the saved folder, rules and switches', () => {
@@ -75,7 +75,7 @@ describe('startChoices', () => {
 
 	it('no healthy folder: the first one; no folder or rule at all: 0', () => {
 		expect(startChoices(null, [folder(8, 'movie', { health: 'missing' })], rules, 'movie').folderId).toBe(8);
-		expect(startChoices(null, [], [], 'show')).toEqual({ folderId: 0, rulesId: 0, keep: true, searchOnAdd: false });
+		expect(startChoices(null, [], [], 'show')).toEqual({ folderId: 0, rulesId: 0, keep: false, searchOnAdd: false });
 	});
 });
 
@@ -86,7 +86,7 @@ describe('changedParts', () => {
 		expect(changedParts(a, same)).toEqual([]);
 		const b = { ...same, gate: { ...same.gate, gate_delay_days: 3 } };
 		expect(changedParts(a, b)).toEqual(['gate']);
-		const c = { ...b, defaults: saved({ search_on_add: false }), shows: { season_choice: 'latest' } };
+		const c = { ...b, defaults: saved({ search_on_add: true }), shows: { season_choice: 'latest' } };
 		expect(changedParts(a, c)).toEqual(['defaults', 'gate', 'shows']);
 	});
 });
@@ -135,8 +135,8 @@ describe('defaultsLoader', () => {
 
 describe('rememberSearch', () => {
 	it('returns the defaults with the new search choice for that kind only', () => {
-		const next = rememberSearch(builtInDefaults, 'movie', false);
-		expect(next?.movie.search_on_add).toBe(false);
+		const next = rememberSearch(builtInDefaults, 'movie', true);
+		expect(next?.movie.search_on_add).toBe(true);
 		expect(next?.show).toEqual(builtInDefaults.show);
 		expect(next?.movie.keep_up_to_date).toBe(builtInDefaults.movie.keep_up_to_date);
 	});

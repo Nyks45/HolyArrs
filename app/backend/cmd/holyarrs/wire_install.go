@@ -26,7 +26,7 @@ import (
 // points it elsewhere (tests).
 func newUpdateChecker(s *database.Store) *updates.Checker {
 	uc := &updates.Checker{Store: s, Version: version}
-	uc.ReleaseFeed = env("HOLYARRS_RELEASE_FEED", updates.DefaultReleaseFeed)
+	uc.ReleaseFeed = env("HOLYARRS_RELEASE_FEED", "")
 	uc.ClientFor = func(allowLocal bool) *http.Client {
 		allow := outbound.PublicOnly
 		if allowLocal {
@@ -38,6 +38,9 @@ func newUpdateChecker(s *database.Store) *updates.Checker {
 		return &http.Client{Transport: t, Timeout: 15 * time.Second}
 	}
 	uc.ListURL = updates.LabListURL()
+	if uc.ListURL == "" {
+		uc.ListKeys = []updates.PublicKey{}
+	}
 	return uc
 }
 

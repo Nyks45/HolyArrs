@@ -1,9 +1,12 @@
 package stream
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -107,6 +110,12 @@ func TestPreflightAndMeasureFiltersHTMLAndRanksFastestForQuality(t *testing.T) {
 		case "/fast.m3u8":
 			w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 			_, _ = w.Write([]byte("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=2000000\nseg.m3u8\n"))
+		case "/seg.m3u8":
+			w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
+			_, _ = w.Write([]byte("#EXTM3U\n#EXTINF:5.0,\nseg0.ts\n"))
+		case "/seg0.ts":
+			w.Header().Set("Content-Type", "video/mp2t")
+			_, _ = w.Write(bytes.Repeat([]byte{0x47, 0x01, 0x02}, 150))
 		case "/mkv":
 			w.Header().Set("Content-Type", "video/x-matroska")
 			_, _ = w.Write([]byte{0x1a, 0x45, 0xdf, 0xa3, 0x00, 0x01, 0x02, 0x03})
@@ -157,5 +166,108 @@ func TestPreflightAndMeasureFiltersHTMLAndRanksFastestForQuality(t *testing.T) {
 	}
 	if ranked[1].Provider != "slowhls" || ranked[2].Provider != "reanime" {
 		t.Fatalf("expected fast-start HLS before non-fast-start MKV, got %+v", ranked)
+	}
+}
+
+func makeFakeTSSlice() []byte {
+	ts := make([]byte, 188*3)
+	for i := 0; i < 3; i++ {
+		ts[i*188] = 0x47
+		ts[i*188+1] = 0x40
+	}
+	return ts
+}
+
+func TestProxyManagerUnwrapsDisguisedTSManifestSanitizeAndDeepPreflight(t *testing.T) {
+	tsPayload := makeFakeTSSlice()
+	pngWrapped := append(bytes.Repeat([]byte{0x89, 'P', 'N', 'G'}, 16), tsPayload...) // 64-byte PNG header before 0x47
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/master.m3u8":
+			w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
+			_, _ = io.WriteString(w, strings.Join([]string{
+				"#EXTM3U",
+				`#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="Français",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE="fr",URI="aud_fr.m3u8"`,
+				`#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="English",DEFAULT=NO,AUTOSELECT=NO,LANGUAGE="en",URI="aud_en.m3u8"`,
+				`#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="French",DEFAULT=YES,LANGUAGE="fre",URI="subs_fre.vtt"`,
+				`#EXT-X-STREAM-INF:BANDWIDTH=2000000,AUDIO="aud",SUBTITLES="subs"`,
+				"var.m3u8",
+			}, "\n"))
+		case "/var.m3u8":
+			w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
+			_, _ = io.WriteString(w, "#EXTM3U\n#EXTINF:4.0,\nseg_png.png\n#EXTINF:4.0,\nseg_jpg.jpg\n")
+		case "/seg_png.png":
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write(pngWrapped)
+		case "/seg_jpg.jpg":
+			w.Header().Set("Content-Type", "image/jpeg")
+			_, _ = w.Write(tsPayload)
+		case "/cf_master.m3u8":
+			w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
+			_, _ = io.WriteString(w, "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=2000000\ncf_var.m3u8\n")
+		case "/cf_var.m3u8":
+			w.Header().Set("Content-Type", "text/html")
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = io.WriteString(w, "<!doctype html><html><title>Attention Required!</title></html>")
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	pm := NewProxyManager()
+	pm.SetHTTPClient(srv.Client())
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/streaming/proxy/{token}", pm.ServeProxy)
+	mux.HandleFunc("GET /api/v1/streaming/proxy/{token}/hls", pm.ServeProxyHLS)
+
+	// 1. Deep preflight must reject Cloudflare 403 HTML variant even when master is 200 #EXTM3U.
+	if _, _, err := pm.Preflight(context.Background(), srv.URL+"/cf_master.m3u8", nil); err == nil {
+		t.Fatal("expected deep Preflight to reject master whose variant returns 403 HTML")
+	}
+
+	// 2. Valid chain passes deep Preflight, and rewritten master strips .vtt subtitles + picks English audio default.
+	if _, isHLS, err := pm.Preflight(context.Background(), srv.URL+"/master.m3u8", nil); err != nil || !isHLS {
+		t.Fatalf("expected valid HLS chain to pass Preflight, got isHLS=%v err=%v", isHLS, err)
+	}
+	tok, _, err := pm.Register(srv.URL+"/master.m3u8", nil, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/streaming/proxy/"+tok, nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	manifest := rec.Body.String()
+	if strings.Contains(manifest, ".vtt") || strings.Contains(manifest, `SUBTITLES="subs"`) {
+		t.Fatalf("expected raw .vtt subtitle group stripped from master manifest, got:\n%s", manifest)
+	}
+	if !strings.Contains(manifest, `LANGUAGE="en",URI=`) || !strings.Contains(manifest, `NAME="English",DEFAULT=YES,AUTOSELECT=YES`) {
+		t.Fatalf("expected English audio promoted to DEFAULT=YES, got:\n%s", manifest)
+	}
+
+	// 3. Proxied child segments: 64-byte PNG prefix stripped & Content-Type fixed to video/mp2t.
+	var urls []string
+	varRec := httptest.NewRecorder()
+	mux.ServeHTTP(varRec, httptest.NewRequest(http.MethodGet, strings.Split(manifest, "\n")[len(strings.Split(manifest, "\n"))-1], nil))
+	for _, ln := range strings.Split(varRec.Body.String(), "\n") {
+		if strings.HasPrefix(ln, "/api/v1/streaming/proxy/") {
+			urls = append(urls, ln)
+		}
+	}
+	if len(urls) != 2 {
+		t.Fatalf("expected 2 rewritten segment URLs, got %d: %s", len(urls), varRec.Body.String())
+	}
+	for idx, u := range urls {
+		srec := httptest.NewRecorder()
+		mux.ServeHTTP(srec, httptest.NewRequest(http.MethodGet, u, nil))
+		body := srec.Body.Bytes()
+		if ct := srec.Header().Get("Content-Type"); ct != "video/mp2t" {
+			t.Fatalf("seg %d Content-Type = %q, want video/mp2t", idx, ct)
+		}
+		if len(body) != len(tsPayload) || body[0] != 0x47 || body[188] != 0x47 {
+			t.Fatalf("seg %d expected clean MPEG-TS payload len=%d starting 0x47, got len=%d first=%x", idx, len(tsPayload), len(body), body[:min(8, len(body))])
+		}
 	}
 }

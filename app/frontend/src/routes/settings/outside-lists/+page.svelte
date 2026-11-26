@@ -126,7 +126,7 @@
 		ref = l?.ref ?? '';
 		folderId = l?.library_folder_id ?? folders.find((f) => f.kind === titleKind)?.id ?? 0;
 		rulesId = l?.pick_rules_id ?? 0;
-		keep = l?.keep_up_to_date ?? true;
+		keep = l?.keep_up_to_date ?? false;
 		searchOnAdd = l?.search_on_add ?? false;
 		seasons = l?.seasons || 'all';
 		newSeasons = l?.new_seasons || 'all';

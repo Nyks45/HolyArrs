@@ -629,6 +629,7 @@ POST /api/v1/stages/{name}/restart auth=users scope=control assurance=false part
 POST /api/v1/stages/{name}/resume auth=users scope=control assurance=false part=core
 POST /api/v1/stream/search auth=signed_in scope=write assurance=false part=-
 POST /api/v1/stream/start auth=signed_in scope=write assurance=false part=-
+POST /api/v1/stream/subtitles/autosync auth=signed_in scope=write assurance=false part=-
 POST /api/v1/stream/subtitles/fetch auth=signed_in scope=write assurance=false part=-
 POST /api/v1/stream/subtitles/search auth=signed_in scope=write assurance=false part=-
 POST /api/v1/stream/subtitles/upload auth=signed_in scope=write assurance=false part=-

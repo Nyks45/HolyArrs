@@ -288,6 +288,13 @@ export interface StreamSubFetchResponse {
 	sub_file?: string;
 }
 
+export interface StreamSubAutoSyncResponse {
+	offset_ms: number;
+	confidence: number;
+	sampled_sec: number;
+	cues_matched: number;
+}
+
 export interface MPVLaunchReq {
 	audio_lang?: string;
 	sub_lang?: string;
@@ -371,6 +378,10 @@ export function uploadStreamSubtitle(filename: string, content: string, language
 		content,
 		session_id: sessionId
 	});
+}
+
+export function autoSyncStreamSubtitle(req: { session_id: string; vtt: string; start_sec?: number; max_offset_sec?: number }): Promise<StreamSubAutoSyncResponse> {
+	return api.post<StreamSubAutoSyncResponse>('/stream/subtitles/autosync', req);
 }
 
 export function formatSpeed(bps: number): string {

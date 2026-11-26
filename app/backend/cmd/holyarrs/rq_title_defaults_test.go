@@ -61,7 +61,7 @@ func TestTitleDefaultsBuiltIn(t *testing.T) {
 	srv, _ := rqLibSetup(t)
 	var d rqTitleDefaults
 	_ = json.Unmarshal(rqDo(t, "GET", srv.URL+"/api/v1/settings/title-defaults", "", 200), &d)
-	want := rqTitleDefaults{Movie: library.KindDefaults{KeepUpToDate: true, SearchOnAdd: true}, Show: library.KindDefaults{KeepUpToDate: true}}
+	want := rqTitleDefaults{Movie: library.KindDefaults{KeepUpToDate: false, SearchOnAdd: false}, Show: library.KindDefaults{KeepUpToDate: false, SearchOnAdd: false}}
 	if d != want {
 		t.Fatalf("built in %+v", d)
 	}
@@ -80,13 +80,13 @@ func TestTitleDefaultsSaveAndValidate(t *testing.T) {
 	rqDo(t, "PUT", path, `{"movie":{"pick_rules_id":99999}}`, 400)
 	rqDo(t, "PUT", path, `{"movie":`, 400)
 	var d rqTitleDefaults
-	_ = json.Unmarshal(rqDo(t, "PUT", path, fmt.Sprintf(`{"movie":{"library_folder_id":%d,"search_on_add":false}}`, movies.ID), 200), &d)
+	_ = json.Unmarshal(rqDo(t, "PUT", path, fmt.Sprintf(`{"movie":{"library_folder_id":%d,"search_on_add":true}}`, movies.ID), 200), &d)
 	// Left-out fields keep their value.
-	if d.Movie.LibraryFolderID != movies.ID || d.Movie.SearchOnAdd || !d.Movie.KeepUpToDate || !d.Show.KeepUpToDate || d.Show.SearchOnAdd {
+	if d.Movie.LibraryFolderID != movies.ID || !d.Movie.SearchOnAdd || d.Movie.KeepUpToDate || d.Show.KeepUpToDate || d.Show.SearchOnAdd {
 		t.Fatalf("saved %+v", d)
 	}
 	_ = json.Unmarshal(rqDo(t, "GET", path, "", 200), &d)
-	if d.Movie.LibraryFolderID != movies.ID || d.Movie.SearchOnAdd {
+	if d.Movie.LibraryFolderID != movies.ID || !d.Movie.SearchOnAdd {
 		t.Fatalf("read back %+v", d)
 	}
 }

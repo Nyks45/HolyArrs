@@ -21,8 +21,8 @@ export interface DefaultsLoader {
 
 // Id 0 means nothing picked yet; startChoices fills it from what exists.
 export const builtInDefaults: Readonly<TitleDefaults> = Object.freeze({
-	movie: Object.freeze({ library_folder_id: 0, pick_rules_id: 0, keep_up_to_date: true, search_on_add: true }),
-	show: Object.freeze({ library_folder_id: 0, pick_rules_id: 0, keep_up_to_date: true, search_on_add: false })
+	movie: Object.freeze({ library_folder_id: 0, pick_rules_id: 0, keep_up_to_date: false, search_on_add: false }),
+	show: Object.freeze({ library_folder_id: 0, pick_rules_id: 0, keep_up_to_date: false, search_on_add: false })
 });
 
 // Choices are [value, name, help text]. The name and help read their words when used, so they follow the language.

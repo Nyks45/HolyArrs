@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -147,8 +148,8 @@ func (p *ProxyManager) LookupTarget(token string) (string, map[string]string, bo
 	return e.target, cloneHeaderMap(e.headers), true
 }
 
-// Preflight checks that a remote stream URL returns a non-HTML playable response
-// using the stored request headers before starting a session.
+// Preflight checks that a remote stream URL (plus any master->variant->segment HLS chain)
+// returns playable non-HTML media using the stored request headers before starting a session.
 func (p *ProxyManager) Preflight(ctx context.Context, targetURL string, storedHeaders map[string]string) (contentType string, isHLS bool, err error) {
 	if p == nil {
 		return "", false, errors.New("stream proxy unavailable")
@@ -176,21 +177,117 @@ func (p *ProxyManager) Preflight(ctx context.Context, targetURL string, storedHe
 		return "", false, fmt.Errorf("source link unavailable (HTTP %d)", resp.StatusCode)
 	}
 	ct := strings.ToLower(strings.TrimSpace(resp.Header.Get("Content-Type")))
-	peek, _ := io.ReadAll(io.LimitReader(resp.Body, 256))
-	if strings.Contains(ct, "mpegurl") || bytes.Contains(peek, []byte("#EXTM3U")) {
+	peek, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+	isPlaylist := strings.Contains(ct, "mpegurl") || bytes.Contains(peek, []byte("#EXTM3U"))
+	if isPlaylist {
+		rest, _ := io.ReadAll(io.LimitReader(resp.Body, 65536))
+		body := string(append(peek, rest...))
+		if !strings.Contains(body, "#EXTM3U") {
+			return ct, false, errors.New("source returned an invalid playlist")
+		}
+		if err := p.preflightHLSChain(cctx, resp.Request.URL, body, storedHeaders); err != nil {
+			return ct, false, err
+		}
 		return ct, true, nil
 	}
+	if looksDisallowedMediaBody(ct, peek) {
+		return ct, false, errors.New("source returned a web page instead of a playable stream")
+	}
+	return ct, false, nil
+}
+
+func looksDisallowedMediaBody(ct string, peek []byte) bool {
 	sample := strings.ToLower(strings.TrimSpace(string(peek)))
-	if strings.Contains(ct, "text/html") || strings.Contains(ct, "application/xml") ||
+	return strings.Contains(ct, "text/html") || strings.Contains(ct, "application/xml") ||
 		strings.Contains(ct, "text/xml") || strings.Contains(ct, "application/json") ||
 		strings.Contains(ct, "text/plain") ||
 		strings.HasPrefix(sample, "<!doctype") || strings.HasPrefix(sample, "<html") ||
 		strings.HasPrefix(sample, "<head") || strings.HasPrefix(sample, "<?xml") ||
 		strings.HasPrefix(sample, `{"error"`) || strings.HasPrefix(sample, `{"code"`) ||
-		strings.HasPrefix(sample, "unable to get") {
-		return ct, false, errors.New("source returned a web page instead of a playable stream")
+		strings.HasPrefix(sample, "unable to get")
+}
+
+func firstHLSDataLine(body string) string {
+	sc := bufio.NewScanner(strings.NewReader(body))
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		if line != "" && !strings.HasPrefix(line, "#") {
+			return line
+		}
 	}
-	return ct, false, nil
+	return ""
+}
+
+func resolveRelativeHLSURL(base *url.URL, raw string) string {
+	ref, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || base == nil {
+		return ""
+	}
+	abs := base.ResolveReference(ref)
+	if abs.Scheme != "http" && abs.Scheme != "https" {
+		return ""
+	}
+	return abs.String()
+}
+
+func (p *ProxyManager) preflightHLSChain(ctx context.Context, baseURL *url.URL, playlist string, storedHeaders map[string]string) error {
+	mediaBody := playlist
+	mediaBase := baseURL
+	if strings.Contains(playlist, "#EXT-X-STREAM-INF") {
+		subLine := firstHLSDataLine(playlist)
+		if subLine == "" {
+			return errors.New("master playlist contains no variants")
+		}
+		subURL := resolveRelativeHLSURL(baseURL, subLine)
+		if subURL == "" {
+			return errors.New("invalid variant playlist URL")
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, subURL, nil)
+		if err != nil {
+			return errors.New("invalid variant playlist URL")
+		}
+		applyProxyHeaders(req, storedHeaders, nil)
+		resp, err := p.hls.Do(req)
+		if err != nil {
+			return fmt.Errorf("variant playlist unreachable: %w", err)
+		}
+		ct := strings.ToLower(strings.TrimSpace(resp.Header.Get("Content-Type")))
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 65536))
+		resp.Body.Close()
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 || !bytes.Contains(raw, []byte("#EXTM3U")) || looksDisallowedMediaBody(ct, raw[:min(256, len(raw))]) {
+			return errors.New("source variant returned a web page instead of a playable stream")
+		}
+		mediaBody = string(raw)
+		mediaBase = resp.Request.URL
+	}
+
+	segLine := firstHLSDataLine(mediaBody)
+	if segLine == "" {
+		return nil
+	}
+	segURL := resolveRelativeHLSURL(mediaBase, segLine)
+	if segURL == "" {
+		return nil
+	}
+	sreq, err := http.NewRequestWithContext(ctx, http.MethodGet, segURL, nil)
+	if err != nil {
+		return errors.New("invalid segment URL")
+	}
+	applyProxyHeaders(sreq, storedHeaders, http.Header{"Range": []string{"bytes=0-1023"}})
+	sresp, err := p.hls.Do(sreq)
+	if err != nil {
+		return fmt.Errorf("media segment unreachable: %w", err)
+	}
+	defer sresp.Body.Close()
+	if sresp.StatusCode < 200 || sresp.StatusCode >= 300 {
+		return fmt.Errorf("media segment unavailable (HTTP %d)", sresp.StatusCode)
+	}
+	sct := strings.ToLower(strings.TrimSpace(sresp.Header.Get("Content-Type")))
+	speek, _ := io.ReadAll(io.LimitReader(sresp.Body, 1024))
+	if looksDisallowedMediaBody(sct, speek) {
+		return errors.New("source segment returned a web page instead of media")
+	}
+	return nil
 }
 
 // ServeProxy streams the primary proxied URL (rewriting .m3u8 manifests automatically).
@@ -201,7 +298,7 @@ func (p *ProxyManager) ServeProxy(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	p.proxyUpstream(w, r, tok, entry.target, entry.headers)
+	p.proxyUpstream(w, r, tok, entry.target, entry.headers, false)
 }
 
 // ServeProxyHLS handles rewritten nested playlists, keys, init maps, and media segments.
@@ -228,10 +325,10 @@ func (p *ProxyManager) ServeProxyHLS(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid upstream target", http.StatusBadRequest)
 		return
 	}
-	p.proxyUpstream(w, r, tok, u.String(), entry.headers)
+	p.proxyUpstream(w, r, tok, u.String(), entry.headers, true)
 }
 
-func (p *ProxyManager) proxyUpstream(w http.ResponseWriter, r *http.Request, tok, targetURL string, storedHeaders map[string]string) {
+func (p *ProxyManager) proxyUpstream(w http.ResponseWriter, r *http.Request, tok, targetURL string, storedHeaders map[string]string, isHLSChild bool) {
 	method := r.Method
 	if method != http.MethodGet && method != http.MethodHead {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -293,6 +390,48 @@ func (p *ProxyManager) proxyUpstream(w http.ResponseWriter, r *http.Request, tok
 		return
 	}
 
+	if isHLSChild && method == http.MethodGet && resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		peek := make([]byte, 2048)
+		n, rerr := io.ReadFull(resp.Body, peek)
+		if rerr != nil && !errors.Is(rerr, io.ErrUnexpectedEOF) && !errors.Is(rerr, io.EOF) {
+			webserver.Fail(w, http.StatusBadGateway, "upstream stream read failed")
+			return
+		}
+		peek = peek[:n]
+		if off := disguisedTSOffset(ct, peek); off >= 0 && (off > 0 || strings.HasPrefix(ct, "image/")) {
+			copyUpstreamHeaders(w.Header(), resp.Header)
+			w.Header().Set("Content-Type", "video/mp2t")
+			if off > 0 {
+				if cl, perr := strconv.ParseInt(w.Header().Get("Content-Length"), 10, 64); perr == nil && cl > int64(off) {
+					w.Header().Set("Content-Length", strconv.FormatInt(cl-int64(off), 10))
+				} else {
+					w.Header().Del("Content-Length")
+				}
+			}
+			w.Header().Set("Cache-Control", "no-store")
+			if w.Header().Get("Accept-Ranges") == "" {
+				w.Header().Set("Accept-Ranges", "bytes")
+			}
+			w.WriteHeader(resp.StatusCode)
+			_, _ = w.Write(peek[off:])
+			if rerr == nil {
+				_, _ = io.Copy(w, resp.Body)
+			}
+			return
+		}
+		copyUpstreamHeaders(w.Header(), resp.Header)
+		w.Header().Set("Cache-Control", "no-store")
+		if w.Header().Get("Accept-Ranges") == "" {
+			w.Header().Set("Accept-Ranges", "bytes")
+		}
+		w.WriteHeader(resp.StatusCode)
+		_, _ = w.Write(peek)
+		if rerr == nil {
+			_, _ = io.Copy(w, resp.Body)
+		}
+		return
+	}
+
 	copyUpstreamHeaders(w.Header(), resp.Header)
 	w.Header().Set("Cache-Control", "no-store")
 	if w.Header().Get("Accept-Ranges") == "" {
@@ -303,6 +442,39 @@ func (p *ProxyManager) proxyUpstream(w http.ResponseWriter, r *http.Request, tok
 		return
 	}
 	_, _ = io.Copy(w, resp.Body)
+}
+
+func isMP4OrAACPrefix(b []byte) bool {
+	if len(b) >= 8 {
+		box := string(b[4:8])
+		if box == "ftyp" || box == "styp" || box == "sidx" || box == "moof" {
+			return true
+		}
+	}
+	return bytes.HasPrefix(b, []byte("ID3")) || bytes.HasPrefix(b, []byte("WEBVTT"))
+}
+
+func findMPEGTSOffset(buf []byte) int {
+	if len(buf) < 377 {
+		return -1
+	}
+	lim := len(buf) - 377
+	for i := 0; i <= lim; i++ {
+		if buf[i] == 0x47 && buf[i+188] == 0x47 && buf[i+376] == 0x47 {
+			return i
+		}
+	}
+	return -1
+}
+
+func disguisedTSOffset(ct string, peek []byte) int {
+	if len(peek) < 377 || isMP4OrAACPrefix(peek) {
+		return -1
+	}
+	if !strings.HasPrefix(ct, "image/") && peek[0] == 0x47 {
+		return -1
+	}
+	return findMPEGTSOffset(peek)
 }
 
 // ServePosterProxy fetches remote addon logos/posters through SSRF checks so
@@ -348,14 +520,96 @@ func (p *ProxyManager) ServePosterProxy(w http.ResponseWriter, r *http.Request) 
 	_, _ = w.Write(data)
 }
 
-var reHLSAttrURI = regexp.MustCompile(`URI="([^"]+)"`)
+var (
+	reHLSAttrURI      = regexp.MustCompile(`URI="([^"]+)"`)
+	reHLSGroupID      = regexp.MustCompile(`GROUP-ID="([^"]+)"`)
+	reHLSLang         = regexp.MustCompile(`(?i)LANGUAGE="([^"]+)"`)
+	reHLSStreamSubGrp = regexp.MustCompile(`,?SUBTITLES="([^"]+)"`)
+)
+
+func sanitizeHLSManifestLines(body string) []string {
+	var rawLines []string
+	sc := bufio.NewScanner(strings.NewReader(body))
+	sc.Buffer(make([]byte, 0, 64*1024), 1<<20)
+	hasEnglishAudio := false
+	hasNonEngDefaultAudio := false
+	for sc.Scan() {
+		line := strings.TrimRight(sc.Text(), "\r")
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		if strings.HasPrefix(strings.TrimSpace(line), "#EXT-X-MEDIA:") && strings.Contains(line, "TYPE=AUDIO") {
+			lang := ""
+			if m := reHLSLang.FindStringSubmatch(line); len(m) == 2 {
+				lang = strings.ToLower(strings.TrimSpace(m[1]))
+			}
+			if lang == "en" || lang == "eng" {
+				hasEnglishAudio = true
+			} else if strings.Contains(strings.ToUpper(line), "DEFAULT=YES") {
+				hasNonEngDefaultAudio = true
+			}
+		}
+		rawLines = append(rawLines, line)
+	}
+
+	droppedSubGroups := map[string]bool{}
+	keptSubGroups := map[string]bool{}
+	filtered := make([]string, 0, len(rawLines))
+	for _, line := range rawLines {
+		tr := strings.TrimSpace(line)
+		if strings.HasPrefix(tr, "#EXT-X-MEDIA:") && strings.Contains(tr, "TYPE=SUBTITLES") {
+			uri := ""
+			if m := reHLSAttrURI.FindStringSubmatch(line); len(m) == 2 {
+				uri = strings.ToLower(strings.Split(m[1], "?")[0])
+			}
+			grp := ""
+			if m := reHLSGroupID.FindStringSubmatch(line); len(m) == 2 {
+				grp = m[1]
+			}
+			if strings.HasSuffix(uri, ".vtt") || strings.HasSuffix(uri, ".srt") {
+				if grp != "" {
+					droppedSubGroups[grp] = true
+				}
+				continue
+			}
+			if grp != "" {
+				keptSubGroups[grp] = true
+			}
+		}
+		if hasEnglishAudio && hasNonEngDefaultAudio && strings.HasPrefix(tr, "#EXT-X-MEDIA:") && strings.Contains(tr, "TYPE=AUDIO") {
+			lang := ""
+			if m := reHLSLang.FindStringSubmatch(line); len(m) == 2 {
+				lang = strings.ToLower(strings.TrimSpace(m[1]))
+			}
+			if lang == "en" || lang == "eng" {
+				line = strings.ReplaceAll(line, "DEFAULT=NO", "DEFAULT=YES")
+				line = strings.ReplaceAll(line, "AUTOSELECT=NO", "AUTOSELECT=YES")
+			} else {
+				line = strings.ReplaceAll(line, "DEFAULT=YES", "DEFAULT=NO")
+				line = strings.ReplaceAll(line, "AUTOSELECT=YES", "AUTOSELECT=NO")
+			}
+		}
+		filtered = append(filtered, line)
+	}
+
+	for i, line := range filtered {
+		if strings.HasPrefix(strings.TrimSpace(line), "#EXT-X-STREAM-INF:") {
+			filtered[i] = reHLSStreamSubGrp.ReplaceAllStringFunc(line, func(m string) string {
+				sub := reHLSStreamSubGrp.FindStringSubmatch(m)
+				if len(sub) == 2 && droppedSubGroups[sub[1]] && !keptSubGroups[sub[1]] {
+					return ""
+				}
+				return m
+			})
+		}
+	}
+	return filtered
+}
 
 func rewriteHLSManifest(body string, base *url.URL, token string) string {
+	lines := sanitizeHLSManifestLines(body)
 	var out strings.Builder
 	out.Grow(len(body) + len(body)/4)
-	sc := bufio.NewScanner(strings.NewReader(body))
-	buf := make([]byte, 0, 64*1024)
-	sc.Buffer(buf, 1<<20)
 
 	rewriteURL := func(raw string) string {
 		raw = strings.TrimSpace(raw)
@@ -374,17 +628,11 @@ func rewriteHLSManifest(body string, base *url.URL, token string) string {
 		return "/api/v1/streaming/proxy/" + token + "/hls?u=" + enc
 	}
 
-	first := true
-	for sc.Scan() {
-		if !first {
+	for i, line := range lines {
+		if i > 0 {
 			out.WriteByte('\n')
 		}
-		first = false
-		line := strings.TrimRight(sc.Text(), "\r")
 		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
-			continue
-		}
 		if strings.HasPrefix(trimmed, "#") {
 			if strings.Contains(line, `URI="`) {
 				line = reHLSAttrURI.ReplaceAllStringFunc(line, func(m string) string {

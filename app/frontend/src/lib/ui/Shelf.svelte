@@ -75,7 +75,9 @@
 		measure();
 		const ro = new ResizeObserver(measure);
 		ro.observe(scroller);
-		return () => ro.disconnect();
+		const mo = new MutationObserver(measure);
+		mo.observe(scroller, { childList: true });
+		return () => { ro.disconnect(); mo.disconnect(); };
 	});
 
 	// For whole-page shelves: count how many cards fit so pages align to card edges.
@@ -173,7 +175,7 @@
 	.sk.wide { --art: calc(var(--w) * 9 / 16); --text-h: 0px; }
 	@media (max-width: 767px) { .sk { --w: calc(var(--item) * .78); } }
 	.row > :global(*) { scroll-snap-align: start; }
-	.arrow { position: absolute; top: calc(50% - 30px); opacity: 0; transition: opacity var(--dur-fast) var(--ease-out); }
+	.arrow { position: absolute; z-index: 6; top: calc(50% - 30px); opacity: 0; transition: opacity var(--dur-fast) var(--ease-out); }
 	.arrow :global(.ui-ibtn) { box-shadow: var(--shadow-lift); background: var(--surface-1); color: var(--text); }
 	.left { inset-inline-start: -12px; }
 	.right { inset-inline-end: -12px; }

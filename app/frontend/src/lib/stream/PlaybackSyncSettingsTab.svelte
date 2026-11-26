@@ -145,7 +145,7 @@
 			<label class="toggle"><input type="checkbox" bind:checked={prefs.exclude_3d} /><span>Hide 3D / HSBS releases</span></label>
 			<label class="toggle"><input type="checkbox" bind:checked={prefs.auto_resolve_debrid} /><span>Resolve cached torrents via Debrid when available</span></label>
 			<label class="toggle"><input type="checkbox" bind:checked={prefs.auto_fallback} /><span>Automatically fall back if primary source fails</span></label>
-			<label class="toggle"><input type="checkbox" bind:checked={prefs.auto_play_fastest} /><span>Auto-start top instant source when opening Watch</span></label>
+			<label class="toggle"><input type="checkbox" bind:checked={prefs.auto_play_fastest} /><span>Auto-start best source in preferred resolution when opening Watch</span></label>
 		</section>
 
 		<section class="card">

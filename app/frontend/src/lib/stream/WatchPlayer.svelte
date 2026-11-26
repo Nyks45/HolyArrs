@@ -9,7 +9,7 @@
 	import { detailPath, loadDetails, type TitleDetails } from '#lib/metadata/index.ts';
 	import { ensureStreamHLS, formatEndsAt, formatTimeLeft, getStreamStatus, getTitleWatchHistory, launchStreamMPV, listStreamSources, saveWatchProgress, searchStreamReleases, searchStreamSubtitles, selectStreamFile, setStreamKeep, startStream, stopStream, type SessionStatus, type StreamCandidate, type StreamSubCandidate, type SubPref, type WatchEntry } from './stream-api.ts';
 	import { getStreamingPrefs, saveStreamingPrefs, type SkipSegment, type StreamPrefs, type SubStylePrefs } from './streaming-config-api.ts';
-	import { attachHlsMedia, buildEpisodeProgressMap, buildResumeCandidate, buildSearchReq, buildWatchEntryPayload, candidateKey, canSeekInLocalHlsBuffer, clearPlayerTimers, countCandidateKinds, DEFAULT_SUB_STYLE, extractRegularSeasons, fetchTitleSkips, findNextEpisodeTarget, matchPlayerHotkey, mergeCandidateLists, mergeWatchHistory, normQualityChoice, parseSavedPlayerPrefs, postWatchScrobble, prefetchStreamSources, resolveEmbeddedSub, resolveSiteSub, resolveTotalDuration, resolveUploadedSub, runAutoFindAndSyncSubtitle, shouldAcceptEnded, sortCandidatesForQuality, syncVttToSessionAudio, type HlsQualityLevel, type SeasonEp } from './player-media.ts';
+	import { attachHlsMedia, buildEpisodeProgressMap, buildResumeCandidate, buildSearchReq, buildWatchEntryPayload, candidateKey, canSeekInLocalHlsBuffer, clearPlayerTimers, countCandidateKinds, DEFAULT_SUB_STYLE, extractRegularSeasons, fetchTitleSkips, findNextEpisodeTarget, matchPlayerHotkey, mergeCandidateLists, mergeWatchHistory, normQualityChoice, parseSavedPlayerPrefs, postWatchScrobble, prefetchStreamSources, resolveEmbeddedSub, resolveSiteSub, resolveTotalDuration, resolveUploadedSub, runAutoFindAndSyncSubtitle, selectAutoPlayCandidate, shouldAcceptEnded, sortCandidatesForQuality, syncVttToSessionAudio, type HlsQualityLevel, type SeasonEp } from './player-media.ts';
 	import { resolveSubtitleStyle, stripSdhCueLines } from './subtitle-style.ts';
 	import { activeCuesAt, type VTTCue } from './vtt.ts';
 	import PlayerHud from './PlayerHud.svelte';
@@ -18,11 +18,7 @@
 	import PlayerSubsDrawer from './PlayerSubsDrawer.svelte';
 	import PlayerEpisodesDrawer from './PlayerEpisodesDrawer.svelte';
 
-	let {
-		kind, tmdb, initialSeason = 1, initialEpisode = 1, autoResume = true, initialDrawer = 'none', backHref = ''
-	}: {
-		kind: 'movie' | 'show'; tmdb: string; initialSeason?: number; initialEpisode?: number; autoResume?: boolean; initialDrawer?: 'none' | 'sources'; backHref?: string;
-	} = $props();
+	let { kind, tmdb, initialSeason = 1, initialEpisode = 1, autoResume = true, initialDrawer = 'none', backHref = '' }: { kind: 'movie' | 'show'; tmdb: string; initialSeason?: number; initialEpisode?: number; autoResume?: boolean; initialDrawer?: 'none' | 'sources'; backHref?: string } = $props();
 
 	let stageEl = $state<HTMLElement | undefined>(undefined);
 	let videoEl = $state<HTMLVideoElement | undefined>(undefined);
@@ -134,6 +130,9 @@
 	let destroyed = false;
 
 	const pipAvailable = $derived(typeof document !== 'undefined' && !!document.pictureInPictureEnabled);
+	const prefQuality = $derived(prefs ? normQualityChoice(prefs.preferred_quality) : '1080p');
+	const targetQuality = $derived(resFilter !== 'all' ? resFilter : prefQuality);
+	const autoPlayOn = $derived(prefs ? prefs.auto_play_fastest : true);
 
 	const regularSeasons = $derived(extractRegularSeasons(details));
 	const curSeasonEps = $derived(seasonEpisodes[season] ?? []);
@@ -306,12 +305,12 @@
 				} else if (autoResume && sv && !sv.completed) {
 					if (sv.release_link) void resumeFromSaved(sv, sv.position_sec);
 					else {
-						const b = pickBestCandidate();
-						if (b && (b.instant || prefs?.auto_play_fastest)) void startCandidate(b, 'browser', sv.position_sec, true);
+						const b = selectAutoPlayCandidate(candidates, targetQuality, false);
+						if (b) void startCandidate(b, 'browser', sv.position_sec, true);
 					}
-				} else if (prefs?.auto_play_fastest) {
-					const b = pickBestCandidate();
-					if (b && b.instant) void startCandidate(b, 'browser', 0, true);
+				} else if (autoPlayOn) {
+					const b = selectAutoPlayCandidate(candidates, targetQuality, false);
+					if (b) void startCandidate(b, 'browser', 0, true);
 				}
 			}
 		} catch (e) { pageError = message(e); } finally { loadingPage = false; wakeHud(); }
@@ -360,9 +359,10 @@
 				if (destroyed || seq !== searchSeq) return;
 				candidates = mergeCandidateLists(candidates, fullRes.candidates ?? []);
 				counts = countCandidateKinds(candidates);
-				if (!session && !activeCandidate && drawer === 'none' && pipelineMode === 'none' && prefs?.auto_play_fastest) {
-					const b = pickBestCandidate();
-					if (b && b.instant) void startCandidate(b, 'browser', 0, true);
+				if (!session && !activeCandidate && drawer === 'none' && pipelineMode === 'none' && autoPlayOn) {
+					const startAt = autoResume && activeSaved && !activeSaved.completed ? activeSaved.position_sec : 0;
+					const b = selectAutoPlayCandidate(candidates, targetQuality, true);
+					if (b) void startCandidate(b, 'browser', startAt, true);
 				}
 			})
 			.catch((e) => { if (seq === searchSeq && candidates.length === 0) searchError = message(e); })
@@ -370,7 +370,7 @@
 	}
 
 	function pickBestCandidate(): StreamCandidate | null {
-		return sortCandidatesForQuality(candidates, resFilter !== 'all' ? resFilter : normQualityChoice(prefs?.preferred_quality))[0] ?? null;
+		return sortCandidatesForQuality(candidates, targetQuality)[0] ?? null;
 	}
 
 	async function resumeFromSaved(sv: WatchEntry, startAt: number) {
@@ -416,7 +416,7 @@
 
 	function tryFallbackSource() {
 		if ((prefs && !prefs.auto_fallback) || autoFallbacks >= 5) return;
-		const pool = sortCandidatesForQuality(candidates, resFilter !== 'all' ? resFilter : normQualityChoice(prefs?.preferred_quality));
+		const pool = sortCandidatesForQuality(candidates, targetQuality);
 		const next = pool.find((c) => !triedCandKeys.has(candidateKey(c)) && (c.instant || c.seeders > 0));
 		if (!next) return;
 		autoFallbacks++;
@@ -754,7 +754,7 @@
 	/>
 
 	<PlayerSourcesDrawer
-		open={drawer === 'sources'} bind:queryText bind:sourceTab bind:resFilter {searching} {loadingMoreSources} {searchError} {fallbackNotice} {candidates} {counts}
+		open={drawer === 'sources'} bind:queryText bind:sourceTab bind:resFilter preferredQuality={prefQuality} {searching} {loadingMoreSources} {searchError} {fallbackNotice} {candidates} {counts}
 		activeCandidateKey={activeCandidate ? candidateKey(activeCandidate) : ''} {session} {mpvAvailable}
 		onClose={() => { drawer = 'none'; }} onSearch={() => void runSearch(true)}
 		onStartCandidate={(c, m) => { const pos = pipelineMode !== 'none' && currentPos > 10 ? currentPos : 0; autoFallbacks = 0; drawer = 'none'; void startCandidate(c, m, pos, true); }}

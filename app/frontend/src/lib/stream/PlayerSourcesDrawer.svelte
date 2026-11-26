@@ -9,6 +9,7 @@
 		queryText = $bindable(''),
 		sourceTab = $bindable<'all' | 'instant' | 'local' | 'debrid' | 'torrent'>('all'),
 		resFilter = $bindable<'all' | '2160p' | '1080p' | '720p' | 'sd'>('all'),
+		preferredQuality = '1080p',
 		searching,
 		loadingMoreSources = false,
 		searchError,
@@ -28,6 +29,7 @@
 		queryText: string;
 		sourceTab: 'all' | 'instant' | 'local' | 'debrid' | 'torrent';
 		resFilter: 'all' | '2160p' | '1080p' | '720p' | 'sd';
+		preferredQuality?: 'all' | '2160p' | '1080p' | '720p' | 'sd';
 		searching: boolean;
 		loadingMoreSources?: boolean;
 		searchError: string;
@@ -53,7 +55,7 @@
 			if (sourceTab === 'torrent' && k !== 'torrent') return false;
 			return resFilter === 'all' || matchesQualityFilter(c, resFilter);
 		});
-		return sortCandidatesForQuality(tabFiltered, resFilter);
+		return sortCandidatesForQuality(tabFiltered, resFilter !== 'all' ? resFilter : preferredQuality);
 	});
 
 	function badgeFor(c: StreamCandidate): { cls: string; text: string } {

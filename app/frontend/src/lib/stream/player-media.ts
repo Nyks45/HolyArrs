@@ -69,9 +69,22 @@ export function matchesQualityFilter(c: StreamCandidate, resFilter: 'all' | '216
 	if (resFilter === 'all') return true;
 	const res = (c.quality || c.resolution || '').toLowerCase();
 	if (resFilter === '2160p') return res.includes('2160') || res.includes('4k') || res.includes('uhd') || c.resolution_num >= 2160;
-	if (resFilter === '1080p') return res.includes('1080') || c.resolution_num === 1080;
+	if (resFilter === '1080p') return res.includes('1080') || res.includes('fhd') || c.resolution_num === 1080;
 	if (resFilter === '720p') return res.includes('720') || c.resolution_num === 720;
 	return (c.resolution_num > 0 && c.resolution_num < 720) || res.includes('480') || res.includes('360');
+}
+
+export function selectAutoPlayCandidate(
+	cands: StreamCandidate[],
+	preferredQuality: PlayerQualityFilter = '1080p',
+	allowTorrent = false
+): StreamCandidate | null {
+	const ranked = sortCandidatesForQuality(cands, preferredQuality);
+	const top = ranked[0];
+	if (!top) return null;
+	if (top.instant) return top;
+	if (!allowTorrent) return null;
+	return ranked.find((c) => c.instant || c.seeders > 0) ?? top;
 }
 
 function kindTier(c: StreamCandidate): number {

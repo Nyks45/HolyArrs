@@ -643,3 +643,13 @@ func TestFastScraperPriorityAndMagnetOutput(t *testing.T) {
 		t.Fatalf("unexpected magnet candidate fields: %+v", cands[0])
 	}
 }
+
+func TestDefaultPrefsAutoPlay1080p(t *testing.T) {
+	prefs := DefaultPrefs()
+	if prefs.PreferredQuality != "1080p" {
+		t.Fatalf("expected default PreferredQuality 1080p, got %q", prefs.PreferredQuality)
+	}
+	if !prefs.AutoPlayFastest {
+		t.Fatalf("expected default AutoPlayFastest true")
+	}
+}

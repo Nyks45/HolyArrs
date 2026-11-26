@@ -5,6 +5,7 @@ import {
 	formatSyncDelta,
 	pickBestSubtitleCandidate,
 	resolveTotalDuration,
+	selectAutoPlayCandidate,
 	shouldAcceptEnded,
 	sortCandidatesForQuality
 } from './player-media.ts';
@@ -221,5 +222,29 @@ describe('extractRegularSeasons', () => {
 			}
 		} as TitleDetails;
 		expect(extractRegularSeasons(fromShow).map((s) => s.number)).toEqual([1, 2]);
+	});
+});
+
+describe('selectAutoPlayCandidate', () => {
+	it('picks fastest 1080p instant source over higher/lower resolutions and defers only when top 1080p is non-instant on fast pass', () => {
+		const mixedInstant = [
+			cand({ id: '4k-fast', kind: 'hls', instant: true, resolution: '2160p', resolution_num: 2160, probe_ms: 50, fast_start: true }),
+			cand({ id: '720-fast', kind: 'hls', instant: true, resolution: '720p', resolution_num: 720, probe_ms: 40, fast_start: true }),
+			cand({ id: '1080-slow', kind: 'hls', instant: true, resolution: '1080p', resolution_num: 1080, probe_ms: 350, fast_start: true }),
+			cand({ id: '1080-fast', kind: 'hls', instant: true, resolution: '1080p', resolution_num: 1080, probe_ms: 95, fast_start: true })
+		];
+		expect(selectAutoPlayCandidate(mixedInstant, '1080p', false)?.id).toBe('1080-fast');
+
+		const torrentFirst = [
+			cand({ id: '720-inst', kind: 'hls', instant: true, resolution: '720p', resolution_num: 720, probe_ms: 80, fast_start: true }),
+			cand({ id: '1080-tor', kind: 'torrent', instant: false, resolution: '1080p', resolution_num: 1080, seeders: 120 })
+		];
+		expect(selectAutoPlayCandidate(torrentFirst, '1080p', false)).toBeNull();
+		expect(selectAutoPlayCandidate(torrentFirst, '1080p', true)?.id).toBe('1080-tor');
+
+		const fallbackOnly = [
+			cand({ id: '720-only', kind: 'http', instant: true, resolution: '720p', resolution_num: 720, probe_ms: 90, fast_start: true })
+		];
+		expect(selectAutoPlayCandidate(fallbackOnly, '1080p', false)?.id).toBe('720-only');
 	});
 });

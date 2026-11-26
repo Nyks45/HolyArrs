@@ -51,7 +51,7 @@ func DefaultPrefs() StreamPrefs {
 		Exclude3D:         true,
 		PreferredQuality:  "1080p",
 		MaxSizeGB:         0,
-		AutoPlayFastest:   false,
+		AutoPlayFastest:   true,
 		AutoFallback:      true,
 		AutoResolveDebrid: true,
 		AutoSkipIntro:     false,

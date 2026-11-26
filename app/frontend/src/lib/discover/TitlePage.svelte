@@ -175,14 +175,15 @@
 		}
 		return map;
 	});
-	function watchHref(resume: boolean, s?: number, e?: number): string {
+	function watchHref(resume: boolean, s?: number, e?: number, drawer?: 'sources'): string {
 		const back = detailPath(kind === 'show' ? 'show' : 'movie', tmdb);
+		const extra = drawer ? `&drawer=${drawer}` : '';
 		if (kind === 'show') {
 			const ss = s ?? watchLatest?.season ?? seasons.find((x) => x.number > 0)?.number ?? 1;
 			const ee = e ?? watchLatest?.episode ?? 1;
-			return to(`/watch/show/${encodeURIComponent(tmdb)}?s=${ss}&e=${ee}&resume=${resume ? '1' : '0'}&from=${encodeURIComponent(back)}`);
+			return to(`/watch/show/${encodeURIComponent(tmdb)}?s=${ss}&e=${ee}&resume=${resume ? '1' : '0'}&from=${encodeURIComponent(back)}${extra}`);
 		}
-		return to(`/watch/movie/${encodeURIComponent(tmdb)}?resume=${resume ? '1' : '0'}&from=${encodeURIComponent(back)}`);
+		return to(`/watch/movie/${encodeURIComponent(tmdb)}?resume=${resume ? '1' : '0'}&from=${encodeURIComponent(back)}${extra}`);
 	}
 	function openStream(s = 1, e = 1) {
 		streamSeason = s;
@@ -555,7 +556,7 @@
 				{#if d.kind === 'movie' || d.kind === 'show'}
 					{#if watchLatest && !watchLatest.completed && watchLatest.position_sec > 10}
 						<ActionButton icon="play" primary label={`Resume ${d.name}`} caption={d.kind === 'show' && watchLatest.season ? `Resume S${String(watchLatest.season).padStart(2, '0')} E${String(watchLatest.episode ?? 1).padStart(2, '0')} · ${formatDuration(watchLatest.position_sec)}` : `Resume · ${formatDuration(watchLatest.position_sec)}`} href={watchHref(true)} data-testid="hero-resume" />
-						<ActionButton icon="source" pill label={`Pick stream source for ${d.name}`} caption="Sources" onclick={() => openStream(watchLatest?.season || (seasons.find((s) => s.number > 0)?.number ?? 1), watchLatest?.episode || 1)} data-testid="hero-stream" />
+						<ActionButton icon="source" pill label={`Pick stream source for ${d.name}`} caption="Sources" href={watchHref(false, watchLatest?.season || (seasons.find((s) => s.number > 0)?.number ?? 1), watchLatest?.episode || 1, 'sources')} data-testid="hero-stream" />
 					{:else}
 						<ActionButton icon="play" pill label={`Watch ${d.name}`} caption="Watch" href={watchHref(false)} data-testid="hero-stream" />
 					{/if}
@@ -691,6 +692,10 @@
 				year={d.year}
 				tmdb={d.tmdb}
 				imdb={extIds?.imdb ?? ''}
+				originalTitle={d.original_title ?? ''}
+				genres={d.genres ?? []}
+				originalLanguage={d.original_language ?? ''}
+				originCountry={d.origin_country ?? []}
 				{seasons}
 				initialSeason={streamSeason}
 				initialEpisode={streamEpisode}

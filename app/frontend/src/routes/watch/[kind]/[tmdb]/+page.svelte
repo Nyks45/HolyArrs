@@ -10,6 +10,7 @@
 	const season = $derived(Number(page.url.searchParams.get('s')) || 0);
 	const episode = $derived(Number(page.url.searchParams.get('e')) || 0);
 	const autoResume = $derived(page.url.searchParams.get('resume') === '1');
+	const initialDrawer = $derived(page.url.searchParams.get('drawer') === 'sources' ? 'sources' : 'none');
 	const backHref = $derived(page.url.searchParams.get('from') ?? '');
 </script>
 
@@ -28,6 +29,7 @@
 			initialSeason={season}
 			initialEpisode={episode}
 			{autoResume}
+			{initialDrawer}
 			{backHref}
 		/>
 	{/key}

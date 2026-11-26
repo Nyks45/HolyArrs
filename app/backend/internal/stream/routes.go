@@ -87,7 +87,12 @@ func (h *Handlers) listSources(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) search(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		sources.StreamSearchReq
-		LocalOnly bool `json:"local_only"`
+		LocalOnly        bool     `json:"local_only"`
+		OriginalTitle    string   `json:"original_title"`
+		Genres           []string `json:"genres"`
+		OriginalLanguage string   `json:"original_language"`
+		OriginCountry    []string `json:"origin_country"`
+		Anime            bool     `json:"anime"`
 	}
 	if !webserver.Decode(w, r, &in, "send {query, kind, year, season, episode, imdb, tmdb, source_ids}") {
 		return
@@ -102,6 +107,7 @@ func (h *Handlers) search(w http.ResponseWriter, r *http.Request) {
 	}
 	imdbID := strings.TrimSpace(in.IMDb)
 	prefs := h.Mgr.Prefs.Get()
+	mc := NewSearchMatchContext(kind, in.Query, in.OriginalTitle, in.Year, in.Season, in.Episode, in.Genres, in.OriginalLanguage, in.OriginCountry, in.Anime)
 
 	var mu sync.Mutex
 	var rawCands []UnifiedCandidate
@@ -163,7 +169,7 @@ func (h *Handlers) search(w http.ResponseWriter, r *http.Request) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				cands, warns := h.Mgr.Plugins.SearchStreams(r.Context(), kind, tmdbStr, in.Season, in.Episode, tmdbKey)
+				cands, warns := h.Mgr.Plugins.SearchStreams(r.Context(), kind, tmdbStr, in.Season, in.Episode, tmdbKey, mc)
 				mu.Lock()
 				rawCands = append(rawCands, cands...)
 				warnings = append(warnings, warns...)
@@ -255,6 +261,7 @@ func (h *Handlers) search(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	rawCands = FilterVerifiedCandidates(rawCands, mc)
 	ranked := FilterAndRankCandidates(rawCands, prefs)
 	stored := h.Mgr.CandCache.Put(ranked)
 	if stored == nil {

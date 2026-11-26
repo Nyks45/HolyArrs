@@ -33,10 +33,10 @@
 </script>
 
 {#if shelves.length > 0}
-	{#each shelves as shelf (`${shelf.addon_id}:${shelf.type}:${shelf.catalog_id}`)}
+	{#each shelves as shelf, sidx (`${shelf.addon_id}:${shelf.type}:${shelf.catalog_id}:${sidx}`)}
 		<section class="addon-shelf" aria-label={shelf.name}>
 			<Shelf title={`${shelf.name} · ${shelf.addon_name}`}>
-				{#each shelf.items as item (item.id)}
+				{#each shelf.items as item, idx (`${item.id}:${idx}`)}
 					<a class="addon-card" href={itemHref(item)}>
 						<div class="poster-wrap">
 							{#if item.poster}

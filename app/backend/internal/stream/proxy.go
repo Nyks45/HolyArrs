@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -146,6 +147,40 @@ func (p *ProxyManager) LookupTarget(token string) (string, map[string]string, bo
 	return e.target, cloneHeaderMap(e.headers), true
 }
 
+// Preflight checks that a remote stream URL returns a non-HTML playable response
+// using the stored request headers before starting a session.
+func (p *ProxyManager) Preflight(ctx context.Context, targetURL string, storedHeaders map[string]string) (contentType string, isHLS bool, err error) {
+	if p == nil {
+		return "", false, errors.New("stream proxy unavailable")
+	}
+	cctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(cctx, http.MethodGet, targetURL, nil)
+	if err != nil {
+		return "", false, errors.New("invalid stream URL")
+	}
+	applyProxyHeaders(req, storedHeaders, http.Header{"Range": []string{"bytes=0-1023"}})
+
+	resp, err := p.hls.Do(req)
+	if err != nil {
+		return "", false, fmt.Errorf("source unreachable: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", false, fmt.Errorf("source link unavailable (HTTP %d)", resp.StatusCode)
+	}
+	ct := strings.ToLower(strings.TrimSpace(resp.Header.Get("Content-Type")))
+	if strings.Contains(ct, "mpegurl") {
+		return ct, true, nil
+	}
+	if strings.Contains(ct, "text/html") || strings.Contains(ct, "application/xml") || strings.Contains(ct, "text/xml") {
+		return ct, false, errors.New("source returned a web page instead of a playable stream")
+	}
+	return ct, false, nil
+}
+
 // ServeProxy streams the primary proxied URL (rewriting .m3u8 manifests automatically).
 func (p *ProxyManager) ServeProxy(w http.ResponseWriter, r *http.Request) {
 	tok := r.PathValue("token")
@@ -212,6 +247,11 @@ func (p *ProxyManager) proxyUpstream(w http.ResponseWriter, r *http.Request, tok
 	ct := strings.ToLower(resp.Header.Get("Content-Type"))
 	isManifest := method == http.MethodGet && resp.StatusCode >= 200 && resp.StatusCode < 300 &&
 		(strings.Contains(ct, "mpegurl") || isMaybeHLS)
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 && !isManifest &&
+		(strings.Contains(ct, "text/html") || strings.Contains(ct, "application/xml") || strings.Contains(ct, "text/xml")) {
+		webserver.Fail(w, http.StatusBadGateway, "upstream returned web page instead of media")
+		return
+	}
 
 	if isManifest {
 		const maxManifest = 4 << 20

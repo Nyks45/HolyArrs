@@ -232,6 +232,9 @@ func buildFFmpegArgs(mediaURL, outDir string, probe *MediaProbe, quality string,
 		quality = "original"
 	}
 	args := []string{"-hide_banner", "-loglevel", "error", "-y"}
+	if strings.HasPrefix(mediaURL, "http://") || strings.HasPrefix(mediaURL, "https://") {
+		args = append(args, "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "3")
+	}
 	if startSec > 0.5 {
 		args = append(args, "-ss", fmt.Sprintf("%.3f", startSec))
 	}
@@ -265,7 +268,7 @@ func buildFFmpegArgs(mediaURL, outDir string, probe *MediaProbe, quality string,
 	args = append(args,
 		"-c:a", "aac", "-ac", "2", "-b:a", "192k",
 		"-f", "hls",
-		"-hls_time", "4",
+		"-hls_time", "3",
 		"-hls_list_size", "0",
 		"-hls_playlist_type", "event",
 		"-hls_flags", "independent_segments",

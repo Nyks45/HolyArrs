@@ -100,14 +100,38 @@ func (p *PluginStore) load() {
 	}
 	var repos []NuvioRepo
 	if json.Unmarshal(raw, &repos) == nil {
-		for ri := range repos {
-			for si := range repos[ri].Scrapers {
-				if p.cacheDir != "" {
-					repos[ri].Scrapers[si].LocalFile = filepath.Join(p.cacheDir, repos[ri].ID, repos[ri].Scrapers[si].ID+".js")
-				}
+		healed := false
+		seenRepos := map[string]bool{}
+		cleanRepos := make([]NuvioRepo, 0, len(repos))
+		for _, r := range repos {
+			rkey := strings.ToLower(strings.TrimSpace(fallbackString(r.ID, r.ManifestURL)))
+			if rkey != "" && seenRepos[rkey] {
+				healed = true
+				continue
 			}
+			if rkey != "" {
+				seenRepos[rkey] = true
+			}
+			seenScrapers := map[string]bool{}
+			cleanScrapers := make([]NuvioScraper, 0, len(r.Scrapers))
+			for _, sc := range r.Scrapers {
+				if sc.ID == "" || seenScrapers[sc.ID] {
+					healed = true
+					continue
+				}
+				seenScrapers[sc.ID] = true
+				if p.cacheDir != "" {
+					sc.LocalFile = filepath.Join(p.cacheDir, r.ID, sc.ID+".js")
+				}
+				cleanScrapers = append(cleanScrapers, sc)
+			}
+			r.Scrapers = cleanScrapers
+			cleanRepos = append(cleanRepos, r)
 		}
-		p.repos = repos
+		p.repos = cleanRepos
+		if healed {
+			_ = p.saveLocked()
+		}
 	}
 }
 
@@ -204,13 +228,22 @@ func (p *PluginStore) AddRepoWithDefaults(ctx context.Context, rawURL string, de
 func (p *PluginStore) RefreshRepo(ctx context.Context, id string) (NuvioRepo, error) {
 	p.mu.RLock()
 	var mURL string
+	var customRepo NuvioRepo
+	isCustom := false
 	for _, r := range p.repos {
 		if r.ID == id {
 			mURL = r.ManifestURL
+			if r.ID == customRepoID || r.ManifestURL == customRepoManifestURL {
+				customRepo = r
+				isCustom = true
+			}
 			break
 		}
 	}
 	p.mu.RUnlock()
+	if isCustom {
+		return customRepo, nil
+	}
 	if mURL == "" {
 		return NuvioRepo{}, errors.New("repository not found")
 	}
@@ -323,7 +356,11 @@ func (p *PluginStore) fetchRepo(ctx context.Context, manifestURL string) (NuvioR
 		}
 		repoID = sanitizeID(obj.ID)
 		repoName = strings.TrimSpace(obj.Name)
-		rawScrapers = append(obj.Scrapers, obj.Providers...)
+		if len(obj.Scrapers) > 0 {
+			rawScrapers = obj.Scrapers
+		} else {
+			rawScrapers = obj.Providers
+		}
 	}
 	if len(rawScrapers) == 0 {
 		return NuvioRepo{}, nil, errors.New("repository declared no scrapers")
@@ -346,13 +383,15 @@ func (p *PluginStore) fetchRepo(ctx context.Context, manifestURL string) (NuvioR
 		code      []byte
 	}
 	slots := make([]fetchSlot, len(rawScrapers))
+	seenIDs := map[string]bool{}
 	sem := make(chan struct{}, 8)
 	var wg sync.WaitGroup
 	for idx, rs := range rawScrapers {
 		sid := sanitizeID(fallbackString(rs.ID, rs.Name))
-		if sid == "" {
+		if sid == "" || seenIDs[sid] {
 			continue
 		}
+		seenIDs[sid] = true
 		scriptURL := strings.TrimSpace(rs.URL)
 		if scriptURL == "" && rs.Filename != "" && baseParsed != nil {
 			ref, perr := url.Parse(strings.TrimLeft(rs.Filename, "/"))
@@ -440,8 +479,8 @@ func (p *PluginStore) downloadScript(ctx context.Context, hc *http.Client, targe
 	return io.ReadAll(io.LimitReader(resp.Body, 2<<20))
 }
 
-// SearchStreams runs enabled Nuvio JS scrapers matching kind concurrently in isolated Node workers.
-func (p *PluginStore) SearchStreams(ctx context.Context, kind, tmdbID string, season, episode int, tmdbAPIKey string) ([]UnifiedCandidate, []string) {
+// SearchStreams runs enabled Nuvio JS scrapers matching kind and metadata context concurrently in isolated Node workers.
+func (p *PluginStore) SearchStreams(ctx context.Context, kind, tmdbID string, season, episode int, tmdbAPIKey string, mc SearchMatchContext) ([]UnifiedCandidate, []string) {
 	if !p.NodeAvailable() || strings.TrimSpace(tmdbID) == "" {
 		return nil, nil
 	}
@@ -452,17 +491,25 @@ func (p *PluginStore) SearchStreams(ctx context.Context, kind, tmdbID string, se
 	}
 	p.mu.RLock()
 	var jobs []job
+	seenIDs := map[string]bool{}
 	for _, r := range p.repos {
 		if !r.Enabled {
 			continue
 		}
 		for _, sc := range r.Scrapers {
-			if !sc.Enabled || !scraperSupportsKind(sc.SupportedTypes, kind) || sc.LocalFile == "" {
+			if !sc.Enabled || !scraperMatchesContext(sc, kind, mc) || sc.LocalFile == "" {
+				continue
+			}
+			idKey := strings.ToLower(strings.TrimSpace(sc.ID))
+			if idKey != "" && seenIDs[idKey] {
 				continue
 			}
 			raw, err := os.ReadFile(sc.LocalFile)
 			if err != nil || len(raw) == 0 {
 				continue
+			}
+			if idKey != "" {
+				seenIDs[idKey] = true
 			}
 			jobs = append(jobs, job{repoName: r.Name, scraper: sc, code: string(raw)})
 		}
@@ -585,23 +632,6 @@ func (p *PluginStore) runScraperCode(ctx context.Context, scraperID, scraperName
 		})
 	}
 	return out, nil
-}
-
-func scraperSupportsKind(types []string, kind string) bool {
-	if len(types) == 0 {
-		return true
-	}
-	want := "movie"
-	if kind == "show" {
-		want = "tv"
-	}
-	for _, t := range types {
-		low := strings.ToLower(strings.TrimSpace(t))
-		if low == want || low == kind || (want == "tv" && (low == "show" || low == "anime")) {
-			return true
-		}
-	}
-	return false
 }
 
 func normalizeQualityTag(q string) string {

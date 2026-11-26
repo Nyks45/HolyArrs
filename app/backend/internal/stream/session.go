@@ -67,6 +67,7 @@ type SessionStatus struct {
 	KeepFile        bool          `json:"keep_file"`
 	MPVRunning      bool          `json:"mpv_running"`
 	MediaURL        string        `json:"media_url"`
+	NeedsTranscode  bool          `json:"needs_transcode,omitempty"`
 	Probe           *MediaProbe   `json:"probe,omitempty"`
 	Chapters        []ChapterMark `json:"chapters,omitempty"`
 }
@@ -102,6 +103,7 @@ type Session struct {
 	fileSize      int64
 	proxyToken    string
 	proxyIsHLS    bool
+	needsTranscode bool
 	probe         *MediaProbe
 	chapters      []ChapterMark
 	probing       bool
@@ -161,7 +163,7 @@ func (s *Session) localOrMediaTargetLocked(baseURL string) (target, ext string, 
 		return s.localFilePath, filepath.Ext(s.localFilePath), 0, true
 	}
 	if s.proxyToken != "" {
-		ext = ".mp4"
+		ext = ""
 		if s.proxyIsHLS {
 			ext = ".m3u8"
 		}
@@ -197,9 +199,13 @@ func (s *Session) status() SessionStatus {
 		KeepFile:       s.keepFile,
 		MPVRunning:     s.mpvRunning,
 		MediaURL:       mediaPath,
+		NeedsTranscode: s.needsTranscode,
 		Probe:          s.probe,
 		Chapters:       s.chapters,
 		Files:          make([]VideoFile, 0, len(s.files)),
+	}
+	if s.probe != nil {
+		out.NeedsTranscode = !s.probe.DirectPlayable
 	}
 	if tr == "local" || tr == "direct" || tr == "hls_remote" {
 		out.DirectURL = mediaPath

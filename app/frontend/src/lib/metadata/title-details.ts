@@ -28,6 +28,9 @@ export interface TitleDetails {
 	kind: DetailKind;
 	tmdb: string;
 	name: string;
+	original_title?: string;
+	original_language?: string;
+	origin_country?: string[];
 	year?: number;
 	overview?: string;
 	poster?: string | null;
@@ -77,6 +80,9 @@ export function fromMetadata(kind: DetailKind, tmdb: string, raw: Raw): TitleDet
 		kind,
 		tmdb,
 		name: str(raw.name) ?? str(raw.title) ?? '',
+		original_title: str(raw.original_title),
+		original_language: str(raw.original_language),
+		origin_country: Array.isArray(raw.origin_country) ? raw.origin_country.filter((c): c is string => typeof c === 'string') : undefined,
 		year: num(raw.year),
 		overview: str(raw.overview),
 		poster: str(raw.poster),

@@ -33,6 +33,10 @@
 		year,
 		tmdb,
 		imdb = '',
+		originalTitle = '',
+		genres = [],
+		originalLanguage = '',
+		originCountry = [],
 		seasons = [],
 		initialSeason = 1,
 		initialEpisode = 1
@@ -43,6 +47,10 @@
 		year?: number;
 		tmdb: string;
 		imdb?: string;
+		originalTitle?: string;
+		genres?: string[];
+		originalLanguage?: string;
+		originCountry?: string[];
 		seasons?: { number: number; name?: string }[];
 		initialSeason?: number;
 		initialEpisode?: number;
@@ -157,6 +165,8 @@
 				if (attachedSessionKey !== key) {
 					attachedSessionKey = key;
 					await attachPlayback(0);
+				} else if (pipelineMode === 'direct' && st.probe && !st.probe.direct_playable && ffmpegAvailable) {
+					await attachPlayback(currentPos, true);
 				}
 			}
 		} catch {
@@ -195,6 +205,10 @@
 				episode: kind === 'show' ? episode : 0,
 				imdb,
 				tmdb: Number(tmdb) || 0,
+				original_title: originalTitle || undefined,
+				genres: genres.length ? genres : undefined,
+				original_language: originalLanguage || undefined,
+				origin_country: originCountry.length ? originCountry : undefined,
 				source_ids: selectedSourceIds
 			});
 			candidates = res.candidates ?? [];
@@ -257,7 +271,7 @@
 		if (top) void playCandidate(top, 'browser');
 	}
 
-	async function attachPlayback(startSec: number) {
+	async function attachPlayback(startSec: number, forceHLS = false) {
 		const st = session;
 		if (!st || !videoEl) return;
 		const req = ++loadReqSeq;
@@ -276,7 +290,7 @@
 				await attachHLSUrl(directUrl, req);
 				return;
 			}
-			const canDirect = browserQuality === 'original' && audioIdx === 0 && (tr === 'local' || tr === 'direct' ? st.probe?.direct_playable !== false : !!st.probe?.direct_playable) && startSec <= 0.5;
+			const canDirect = !forceHLS && browserQuality === 'original' && audioIdx === 0 && !st.needs_transcode && (tr === 'local' || tr === 'direct' ? st.probe?.direct_playable !== false : !!st.probe?.direct_playable) && startSec <= 0.5;
 			if (canDirect) {
 				pipelineMode = 'direct';
 				videoEl.src = directUrl;
@@ -410,7 +424,7 @@
 				{#if playerError}<p class="ss-err">{playerError}</p>{/if}
 				{#if playMode === 'browser' && session}
 					<div class="ss-video-wrap">
-						<video bind:this={videoEl} controls playsinline class="ss-video" ontimeupdate={() => { if (videoEl) videoTime = videoEl.currentTime; }}>
+						<video bind:this={videoEl} controls playsinline class="ss-video" ontimeupdate={() => { if (videoEl) videoTime = videoEl.currentTime; }} onloadeddata={() => { if (pipelineMode === 'direct' && videoEl && videoEl.videoWidth === 0 && ffmpegAvailable && session) void attachPlayback(currentPos, true); }} onerror={() => { if (pipelineMode === 'direct' && ffmpegAvailable && session) void attachPlayback(currentPos, true); }}>
 							{#if activeSubUrl}<track kind="subtitles" src={activeSubUrl} label="Subtitle" default />{/if}
 						</video>
 						{#if totalDuration > 0 && pipelineMode === 'hls'}

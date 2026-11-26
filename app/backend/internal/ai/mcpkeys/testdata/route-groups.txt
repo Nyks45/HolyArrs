@@ -38,6 +38,7 @@ DELETE /api/v1/stream/history/{key} delete
 DELETE /api/v1/stream/{id} delete
 DELETE /api/v1/streaming/addons/{id} delete
 DELETE /api/v1/streaming/debrid/{provider} delete
+DELETE /api/v1/streaming/plugins/custom/{id} delete
 DELETE /api/v1/streaming/plugins/{id} delete
 DELETE /api/v1/streaming/sync/simkl delete
 DELETE /api/v1/subtitle-sites/{id} delete
@@ -301,6 +302,7 @@ GET /api/v1/streaming/addons/catalogs see
 GET /api/v1/streaming/addons/{id}/catalog/{type}/{catalog} see
 GET /api/v1/streaming/debrid see
 GET /api/v1/streaming/plugins see
+GET /api/v1/streaming/plugins/custom/{id} see
 GET /api/v1/streaming/prefs see
 GET /api/v1/streaming/presets see
 GET /api/v1/streaming/proxy/poster see
@@ -636,6 +638,7 @@ POST /api/v1/stream/{id}/mpv add
 POST /api/v1/streaming/addons add
 POST /api/v1/streaming/addons/{id}/refresh add
 POST /api/v1/streaming/plugins add
+POST /api/v1/streaming/plugins/custom add
 POST /api/v1/streaming/plugins/{id}/refresh add
 POST /api/v1/streaming/presets/setup add
 POST /api/v1/streaming/sync/pull add

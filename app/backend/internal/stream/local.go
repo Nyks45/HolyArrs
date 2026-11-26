@@ -5,10 +5,32 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/HolyArrs/holyarrs/app/backend/internal/mediafiles"
 )
+
+func looksIncompatibleForDirectPlay(releaseTitle, streamURL, contentType string) bool {
+	ct := strings.ToLower(contentType)
+	if strings.Contains(ct, "matroska") || strings.Contains(ct, "x-msvideo") ||
+		strings.Contains(ct, "mpegts") || strings.Contains(ct, "mp2t") {
+		return true
+	}
+	hay := strings.ToLower(releaseTitle + " " + streamURL)
+	for _, tok := range []string{
+		".mkv", ".avi", ".ts", ".m2ts",
+		"hevc", "x265", "h265", "h.265",
+		"10bit", "10-bit", "dovi", "dolby vision", "hdr10",
+		"ddp", "eac3", "e-ac-3", "ac3", "dts", "truehd", "atmos", "flac",
+		" dv ", ".dv.", "[dv", "(dv",
+	} {
+		if strings.Contains(hay, tok) {
+			return true
+		}
+	}
+	return false
+}
 
 // StartLocal starts an instant playback session backed directly by a present
 // file inside the user's Library folders.
@@ -66,6 +88,7 @@ func (m *Manager) StartLocal(ctx context.Context, userID int64, file mediafiles.
 		selected:       0,
 		localFilePath:  file.FullPath,
 		fileSize:       st.Size(),
+		needsTranscode: looksIncompatibleForDirectPlay(relTitle, file.FullPath, ""),
 		lastActivity:   now,
 		warmupAt:       now,
 		prevAt:         now,
@@ -92,6 +115,13 @@ func (m *Manager) StartRemote(ctx context.Context, userID int64, streamURL strin
 		return SessionStatus{}, errors.New("stream proxy unavailable")
 	}
 	if !isHLS && looksLikeHLSURL(streamURL) {
+		isHLS = true
+	}
+	ct, detectedHLS, err := m.Proxy.Preflight(ctx, streamURL, headers)
+	if err != nil {
+		return SessionStatus{}, err
+	}
+	if detectedHLS {
 		isHLS = true
 	}
 	proxyTok, _, err := m.Proxy.Register(streamURL, headers, userID)
@@ -121,6 +151,8 @@ func (m *Manager) StartRemote(ctx context.Context, userID int64, streamURL strin
 	if kind != "show" {
 		kind = "movie"
 	}
+	relTitle := fallbackString(req.ReleaseTitle, req.Title)
+	needsTranscode := !isHLS && looksIncompatibleForDirectPlay(relTitle, streamURL, ct)
 	sctx, cancel := context.WithCancel(context.Background())
 	now := time.Now()
 	sess := &Session{
@@ -128,7 +160,7 @@ func (m *Manager) StartRemote(ctx context.Context, userID int64, streamURL strin
 		token:          tok,
 		userID:         userID,
 		title:          req.Title,
-		releaseTitle:   fallbackString(req.ReleaseTitle, req.Title),
+		releaseTitle:   relTitle,
 		sourceID:       req.SourceID,
 		sourceName:     provider,
 		sourceProvider: provider,
@@ -144,6 +176,7 @@ func (m *Manager) StartRemote(ctx context.Context, userID int64, streamURL strin
 		selected:       -1,
 		proxyToken:     proxyTok,
 		proxyIsHLS:     isHLS,
+		needsTranscode: needsTranscode,
 		lastActivity:   now,
 		warmupAt:       now,
 		prevAt:         now,

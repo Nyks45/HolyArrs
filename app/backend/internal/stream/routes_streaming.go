@@ -25,6 +25,9 @@ func (h *Handlers) registerStreamingRoutes(m *http.ServeMux) {
 
 	m.HandleFunc("GET /api/v1/streaming/plugins", h.listPlugins)
 	m.HandleFunc("POST /api/v1/streaming/plugins", h.addPluginRepo)
+	m.HandleFunc("POST /api/v1/streaming/plugins/custom", h.saveCustomPlugin)
+	m.HandleFunc("GET /api/v1/streaming/plugins/custom/{id}", h.getCustomPlugin)
+	m.HandleFunc("DELETE /api/v1/streaming/plugins/custom/{id}", h.deleteCustomPlugin)
 	m.HandleFunc("PUT /api/v1/streaming/plugins/{id}", h.patchPluginRepo)
 	m.HandleFunc("DELETE /api/v1/streaming/plugins/{id}", h.deletePluginRepo)
 	m.HandleFunc("POST /api/v1/streaming/plugins/{id}/refresh", h.refreshPluginRepo)
@@ -201,6 +204,36 @@ func (h *Handlers) refreshPluginRepo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	webserver.WriteJSON(w, http.StatusOK, repo)
+}
+
+func (h *Handlers) saveCustomPlugin(w http.ResponseWriter, r *http.Request) {
+	var in CustomScraperInput
+	if !webserver.Decode(w, r, &in, "send {name, code, description, supported_types, id}") {
+		return
+	}
+	repo, err := h.Mgr.Plugins.SaveCustomScraper(in)
+	if err != nil {
+		webserver.Fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	webserver.WriteJSON(w, http.StatusOK, repo)
+}
+
+func (h *Handlers) getCustomPlugin(w http.ResponseWriter, r *http.Request) {
+	detail, err := h.Mgr.Plugins.GetCustomScraper(r.PathValue("id"))
+	if err != nil {
+		webserver.Fail(w, http.StatusNotFound, err.Error())
+		return
+	}
+	webserver.WriteJSON(w, http.StatusOK, detail)
+}
+
+func (h *Handlers) deleteCustomPlugin(w http.ResponseWriter, r *http.Request) {
+	if err := h.Mgr.Plugins.DeleteCustomScraper(r.PathValue("id")); err != nil {
+		webserver.Fail(w, http.StatusNotFound, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handlers) getDebrid(w http.ResponseWriter, r *http.Request) {

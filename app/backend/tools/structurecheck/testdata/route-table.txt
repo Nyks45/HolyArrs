@@ -38,6 +38,7 @@ DELETE /api/v1/stream/history/{key} auth=signed_in scope=write assurance=false p
 DELETE /api/v1/stream/{id} auth=signed_in scope=write assurance=false part=-
 DELETE /api/v1/streaming/addons/{id} auth=settings scope=write assurance=false part=-
 DELETE /api/v1/streaming/debrid/{provider} auth=settings scope=write assurance=false part=-
+DELETE /api/v1/streaming/plugins/custom/{id} auth=settings scope=write assurance=false part=-
 DELETE /api/v1/streaming/plugins/{id} auth=settings scope=write assurance=false part=-
 DELETE /api/v1/streaming/sync/simkl auth=settings scope=write assurance=false part=-
 DELETE /api/v1/subtitle-sites/{id} auth=settings scope=write assurance=false part=subtitles
@@ -301,6 +302,7 @@ GET /api/v1/streaming/addons/catalogs auth=signed_in scope=admin assurance=false
 GET /api/v1/streaming/addons/{id}/catalog/{type}/{catalog} auth=signed_in scope=admin assurance=false part=-
 GET /api/v1/streaming/debrid auth=signed_in scope=admin assurance=false part=-
 GET /api/v1/streaming/plugins auth=signed_in scope=admin assurance=false part=-
+GET /api/v1/streaming/plugins/custom/{id} auth=settings scope=admin assurance=false part=-
 GET /api/v1/streaming/prefs auth=signed_in scope=admin assurance=false part=-
 GET /api/v1/streaming/presets auth=signed_in scope=admin assurance=false part=-
 GET /api/v1/streaming/proxy/poster auth=signed_in scope=admin assurance=false part=-
@@ -636,6 +638,7 @@ POST /api/v1/stream/{id}/mpv auth=signed_in scope=write assurance=false part=-
 POST /api/v1/streaming/addons auth=settings scope=write assurance=false part=-
 POST /api/v1/streaming/addons/{id}/refresh auth=settings scope=write assurance=false part=-
 POST /api/v1/streaming/plugins auth=settings scope=write assurance=false part=-
+POST /api/v1/streaming/plugins/custom auth=settings scope=write assurance=false part=-
 POST /api/v1/streaming/plugins/{id}/refresh auth=settings scope=write assurance=false part=-
 POST /api/v1/streaming/presets/setup auth=settings scope=write assurance=false part=-
 POST /api/v1/streaming/sync/pull auth=signed_in scope=write assurance=false part=-

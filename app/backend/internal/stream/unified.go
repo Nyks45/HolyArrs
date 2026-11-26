@@ -247,6 +247,23 @@ func FilterAndRankCandidates(cands []UnifiedCandidate, prefs StreamPrefs) []Unif
 		}
 		return out[i].Size > out[j].Size
 	})
+	if len(out) > 1 {
+		seenURLs := make(map[string]bool, len(out))
+		deduped := make([]UnifiedCandidate, 0, len(out))
+		for _, c := range out {
+			if c.Kind == "http" || c.Kind == "hls" {
+				u := strings.TrimSpace(c.StreamURL)
+				if u != "" {
+					if seenURLs[u] {
+						continue
+					}
+					seenURLs[u] = true
+				}
+			}
+			deduped = append(deduped, c)
+		}
+		out = deduped
+	}
 	return out
 }
 

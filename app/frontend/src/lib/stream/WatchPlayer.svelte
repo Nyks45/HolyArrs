@@ -63,6 +63,7 @@
 		initialSeason = 1,
 		initialEpisode = 1,
 		autoResume = true,
+		initialDrawer = 'none',
 		backHref = ''
 	}: {
 		kind: 'movie' | 'show';
@@ -70,6 +71,7 @@
 		initialSeason?: number;
 		initialEpisode?: number;
 		autoResume?: boolean;
+		initialDrawer?: 'none' | 'sources';
 		backHref?: string;
 	} = $props();
 
@@ -113,6 +115,7 @@
 	let activeCandidate = $state<StreamCandidate | null>(null);
 	let fallbackNotice = $state('');
 	let triedCandKeys = new Set<string>();
+	let autoFallbacks = 0;
 	let starting = $state(false);
 	let playMode = $state<'browser' | 'mpv'>('browser');
 	let pendingMPV = $state(false);
@@ -130,6 +133,7 @@
 
 	let seekOffset = $state(0);
 	let videoTime = $state(0);
+	let videoDuration = $state(0);
 	let bufferedEnd = $state(0);
 	let isScrubbing = $state(false);
 	let scrubValue = $state(0);
@@ -204,7 +208,7 @@
 	const backdropUrl = $derived(details?.backdrop ? sized(details.backdrop, 'backdrop') : activeSaved?.backdrop ? sized(activeSaved.backdrop, 'backdrop') : '');
 	const headerTitle = $derived(details?.name || activeSaved?.title || 'Watch');
 	const headerSub = $derived(kind === 'show' ? `S${String(season).padStart(2, '0')}E${String(episode).padStart(2, '0')}${curEpObj?.name ? ` · ${curEpObj.name}` : ''}` : '');
-	const totalDuration = $derived(session?.probe?.duration_sec || activeSaved?.duration_sec || 0);
+	const totalDuration = $derived(session?.probe?.duration_sec || videoDuration || activeSaved?.duration_sec || 0);
 	const currentPos = $derived(isScrubbing ? scrubValue : pipelineMode === 'hls' ? seekOffset + videoTime : videoTime);
 	const remainingText = $derived(formatTimeLeft(currentPos, totalDuration));
 	const endsAtText = $derived(formatEndsAt(currentPos, totalDuration, playbackRate));
@@ -265,6 +269,7 @@
 
 	function destroyVideoPipeline() {
 		loadingMedia = false;
+		videoDuration = 0;
 		if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
 		if (videoEl) { videoEl.pause(); videoEl.removeAttribute('src'); videoEl.load(); }
 		pipelineMode = 'none';
@@ -304,6 +309,8 @@
 					await attachPlayback(pendingStartSec);
 					if (st.chapters?.length) void fetchSkips(st.id);
 					if (subMode === 'embedded' && st.probe?.subtitle_tracks.some((t) => t.index === subIndex)) await loadEmbeddedSubtitle(subIndex, true);
+				} else if (pipelineMode === 'direct' && st.probe && !st.probe.direct_playable && ffmpegAvailable) {
+					await attachPlayback(currentPos, true);
 				}
 			}
 		} catch { /* Transient poll error. */ }
@@ -349,7 +356,9 @@
 
 			if (!didInitialResumeDecision) {
 				didInitialResumeDecision = true;
-				if (autoResume && sv && !sv.completed) {
+				if (initialDrawer === 'sources') {
+					drawer = 'sources';
+				} else if (autoResume && sv && !sv.completed) {
 					if (sv.release_link) void resumeFromSaved(sv, sv.position_sec);
 					else {
 						const b = pickBestCandidate();
@@ -383,7 +392,19 @@
 		if (!q && !imdbId && !tmdb) return;
 		searching = true; searchError = '';
 		try {
-			const res = await searchStreamReleases({ query: q, kind, year: details?.year || activeSaved?.year || 0, season: kind === 'show' ? season : 0, episode: kind === 'show' ? episode : 0, imdb: imdbId, tmdb: Number(tmdb) || 0 });
+			const res = await searchStreamReleases({
+				query: q,
+				kind,
+				year: details?.year || activeSaved?.year || 0,
+				season: kind === 'show' ? season : 0,
+				episode: kind === 'show' ? episode : 0,
+				imdb: imdbId,
+				tmdb: Number(tmdb) || 0,
+				original_title: details?.original_title,
+				genres: details?.genres,
+				original_language: details?.original_language,
+				origin_country: details?.origin_country
+			});
 			if (destroyed) return;
 			candidates = res.candidates ?? [];
 			counts = res.counts ?? { local: 0, instant: 0, debrid: 0, torrent: candidates.length };
@@ -432,14 +453,15 @@
 	}
 
 	function tryFallbackSource() {
-		if (prefs && !prefs.auto_fallback) return;
+		if ((prefs && !prefs.auto_fallback) || autoFallbacks >= 5) return;
 		const next = candidates.find((c) => !triedCandKeys.has(candKey(c)) && (c.instant || c.seeders > 0));
 		if (!next) return;
+		autoFallbacks++;
 		fallbackNotice = `Switching to fallback: ${next.provider || next.source_name}`;
 		void startCandidate(next, playMode, currentPos > 10 ? currentPos : 0, true);
 	}
 
-	async function attachPlayback(startSec: number) {
+	async function attachPlayback(startSec: number, forceHLS = false) {
 		const st = session;
 		if (!st || !videoEl) return;
 		const req = ++loadReqSeq;
@@ -460,7 +482,7 @@
 				hlsInstance = await hlsOpts(playURL, startSec);
 				return;
 			}
-			const canDirect = browserQuality === 'original' && audioIdx === 0 && (tr === 'local' || tr === 'direct' ? st.probe?.direct_playable !== false : !!st.probe?.direct_playable);
+			const canDirect = !forceHLS && browserQuality === 'original' && audioIdx === 0 && !st.needs_transcode && (tr === 'local' || tr === 'direct' ? st.probe?.direct_playable !== false : !!st.probe?.direct_playable);
 			if (canDirect) {
 				pipelineMode = 'direct';
 				if (startSec > 0.5) videoEl.addEventListener('loadedmetadata', () => { if (videoEl) videoEl.currentTime = startSec; }, { once: true });
@@ -473,7 +495,7 @@
 			if (isCancelled() || !session || session.id !== st.id) return;
 			seekOffset = hlsRes.start_sec; pipelineMode = 'hls';
 			hlsInstance = await hlsOpts(to(hlsRes.playlist_url), 0);
-		} catch (e) { if (req === loadReqSeq) playerError = message(e); } finally { if (req === loadReqSeq) loadingMedia = false; }
+		} catch (e) { if (req === loadReqSeq) { playerError = message(e); tryFallbackSource(); } } finally { if (req === loadReqSeq) loadingMedia = false; }
 	}
 
 	async function triggerMPV(id: string, atSec = currentPos) {
@@ -659,8 +681,11 @@
 		ontimeupdate={() => { if (videoEl) { videoTime = videoEl.currentTime; if (videoEl.buffered.length > 0) bufferedEnd = videoEl.buffered.end(videoEl.buffered.length - 1); } }}
 		onplay={() => { paused = false; wakeHud(); }}
 		onpause={() => { paused = true; wakeHud(); }}
+		onloadedmetadata={() => { if (videoEl && Number.isFinite(videoEl.duration) && videoEl.duration > 0) videoDuration = videoEl.duration; }}
+		ondurationchange={() => { if (videoEl && Number.isFinite(videoEl.duration) && videoEl.duration > 0) videoDuration = videoEl.duration; }}
+		onloadeddata={() => { if (pipelineMode === 'direct' && videoEl && videoEl.videoWidth === 0 && ffmpegAvailable && session) { showFeedback('Transcoding video...'); void attachPlayback(currentPos, true); } }}
 		onended={() => { paused = true; void persistProgress(totalDuration, false, true); void sendScrobble('stop'); if (nextEpisodeTarget) void switchEpisode(nextEpisodeTarget.season, nextEpisodeTarget.episode, true); }}
-		onerror={() => { if (pipelineMode === 'direct' && ffmpegAvailable && session) void attachPlayback(currentPos); else tryFallbackSource(); }}
+		onerror={() => { if (pipelineMode === 'direct' && ffmpegAvailable && session) void attachPlayback(currentPos, true); else tryFallbackSource(); }}
 	></video>
 
 	{#if visibleCues.length > 0 && pipelineMode !== 'none'}
@@ -709,7 +734,7 @@
 		open={drawer === 'sources'} bind:queryText bind:sourceTab bind:resFilter {searching} {searchError} {fallbackNotice} {candidates} {counts}
 		activeCandidateKey={activeCandidate ? candKey(activeCandidate) : ''} {session} {ffmpegAvailable} {mpvAvailable} {browserQuality} {audioIdx}
 		onClose={() => { drawer = 'none'; }} onSearch={() => void runSearch()}
-		onStartCandidate={(c, m) => void startCandidate(c, m, 0, true)}
+		onStartCandidate={(c, m) => { autoFallbacks = 0; void startCandidate(c, m, 0, true); }}
 		onSelectFile={(idx) => { if (session) void selectStreamFile(session.id, idx).then((s) => { session = s; attachedSessionKey = ''; }); }}
 		onToggleKeep={() => { if (session) void setStreamKeep(session.id, !session.keep_file).then((s) => { session = s; }); }}
 		onChangeQuality={(q) => { browserQuality = q; if (session && playMode === 'browser') void attachPlayback(currentPos); }}

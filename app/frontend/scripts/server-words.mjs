@@ -38,7 +38,7 @@ const notWords = new Set(['dash', 'each', 'range', 'smart', 'remove', 'normal', 
 	'still being checked',
 	// Direct stream API validation lines.
 	'stream session not found', 'subtitle content is empty', 'subtitle file exceeds 5 MB limit', 'subtitle service is unavailable', 'watch history is unavailable', 'unknown explore category hub',
-	'stream candidate expired; search again', 'library storage unavailable', 'addon subtitle store unavailable', 'upstream stream request failed', 'failed to read HLS manifest', 'HLS manifest exceeds limit']);
+	'stream candidate expired; search again', 'library storage unavailable', 'addon subtitle store unavailable', 'upstream stream request failed', 'failed to read HLS manifest', 'HLS manifest exceeds limit', 'upstream returned web page instead of media']);
 // Lines the scan cannot put together: a control's Event starts with the person's name (setup ControlEvent)
 // and takes its verb from a map; a removal's reason may name who removed it.
 const handLines = { 'Because you have {name}': 'suggest', 

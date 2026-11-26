@@ -97,6 +97,22 @@ export interface NuvioRepo {
 	updated_at: string;
 }
 
+export interface CustomScraperInput {
+	id?: string;
+	name: string;
+	description?: string;
+	supported_types?: string[];
+	code: string;
+}
+
+export interface CustomScraperDetail {
+	id: string;
+	name: string;
+	description?: string;
+	supported_types?: string[];
+	code: string;
+}
+
 export interface DebridProviderStatus {
 	provider: 'torbox' | 'premiumize' | 'realdebrid' | string;
 	name: string;
@@ -224,6 +240,18 @@ export function refreshPluginRepo(id: string): Promise<NuvioRepo> {
 
 export function deletePluginRepo(id: string): Promise<void> {
 	return api.del(`/streaming/plugins/${encodeURIComponent(id)}`);
+}
+
+export function saveCustomPlugin(input: CustomScraperInput): Promise<NuvioRepo> {
+	return api.post<NuvioRepo>('/streaming/plugins/custom', input);
+}
+
+export function getCustomPlugin(id: string): Promise<CustomScraperDetail> {
+	return api.get<CustomScraperDetail>(`/streaming/plugins/custom/${encodeURIComponent(id)}`);
+}
+
+export function deleteCustomPlugin(id: string): Promise<void> {
+	return api.del(`/streaming/plugins/custom/${encodeURIComponent(id)}`);
 }
 
 export function listDebridProviders(): Promise<{ providers: DebridProviderStatus[] }> {

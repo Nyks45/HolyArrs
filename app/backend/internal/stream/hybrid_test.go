@@ -68,6 +68,15 @@ func TestProxyManagerHeaderInjectionAndHLSRewrite(t *testing.T) {
 			sawSegRef.Add(1)
 			w.Header().Set("Content-Type", "video/mp2t")
 			_, _ = io.WriteString(w, "TSDATA")
+		case "/page.html":
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			_, _ = io.WriteString(w, "<html><body>Not a video</body></html>")
+		case "/bad.mp4":
+			http.Error(w, "expired", http.StatusBadRequest)
+		case "/movie.mkv":
+			w.Header().Set("Content-Type", "video/x-matroska")
+			w.WriteHeader(http.StatusPartialContent)
+			_, _ = io.WriteString(w, "MKV")
 		default:
 			http.NotFound(w, r)
 		}
@@ -135,6 +144,38 @@ func TestProxyManagerHeaderInjectionAndHLSRewrite(t *testing.T) {
 	ssrfMux.ServeHTTP(sRec, sReq)
 	if sRec.Code == http.StatusOK {
 		t.Fatalf("expected SSRF metadata fetch to fail, got 200")
+	}
+
+	// 4. Preflight & ServeProxy reject 200 text/html and 400 while allowing MKV and HLS.
+	if _, _, err := pm.Preflight(context.Background(), srv.URL+"/page.html", headers); err == nil {
+		t.Fatal("expected Preflight to reject text/html page")
+	}
+	if _, _, err := pm.Preflight(context.Background(), srv.URL+"/bad.mp4", headers); err == nil {
+		t.Fatal("expected Preflight to reject HTTP 400 link")
+	}
+	if ct, isHLS, err := pm.Preflight(context.Background(), srv.URL+"/movie.mkv", headers); err != nil || isHLS || !strings.Contains(ct, "matroska") {
+		t.Fatalf("expected Preflight MKV success, got ct=%q isHLS=%v err=%v", ct, isHLS, err)
+	}
+	if _, isHLS, err := pm.Preflight(context.Background(), srv.URL+"/master.m3u8", headers); err != nil || !isHLS {
+		t.Fatalf("expected Preflight HLS detection, got isHLS=%v err=%v", isHLS, err)
+	}
+	tokHTML, _, err := pm.Register(srv.URL+"/page.html", headers, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pReq := httptest.NewRequest(http.MethodGet, "/api/v1/streaming/proxy/"+tokHTML, nil)
+	pRec := httptest.NewRecorder()
+	mux.ServeHTTP(pRec, pReq)
+	if pRec.Code != http.StatusBadGateway {
+		t.Fatalf("expected ServeProxy to reject text/html with 502, got %d", pRec.Code)
+	}
+
+	// 5. Direct play compatibility checks.
+	if !looksIncompatibleForDirectPlay("Dune - Part Two (2024) 1080p UHD DV HDR 10bit HEVC DDP 7.1.mkv", "", "video/x-matroska") {
+		t.Fatal("expected 10bit HEVC MKV DDP to require transcode")
+	}
+	if looksIncompatibleForDirectPlay("Movie.2024.1080p.WEB.mp4", "https://cdn.example.com/movie.mp4", "video/mp4") {
+		t.Fatal("expected plain H.264 mp4 to allow direct play")
 	}
 }
 
@@ -488,11 +529,16 @@ func TestNuvioExtendedCheerioCryptoAndRepoDefaults(t *testing.T) {
 		t.Fatalf("extended shim test failed: err=%v cands=%+v", err, cands)
 	}
 
-	// Verify AddRepoWithDefaults concurrently downloads and applies defaultEnabled only on first install.
+	// Verify AddRepoWithDefaults concurrently downloads, ignores duplicate providers/scrapers entries,
+	// and applies defaultEnabled only on first install.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/manifest.json":
-			_, _ = io.WriteString(w, `{"name":"Repo","scrapers":[{"id":"one","name":"One","filename":"a.js","enabled":true},{"id":"two","name":"Two","filename":"b.js","enabled":true}]}`)
+			_, _ = io.WriteString(w, `{
+				"name": "Repo",
+				"scrapers": [{"id":"one","name":"One","filename":"a.js","enabled":true},{"id":"two","name":"Two","filename":"b.js","enabled":true},{"id":"two","name":"Two Dup","filename":"b.js","enabled":true}],
+				"providers": [{"id":"one","name":"One","filename":"a.js","enabled":true},{"id":"two","name":"Two","filename":"b.js","enabled":true}]
+			}`)
 		case "/a.js", "/b.js":
 			_, _ = io.WriteString(w, `function getStreams(){ return []; }`)
 		default:
@@ -501,12 +547,29 @@ func TestNuvioExtendedCheerioCryptoAndRepoDefaults(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	ps.SetHTTPClient(srv.Client())
-	repo, err := ps.AddRepoWithDefaults(context.Background(), srv.URL+"/manifest.json", []string{"two"})
+	cfgDir := t.TempDir()
+	ps2 := NewPluginStore(cfgDir)
+	ps2.SetHTTPClient(srv.Client())
+	repo, err := ps2.AddRepoWithDefaults(context.Background(), srv.URL+"/manifest.json", []string{"two"})
 	if err != nil {
 		t.Fatalf("AddRepoWithDefaults failed: %v", err)
 	}
 	if len(repo.Scrapers) != 2 || repo.Scrapers[0].Enabled || !repo.Scrapers[1].Enabled {
-		t.Fatalf("unexpected defaultEnabled state: %+v", repo.Scrapers)
+		t.Fatalf("unexpected deduplicated defaultEnabled state: %+v", repo.Scrapers)
+	}
+
+	// Verify load() heals pre-existing duplicate scraper IDs persisted on disk.
+	healDir := t.TempDir()
+	dupJSON := `[{"id":"r1","name":"R1","manifest_url":"https://example.com/m.json","enabled":true,"scrapers":[{"id":"dup","name":"Dup1","enabled":true},{"id":"dup","name":"Dup2","enabled":false}]}]`
+	if err := os.WriteFile(filepath.Join(healDir, "stream-plugins.json"), []byte(dupJSON), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ps3 := NewPluginStore(healDir)
+	reloaded := ps3.List()
+	if len(reloaded) != 1 || len(reloaded[0].Scrapers) != 1 || reloaded[0].Scrapers[0].ID != "dup" {
+		t.Fatalf("expected load() to heal duplicate scrapers, got %+v", reloaded)
+	}
+	if rawAfter, err := os.ReadFile(filepath.Join(healDir, "stream-plugins.json")); err != nil || strings.Contains(string(rawAfter), "Dup2") {
+		t.Fatalf("expected healed JSON written to disk, got err=%v body=%q", err, string(rawAfter))
 	}
 }

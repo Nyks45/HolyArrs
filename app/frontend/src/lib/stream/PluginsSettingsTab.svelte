@@ -5,15 +5,35 @@
 	import {
 		addPluginRepo,
 		applyStreamingPresets,
+		deleteCustomPlugin,
 		deletePluginRepo,
+		getCustomPlugin,
 		getStreamingPresets,
 		listPluginRepos,
 		refreshPluginRepo,
+		saveCustomPlugin,
 		updatePluginRepo,
 		type NuvioRepo,
 		type NuvioScraper,
 		type PresetPluginRepo
 	} from './streaming-config-api.ts';
+
+	const DEFAULT_TEMPLATE = `// Nuvio-compatible JS scraper for personal streaming APIs
+async function getStreams(tmdbId, mediaType, season, episode) {
+\tconst path = mediaType === 'movie' ? \`movie/\${tmdbId}\` : \`tv/\${tmdbId}/\${season}/\${episode}\`;
+\tconst res = await fetch(\`https://example.com/api/\${path}\`, {
+\t\theaders: { 'Referer': 'https://example.com/' }
+\t});
+\tif (!res.ok) return [];
+\tconst data = await res.json();
+\treturn (data.sources || []).map((s) => ({
+\t\tname: 'My Source',
+\t\ttitle: s.label || 'Direct Stream',
+\t\turl: s.url,
+\t\tquality: s.quality || '1080p',
+\t\theaders: { Referer: 'https://example.com/' }
+\t}));
+}`;
 
 	let repos = $state<NuvioRepo[]>([]);
 	let presets = $state<PresetPluginRepo[]>([]);
@@ -24,6 +44,14 @@
 	let busy = $state(false);
 	let busyId = $state('');
 	let installingPreset = $state('');
+
+	let customOpen = $state(false);
+	let customEditingId = $state('');
+	let customName = $state('');
+	let customDesc = $state('');
+	let customTypes = $state<string[]>(['movie', 'tv']);
+	let customCode = $state(DEFAULT_TEMPLATE);
+	let savingCustom = $state(false);
 
 	async function load() {
 		loading = true;
@@ -141,6 +169,88 @@
 		);
 	}
 
+	function toggleCustomType(tp: string) {
+		if (customTypes.includes(tp)) {
+			if (customTypes.length > 1) customTypes = customTypes.filter((x) => x !== tp);
+		} else {
+			customTypes = [...customTypes, tp];
+		}
+	}
+
+	function resetCustomEditor() {
+		customEditingId = '';
+		customName = '';
+		customDesc = '';
+		customTypes = ['movie', 'tv'];
+		customCode = DEFAULT_TEMPLATE;
+	}
+
+	async function openCustomEditor(id = '') {
+		if (!id) {
+			if (customOpen && !customEditingId) {
+				customOpen = false;
+				return;
+			}
+			resetCustomEditor();
+			customOpen = true;
+			return;
+		}
+		busyId = `local-custom:${id}`;
+		try {
+			const detail = await getCustomPlugin(id);
+			customEditingId = detail.id;
+			customName = detail.name;
+			customDesc = detail.description ?? '';
+			customTypes = detail.supported_types?.length ? [...detail.supported_types] : ['movie', 'tv'];
+			customCode = detail.code;
+			customOpen = true;
+		} catch (e) {
+			toasts.push(message(e), 'fail');
+		} finally {
+			busyId = '';
+		}
+	}
+
+	async function submitCustomPlugin(ev: Event) {
+		ev.preventDefault();
+		if (!customName.trim() || !customCode.trim()) return;
+		savingCustom = true;
+		try {
+			await saveCustomPlugin({
+				id: customEditingId || undefined,
+				name: customName.trim(),
+				description: customDesc.trim(),
+				supported_types: customTypes,
+				code: customCode
+			});
+			toasts.push(customEditingId ? 'Custom plugin updated' : 'Custom plugin saved', 'ok');
+			resetCustomEditor();
+			customOpen = false;
+			await load();
+		} catch (e) {
+			toasts.push(message(e), 'fail');
+		} finally {
+			savingCustom = false;
+		}
+	}
+
+	async function onDeleteCustom(sc: NuvioScraper) {
+		busyId = `local-custom:${sc.id}`;
+		try {
+			await deleteCustomPlugin(sc.id);
+			if (customEditingId === sc.id) {
+				resetCustomEditor();
+				customOpen = false;
+			}
+			toasts.push(`Removed ${sc.name}`, 'ok');
+			await load();
+		} catch (e) {
+			toasts.push(message(e), 'fail');
+		} finally {
+			busyId = '';
+		}
+	}
+
 	$effect(() => {
 		void load();
 	});
@@ -203,6 +313,56 @@
 		</button>
 	</form>
 
+	<div class="custom-wrap">
+		<div class="custom-bar">
+			<button type="button" class="btn-ghost" onclick={() => void openCustomEditor()}>
+				<Icon name={customOpen && !customEditingId ? 'x' : 'plus'} size={15} />
+				<span>{customOpen && !customEditingId ? 'Close Custom Editor' : 'Create Custom JS Plugin'}</span>
+			</button>
+			<span class="desc">Run personal Nuvio-compatible <code>getStreams</code> JavaScript scrapers in the local Node sandbox.</span>
+		</div>
+
+		{#if customOpen}
+			<form class="custom-form" onsubmit={submitCustomPlugin}>
+				<div class="custom-fields">
+					<label class="field">
+						<span>Plugin Name</span>
+						<input type="text" bind:value={customName} placeholder="My Stream API" disabled={savingCustom} required />
+					</label>
+					<label class="field">
+						<span>Description (optional)</span>
+						<input type="text" bind:value={customDesc} placeholder="Direct HLS provider" disabled={savingCustom} />
+					</label>
+				</div>
+				<div class="type-row">
+					<span class="type-label">Supported Types</span>
+					{#each [{ id: 'movie', label: 'Movie' }, { id: 'tv', label: 'TV Show' }, { id: 'anime', label: 'Anime' }] as tp (tp.id)}
+						<label class="chk">
+							<input type="checkbox" checked={customTypes.includes(tp.id)} onchange={() => toggleCustomType(tp.id)} disabled={savingCustom} />
+							<span>{tp.label}</span>
+						</label>
+					{/each}
+				</div>
+				<label class="field">
+					<span>Scraper JavaScript (must define <code>getStreams(tmdbId, mediaType, season, episode)</code>)</span>
+					<textarea bind:value={customCode} rows={12} spellcheck="false" disabled={savingCustom}></textarea>
+				</label>
+				<div class="custom-actions">
+					<button type="submit" class="btn-primary" disabled={savingCustom || !customName.trim() || !customCode.trim()}>
+						<Icon name="check" size={15} />
+						<span>{savingCustom ? 'Saving...' : 'Save Custom Plugin'}</span>
+					</button>
+					<button type="button" class="btn-ghost" disabled={savingCustom} onclick={() => { resetCustomEditor(); customOpen = false; }}>
+						Cancel
+					</button>
+					<button type="button" class="btn-ghost" disabled={savingCustom} onclick={resetCustomEditor}>
+						Reset
+					</button>
+				</div>
+			</form>
+		{/if}
+	</div>
+
 	{#if loading}
 		<p class="empty">Loading plugin repositories...</p>
 	{:else if repos.length === 0}
@@ -225,9 +385,11 @@
 							<button type="button" class="btn-ghost" disabled={busyId === r.id} onclick={() => toggleRepo(r)}>
 								{r.enabled ? 'Enabled' : 'Disabled'}
 							</button>
-							<button type="button" class="btn-icon" title="Refresh scripts" disabled={busyId === r.id} onclick={() => onRefresh(r.id)}>
-								<Icon name="refresh" size={16} />
-							</button>
+							{#if r.id !== 'local-custom' && r.manifest_url !== 'local://custom'}
+								<button type="button" class="btn-icon" title="Refresh scripts" disabled={busyId === r.id} onclick={() => onRefresh(r.id)}>
+									<Icon name="refresh" size={16} />
+								</button>
+							{/if}
 							<button type="button" class="btn-icon danger" title="Remove repository" disabled={busyId === r.id} onclick={() => onDelete(r)}>
 								<Icon name="trash" size={16} />
 							</button>
@@ -245,22 +407,33 @@
 						</div>
 					{/if}
 					<ul class="scraper-list">
-						{#each visibleScrapers as sc (sc.id)}
+						{#each visibleScrapers as sc, idx (`${sc.id}:${idx}`)}
 							<li class="scraper-row">
 								<div class="sc-info">
 									<span class="sc-name">{sc.name}</span>
 									{#if sc.version}<span class="pill">v{sc.version}</span>{/if}
 									{#each sc.supported_types ?? [] as tp}<span class="pill muted">{tp}</span>{/each}
 								</div>
-								<button
-									type="button"
-									class="btn-mini"
-									class:active={sc.enabled}
-									disabled={busyId === `${r.id}:${sc.id}`}
-									onclick={() => toggleScraper(r, sc)}
-								>
-									{sc.enabled ? 'On' : 'Off'}
-								</button>
+								<div class="sc-actions">
+									{#if r.id === 'local-custom' || r.manifest_url === 'local://custom'}
+										<button type="button" class="btn-mini" title="Edit script" disabled={busyId === `local-custom:${sc.id}`} onclick={() => void openCustomEditor(sc.id)}>
+											<Icon name="pencil" size={12} />
+											<span>Edit</span>
+										</button>
+										<button type="button" class="btn-mini danger" title="Remove script" disabled={busyId === `local-custom:${sc.id}`} onclick={() => void onDeleteCustom(sc)}>
+											<Icon name="trash" size={12} />
+										</button>
+									{/if}
+									<button
+										type="button"
+										class="btn-mini"
+										class:active={sc.enabled}
+										disabled={busyId === `${r.id}:${sc.id}`}
+										onclick={() => toggleScraper(r, sc)}
+									>
+										{sc.enabled ? 'On' : 'Off'}
+									</button>
+								</div>
 							</li>
 						{/each}
 					</ul>
@@ -311,6 +484,21 @@
 	.sc-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 	.pill { font-size: 11px; padding: 2px 6px; border-radius: 999px; background: var(--surface-3); color: var(--text); font-weight: 600; }
 	.pill.muted { color: var(--text-muted, var(--muted)); }
-	.btn-mini { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line, var(--border)); background: transparent; color: var(--text-muted, var(--muted)); font-size: 11px; font-weight: 700; cursor: pointer; flex: none; }
+	.btn-mini { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line, var(--border)); background: transparent; color: var(--text-muted, var(--muted)); font-size: 11px; font-weight: 700; cursor: pointer; flex: none; }
 	.btn-mini.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+	.btn-mini.danger:hover { border-color: #e5484d; color: #e5484d; }
+	.sc-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+	.custom-wrap { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line, var(--border)); background: var(--surface-1); }
+	.custom-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+	.custom-bar .btn-ghost { display: inline-flex; align-items: center; gap: 6px; }
+	.custom-form { display: flex; flex-direction: column; gap: 12px; padding-top: 6px; border-top: 1px solid var(--line, var(--border)); }
+	.custom-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+	.field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; font-weight: 600; color: var(--text-muted, var(--muted)); }
+	.field input, .field textarea { padding: 9px 11px; border-radius: 9px; border: 1px solid var(--line, var(--border)); background: var(--surface-2); color: var(--text); font-size: 13px; }
+	.field textarea { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.45; resize: vertical; }
+	.type-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--text); }
+	.type-label { font-size: 12px; font-weight: 600; color: var(--text-muted, var(--muted)); }
+	.chk { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+	.custom-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+	.custom-actions .btn-primary { min-height: 36px; }
 </style>

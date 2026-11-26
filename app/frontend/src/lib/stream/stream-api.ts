@@ -24,6 +24,11 @@ export interface StreamSearchReq {
 	episode?: number;
 	imdb?: string;
 	tmdb?: number;
+	original_title?: string;
+	genres?: string[];
+	original_language?: string;
+	origin_country?: string[];
+	anime?: boolean;
 	source_ids?: number[];
 	local_only?: boolean;
 }
@@ -178,6 +183,7 @@ export interface SessionStatus {
 	keep_file: boolean;
 	mpv_running: boolean;
 	media_url: string;
+	needs_transcode?: boolean;
 	probe?: MediaProbe;
 	chapters?: ChapterMark[];
 }

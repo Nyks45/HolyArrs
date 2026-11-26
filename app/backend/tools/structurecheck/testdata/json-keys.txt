@@ -1327,6 +1327,7 @@ needs_input
 needs_key
 needs_password
 needs_reentry
+needs_transcode
 negate
 neighbor_region
 net

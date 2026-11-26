@@ -4,7 +4,7 @@ import type { IconName } from '#lib/ui/Icon.svelte';
 import { t } from '#lib/core/i18n/i18n.svelte.ts';
 import { serverWords } from '#lib/core/i18n/server-words.ts';
 
-export type GroupId = 'library' | 'downloads' | 'users' | 'connections' | 'system' | 'account';
+export type GroupId = 'library' | 'downloads' | 'streaming' | 'users' | 'connections' | 'system' | 'account';
 
 export type Tint = 'gray' | 'blue' | 'indigo' | 'purple' | 'pink' | 'red' | 'orange' | 'amber' | 'green' | 'teal' | 'graphite';
 
@@ -36,6 +36,7 @@ let heldNow: (feature: string) => boolean = () => false;
 export const groups: Group[] = [
 	{ id: 'library', get label() { return t('core.settings.groupLibrary.label'); }, icon: 'library', get line() { return t('core.settings.groupLibrary.line'); }, get about() { return t('core.settings.groupLibrary.about'); } },
 	{ id: 'downloads', get label() { return t('core.settings.groupDownloads.label'); }, icon: 'download', get line() { return t('core.settings.groupDownloads.line'); }, get about() { return t('core.settings.groupDownloads.about'); } },
+	{ id: 'streaming', label: 'Streaming', icon: 'play', line: 'Addons, plugins, player', about: 'Stremio addons, Nuvio JS scrapers, debrid, skip intro and Trakt/Simkl sync.' },
 	{ id: 'users', get label() { return t('core.settings.groupUsers.label'); }, icon: 'people', get line() { return t('core.settings.groupUsers.line'); }, get about() { return t('core.settings.groupUsers.about'); } },
 	{ id: 'connections', get label() { return t('core.settings.groupLinkedApps.label'); }, icon: 'tv', get line() { return t('core.settings.groupLinkedApps.line'); }, get about() { return t('core.settings.groupLinkedApps.about'); } },
 	{ id: 'system', get label() { return t('core.settings.groupSystem.label'); }, icon: 'tools', get line() { return t('core.settings.groupSystem.line'); }, get about() { return t('core.settings.groupSystem.about'); } },
@@ -69,7 +70,8 @@ export const sections: Section[] = [
 	{ href: '/settings/api', group: 'connections', tint: 'gray', get label() { return t('core.settings.api.label'); }, icon: 'key', get about() { return t('core.settings.api.about'); } },
 	{ href: '/settings/remote-access', group: 'connections', tint: 'blue', get label() { return t('core.settings.remoteAccess.label'); }, icon: 'globe', get about() { return t('core.settings.remoteAccess.about'); }, need: 'owner' },
 	{ href: '/settings/tmdb', group: 'connections', tint: 'purple', get label() { return t('core.settings.tmdb.label'); }, icon: 'sparkle', get about() { return t('core.settings.tmdb.about'); } },
-	{ href: '/settings/streaming', group: 'connections', tint: 'pink', label: 'Streaming & Addons', icon: 'play', about: 'Stremio addons, Nuvio scrapers, debrid and player sync' },
+
+	{ href: '/settings/streaming', group: 'streaming', tint: 'pink', label: 'Streaming', icon: 'play', about: 'Stremio addons, Nuvio scrapers, debrid and player sync' },
 
 	{ href: '/settings/health', group: 'system', tint: 'green', get label() { return t('core.settings.health.label'); }, icon: 'check', get about() { return t('core.settings.health.about'); } },
 	{ href: '/settings/backups', group: 'system', tint: 'blue', get label() { return t('core.settings.backups.label'); }, icon: 'archive', get about() { return t('core.settings.backups.about'); } },

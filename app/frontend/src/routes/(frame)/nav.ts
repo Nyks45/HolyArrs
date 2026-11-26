@@ -115,6 +115,7 @@ export function buildNav(input: NavInput): NavSection[] {
 						{ href: '/health', label: t('frame.nav.status'), icon: 'shield', need: 'manage_library' },
 						{ href: '/plugins', label: t('frame.nav.plugins'), icon: 'grid', need: 'owner' },
 						...(input.pluginPages ?? []).map((pg): NavItem => ({ href: `/plugins/${encodeURIComponent(pg.plugin)}/${encodeURIComponent(pg.id)}`, label: `${pg.name} · ${pg.title}`, icon: 'plug', need: 'owner' })),
+						{ href: '/settings/streaming', label: 'Streaming', icon: 'play', need: 'settings' },
 						{ href: '/settings', label: t('frame.nav.settings'), icon: 'settings', need: 'staff', ...(input.settingsAttention && input.allowed('settings') ? { dot: true } : {}) }
 					]
 				: []

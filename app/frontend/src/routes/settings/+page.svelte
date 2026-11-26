@@ -168,6 +168,9 @@
 
 	/* Bento: Library tall on the left, four around it. */
 	.bento { flex: 0 1 auto; height: min(820px, 100%); display: grid; grid-template-columns: 1.35fr 1fr 1fr; grid-template-rows: minmax(150px, 1fr) minmax(150px, 1fr); gap: 14px; min-height: 0; }
+	.bento[data-count='6'] { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, minmax(170px, 1fr)); }
+	.bento[data-count='6'] .sx-card[data-group='library'] { grid-row: auto; }
+	.bento[data-count='6'] .sx-card[data-group='library'] .nm { font-size: 22px; letter-spacing: -0.018em; }
 	.sx-card { position: relative; display: block; min-width: 0; border-radius: var(--r-panel); color: var(--text); text-decoration: none; -webkit-tap-highlight-color: transparent; }
 	.sx-card[data-group='library'] { grid-row: span 2; }
 	.sx-card:focus-visible { outline: none; }
@@ -202,6 +205,8 @@
 		.sx-home { height: auto; }
 		.bento { grid-template-columns: 1fr 1fr; grid-template-rows: 260px repeat(2, 220px); min-height: 0; flex: none; height: auto; }
 		.sx-card[data-group='library'] { grid-row: auto; grid-column: span 2; }
+		.bento[data-count='6'] { grid-template-rows: repeat(3, 210px); }
+		.bento[data-count='6'] .sx-card[data-group='library'] { grid-column: auto; }
 	}
 	/* Phone: two columns, Library wide on top. */
 	@media (max-width: 767px) {
@@ -209,6 +214,8 @@
 		.lede { margin: -10px 0 16px; }
 		.bento { grid-template-columns: 1fr 1fr; grid-template-rows: 210px; grid-auto-rows: 168px; gap: 12px; min-height: 0; flex: none; height: auto; }
 		.sx-card[data-group='library'] { grid-row: auto; grid-column: span 2; }
+		.bento[data-count='6'] { grid-template-rows: none; grid-auto-rows: 168px; }
+		.bento[data-count='6'] .sx-card[data-group='library'] { grid-column: auto; }
 		/* Words first, the drawing after them: a long line (Finnish, Hungarian) pushes the drawing down instead of running under it. */
 		.sx-face { display: flex; flex-direction: column; padding: 16px; }
 		.art-hold { position: relative; flex: 1 1 0; min-height: 0; margin: 6px -16px -16px; }

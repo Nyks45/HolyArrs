@@ -58,6 +58,19 @@
 		{:else}
 			<svg class="la" viewBox="0 0 320 200" preserveAspectRatio="xMidYMax slice">{@html dlLine}</svg>
 		{/if}
+	{:else if group === 'streaming'}
+		<span class="strm">
+			<svg class="rings" viewBox="0 0 320 200" preserveAspectRatio="xMidYMid slice">
+				<circle class="ring" cx="160" cy="108" r="44" />
+				<circle class="ring" cx="160" cy="108" r="76" />
+				<path class="arc" d="M98 68 A76 76 0 0 1 222 68" />
+			</svg>
+			<span class="stag" style="--x: 20%; --y: 30%">Stremio</span>
+			<span class="stag" style="--x: 80%; --y: 30%">Nuvio</span>
+			<span class="stag" style="--x: 20%; --y: 78%">HLS</span>
+			<span class="stag" style="--x: 80%; --y: 78%">Sync</span>
+			<span class="playhub"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M8 5.5v13l11-6.5z" /></svg></span>
+		</span>
 	{:else if group === 'users'}
 		{#if crowd.length}
 			<span class="ppl">
@@ -178,6 +191,13 @@
 	.srv .pulse path { fill: none; stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 60 340; animation: pulse 3.6s linear infinite; }
 	.srv .pulse .base { stroke: var(--line-strong, var(--line)); stroke-dasharray: none; animation: none; stroke-width: 1.2; }
 	@keyframes pulse { from { stroke-dashoffset: 400; } to { stroke-dashoffset: 0; } }
+
+	/* Streaming: central play hub surrounded by source badges and signal rings. */
+	.strm .rings .ring { fill: none; stroke: var(--line); stroke-width: 1.2; vector-effect: non-scaling-stroke; stroke-dasharray: 4 5; }
+	.strm .rings .arc { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+	.strm .playhub { position: absolute; width: min(38cqh, 24cqw); aspect-ratio: 1; border-radius: 26%; left: 50%; top: 54%; transform: translate(-50%, -50%); background: var(--tile); border: 1px solid var(--tile-line); box-shadow: 0 1.4cqh 4cqh var(--art-shadow); display: grid; place-items: center; color: var(--accent); z-index: 2; }
+	.strm .playhub svg { width: 46%; height: 46%; }
+	.strm .stag { position: absolute; left: var(--x); top: var(--y); transform: translate(-50%, -50%); padding: 0.9cqh 2.4cqw; border-radius: 999px; background: var(--tile); border: 1px solid var(--tile-line); color: var(--text-muted); font: 600 clamp(9px, 4.4cqh, 12px)/1.2 var(--font-ui); box-shadow: 0 0.8cqh 2.5cqh var(--art-shadow); white-space: nowrap; }
 
 	/* Line art fallback: one weight, one red. */
 	.la { fill: none; stroke: var(--ln); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }

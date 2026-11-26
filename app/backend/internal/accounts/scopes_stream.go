@@ -24,6 +24,7 @@ func init() {
 		"PUT /api/v1/stream/{id}/keep",
 		"DELETE /api/v1/stream/{id}",
 		"GET /api/v1/streaming/prefs",
+		"GET /api/v1/streaming/presets",
 		"GET /api/v1/streaming/addons",
 		"GET /api/v1/streaming/addons/catalogs",
 		"GET /api/v1/streaming/addons/{id}/catalog/{type}/{catalog}",
@@ -41,6 +42,7 @@ func init() {
 
 	streamSettings := []string{
 		"PUT /api/v1/streaming/prefs",
+		"POST /api/v1/streaming/presets/setup",
 		"POST /api/v1/streaming/addons",
 		"PUT /api/v1/streaming/addons/{id}",
 		"DELETE /api/v1/streaming/addons/{id}",
@@ -72,6 +74,7 @@ func init() {
 
 	for _, r := range []string{
 		"GET /api/v1/streaming/prefs",
+		"GET /api/v1/streaming/presets",
 		"GET /api/v1/streaming/addons",
 		"GET /api/v1/streaming/addons/catalogs",
 		"GET /api/v1/streaming/addons/{id}/catalog/{type}/{catalog}",

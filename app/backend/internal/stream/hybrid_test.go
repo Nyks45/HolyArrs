@@ -451,3 +451,62 @@ func TestSkipServiceMergeAndScrobble(t *testing.T) {
 	var unused json.RawMessage
 	_ = unused
 }
+
+func TestNuvioExtendedCheerioCryptoAndRepoDefaults(t *testing.T) {
+	ps := NewPluginStore(t.TempDir())
+	if !ps.NodeAvailable() {
+		t.Skip("node runtime unavailable")
+	}
+
+	// Verify cheerio-without-node-native, combinators (>), filter(), next(), [href*=], .html(),
+	// WordArray AES encrypt/decrypt + HmacMD5, Buffer, and Headers.get().
+	code := `
+	const cheerio = require('cheerio-without-node-native');
+	const CryptoJS = require('crypto-js');
+	async function getStreams() {
+		const doc = '<div class="box"><p class="label">Source</p><div class="links"><a href="https://drive.example.com/dl/1">Bad</a><a class="keep" href="https://cdn.example.com/driveleech/ok.mp4">Go</a></div></div>';
+		const $ = cheerio.load(doc);
+		const href = $('p.label').next('.links').find('> a[href*="driveleech"]').filter((i, el) => $(el).hasClass('keep')).attr('href');
+		const inner = $('div.box').html();
+		if (!inner || !inner.includes('<a class="keep"')) throw new Error('bad html(): ' + inner);
+
+		const h = new Headers({ 'X-Nuvio-Token': 'abc123' });
+		if (h.get('x-nuvio-token') !== 'abc123') throw new Error('headers.get failed');
+
+		const key = CryptoJS.enc.Utf8.parse('0123456789abcdef0123456789abcdef');
+		const iv = CryptoJS.enc.Utf8.parse('abcdef0123456789');
+		const enc = CryptoJS.AES.encrypt(href, key, { iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 });
+		const dec = CryptoJS.AES.decrypt(enc.toString(), key, { iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 }).toString(CryptoJS.enc.Utf8);
+		const mac = CryptoJS.HmacMD5(Buffer.from(dec).toString('utf8'), CryptoJS.enc.Utf8.parse('secret')).toString(CryptoJS.enc.Hex);
+		if (dec !== href || mac.length !== 32) throw new Error('crypto mismatch');
+
+		return [{ name: 'ShimOK', title: mac, url: dec, quality: '1080p' }];
+	}
+	`
+	cands, err := ps.runScraperCode(context.Background(), "shim", "ShimOK", code, "550", "movie", 0, 0, nil, "")
+	if err != nil || len(cands) != 1 || cands[0].StreamURL != "https://cdn.example.com/driveleech/ok.mp4" {
+		t.Fatalf("extended shim test failed: err=%v cands=%+v", err, cands)
+	}
+
+	// Verify AddRepoWithDefaults concurrently downloads and applies defaultEnabled only on first install.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/manifest.json":
+			_, _ = io.WriteString(w, `{"name":"Repo","scrapers":[{"id":"one","name":"One","filename":"a.js","enabled":true},{"id":"two","name":"Two","filename":"b.js","enabled":true}]}`)
+		case "/a.js", "/b.js":
+			_, _ = io.WriteString(w, `function getStreams(){ return []; }`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	ps.SetHTTPClient(srv.Client())
+	repo, err := ps.AddRepoWithDefaults(context.Background(), srv.URL+"/manifest.json", []string{"two"})
+	if err != nil {
+		t.Fatalf("AddRepoWithDefaults failed: %v", err)
+	}
+	if len(repo.Scrapers) != 2 || repo.Scrapers[0].Enabled || !repo.Scrapers[1].Enabled {
+		t.Fatalf("unexpected defaultEnabled state: %+v", repo.Scrapers)
+	}
+}

@@ -12,6 +12,8 @@ import (
 func (h *Handlers) registerStreamingRoutes(m *http.ServeMux) {
 	m.HandleFunc("GET /api/v1/streaming/prefs", h.getPrefs)
 	m.HandleFunc("PUT /api/v1/streaming/prefs", h.putPrefs)
+	m.HandleFunc("GET /api/v1/streaming/presets", h.getPresets)
+	m.HandleFunc("POST /api/v1/streaming/presets/setup", h.applyPresets)
 
 	m.HandleFunc("GET /api/v1/streaming/addons", h.listAddons)
 	m.HandleFunc("POST /api/v1/streaming/addons", h.addAddon)
@@ -328,4 +330,27 @@ func (h *Handlers) disconnectSimkl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handlers) getPresets(w http.ResponseWriter, r *http.Request) {
+	webserver.WriteJSON(w, http.StatusOK, h.Mgr.Presets())
+}
+
+func (h *Handlers) applyPresets(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Kind        string `json:"kind"`
+		ID          string `json:"id"`
+		Recommended *bool  `json:"recommended"`
+	}
+	if r.ContentLength != 0 {
+		if !webserver.Decode(w, r, &in, "send optional {kind, id, recommended}") {
+			return
+		}
+	}
+	rec := in.ID == ""
+	if in.Recommended != nil {
+		rec = *in.Recommended
+	}
+	res := h.Mgr.ApplyPresets(r.Context(), in.Kind, in.ID, rec)
+	webserver.WriteJSON(w, http.StatusOK, res)
 }

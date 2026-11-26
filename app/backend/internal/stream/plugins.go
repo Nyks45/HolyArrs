@@ -129,6 +129,12 @@ func (p *PluginStore) List() []NuvioRepo {
 
 // AddRepo fetches a Nuvio manifest URL and caches all declared JS scraper files.
 func (p *PluginStore) AddRepo(ctx context.Context, rawURL string) (NuvioRepo, error) {
+	return p.AddRepoWithDefaults(ctx, rawURL, nil)
+}
+
+// AddRepoWithDefaults fetches a Nuvio manifest URL, caches all JS files, and when installing
+// a repo for the first time with non-empty defaultEnabled, enables only matching scraper IDs.
+func (p *PluginStore) AddRepoWithDefaults(ctx context.Context, rawURL string, defaultEnabled []string) (NuvioRepo, error) {
 	u, err := url.Parse(strings.TrimSpace(rawURL))
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return NuvioRepo{}, errors.New("invalid Nuvio repository URL")
@@ -147,6 +153,12 @@ func (p *PluginStore) AddRepo(ctx context.Context, rawURL string) (NuvioRepo, er
 			if err := os.WriteFile(fp, code, 0o600); err != nil {
 				return NuvioRepo{}, err
 			}
+		}
+	}
+	allowSet := map[string]bool{}
+	for _, id := range defaultEnabled {
+		if sid := sanitizeID(id); sid != "" {
+			allowSet[sid] = true
 		}
 	}
 	p.mu.Lock()
@@ -174,6 +186,11 @@ func (p *PluginStore) AddRepo(ctx context.Context, rawURL string) (NuvioRepo, er
 				return NuvioRepo{}, err
 			}
 			return repo, nil
+		}
+	}
+	if len(allowSet) > 0 {
+		for si := range repo.Scrapers {
+			repo.Scrapers[si].Enabled = allowSet[repo.Scrapers[si].ID]
 		}
 	}
 	p.repos = append(p.repos, repo)
@@ -267,7 +284,7 @@ type rawNuvioScraper struct {
 }
 
 func (p *PluginStore) fetchRepo(ctx context.Context, manifestURL string) (NuvioRepo, map[string][]byte, error) {
-	cctx, cancel := context.WithTimeout(ctx, 12*time.Second)
+	cctx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
 	p.mu.RLock()
 	hc := p.client
@@ -322,9 +339,16 @@ func (p *PluginStore) fetchRepo(ctx context.Context, manifestURL string) (NuvioR
 		repoID = newOpaqueID()
 	}
 
-	scripts := map[string][]byte{}
-	scrapers := make([]NuvioScraper, 0, len(rawScrapers))
-	for _, rs := range rawScrapers {
+	type fetchSlot struct {
+		sid       string
+		raw       rawNuvioScraper
+		scriptURL string
+		code      []byte
+	}
+	slots := make([]fetchSlot, len(rawScrapers))
+	sem := make(chan struct{}, 8)
+	var wg sync.WaitGroup
+	for idx, rs := range rawScrapers {
 		sid := sanitizeID(fallbackString(rs.ID, rs.Name))
 		if sid == "" {
 			continue
@@ -339,11 +363,33 @@ func (p *PluginStore) fetchRepo(ctx context.Context, manifestURL string) (NuvioR
 		if scriptURL == "" {
 			continue
 		}
-		codeBytes, derr := p.downloadScript(cctx, hc, scriptURL)
-		if derr != nil || len(codeBytes) == 0 {
+		slots[idx] = fetchSlot{sid: sid, raw: rs, scriptURL: scriptURL}
+		wg.Add(1)
+		go func(i int, target string) {
+			defer wg.Done()
+			select {
+			case sem <- struct{}{}:
+			case <-cctx.Done():
+				return
+			}
+			defer func() { <-sem }()
+			codeBytes, derr := p.downloadScript(cctx, hc, target)
+			if derr == nil && len(codeBytes) > 0 {
+				slots[i].code = codeBytes
+			}
+		}(idx, scriptURL)
+	}
+	wg.Wait()
+
+	scripts := map[string][]byte{}
+	scrapers := make([]NuvioScraper, 0, len(rawScrapers))
+	for _, sl := range slots {
+		if len(sl.code) == 0 {
 			continue
 		}
-		scripts[sid] = codeBytes
+		rs := sl.raw
+		sid := sl.sid
+		scripts[sid] = sl.code
 		en := true
 		if rs.Enabled != nil {
 			en = *rs.Enabled
@@ -358,7 +404,7 @@ func (p *PluginStore) fetchRepo(ctx context.Context, manifestURL string) (NuvioR
 			Version:        rs.Version,
 			Description:    rs.Description,
 			Filename:       rs.Filename,
-			URL:            scriptURL,
+			URL:            sl.scriptURL,
 			SupportedTypes: rs.SupportedTypes,
 			Enabled:        en,
 			LocalFile:      localFP,
@@ -431,7 +477,10 @@ func (p *PluginStore) SearchStreams(ctx context.Context, kind, tmdbID string, se
 		mediaType = "tv"
 	}
 
-	sem := make(chan struct{}, 4)
+	sctx, cancelAll := context.WithTimeout(ctx, 12*time.Second)
+	defer cancelAll()
+
+	sem := make(chan struct{}, 8)
 	var mu sync.Mutex
 	var out []UnifiedCandidate
 	var warnings []string
@@ -442,12 +491,12 @@ func (p *PluginStore) SearchStreams(ctx context.Context, kind, tmdbID string, se
 			defer wg.Done()
 			select {
 			case sem <- struct{}{}:
-			case <-ctx.Done():
+			case <-sctx.Done():
 				return
 			}
 			defer func() { <-sem }()
 
-			cands, err := p.runScraperCode(ctx, jb.scraper.ID, jb.scraper.Name, jb.code, tmdbID, mediaType, season, episode, jb.scraper.Settings, tmdbAPIKey)
+			cands, err := p.runScraperCode(sctx, jb.scraper.ID, jb.scraper.Name, jb.code, tmdbID, mediaType, season, episode, jb.scraper.Settings, tmdbAPIKey)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -462,7 +511,7 @@ func (p *PluginStore) SearchStreams(ctx context.Context, kind, tmdbID string, se
 }
 
 func (p *PluginStore) runScraperCode(ctx context.Context, scraperID, scraperName, code, tmdbID, mediaType string, season, episode int, settings map[string]any, tmdbKey string) ([]UnifiedCandidate, error) {
-	cctx, cancel := context.WithTimeout(ctx, 12*time.Second)
+	cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	payload := map[string]any{

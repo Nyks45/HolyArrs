@@ -204,6 +204,11 @@ export const settingIndex: SettingEntry[] = [
 	e('/settings/api', 'api-routes', 'Every API route', 'api routes endpoints openapi'),
 	e('/settings/api', 'seerr-card', 'Requests from Seerr and Overseerr', 'seerr overseerr jellyseerr sonarr radarr requests connect'),
 	e('/settings/remote-access', 'remote-access', 'Remote access', 'tailscale remote away from home phone tv vpn tailnet sign in'),
+	e('/settings/streaming', 'addons', 'Stremio addons', 'stremio manifest stream http hls catalogs opensubtitles torrentio'),
+	e('/settings/streaming', 'plugins', 'Nuvio plugins', 'nuvio js scrapers providers repositories node sandbox'),
+	e('/settings/streaming', 'debrid', 'Debrid providers', 'torbox premiumize real-debrid cached magnet instant'),
+	e('/settings/streaming', 'playback', 'Skip intro & subtitles', 'skip intro recap outro aniskip introdb sdh hdr finish clock'),
+	e('/settings/streaming', 'sync', 'Trakt & Simkl sync', 'trakt simkl scrobble watch history sync pin'),
 	e('/settings/move', '', 'Import from other apps', 'import move migrate radarr sonarr lidarr prowlarr bazarr seerr overseerr'),
 
 	e('/settings/backups', 'backup-key', 'Master key', 'master key kit encryption secrets restore another server'),

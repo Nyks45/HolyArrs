@@ -2,6 +2,7 @@ export { default as StreamSheet } from './StreamSheet.svelte';
 export { default as WatchPlayer } from './WatchPlayer.svelte';
 export { default as ContinueWatchingShelf } from './ContinueWatchingShelf.svelte';
 export { default as StreamingSettings } from './StreamingSettings.svelte';
+export { default as PluginsModeBar } from './PluginsModeBar.svelte';
 export { default as AddonCatalogShelves } from './AddonCatalogShelves.svelte';
 export * from './stream-api.ts';
 export * from './streaming-config-api.ts';

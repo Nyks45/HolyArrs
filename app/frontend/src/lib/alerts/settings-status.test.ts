@@ -80,9 +80,9 @@ describe('settings groups', () => {
 		expect(none).toEqual(['/settings/appearance', '/settings/account']);
 	});
 
-	it('makes five home groups with a three-word line each, Danger zone last in Server, Schedules in Downloads', () => {
+	it('makes home groups with a three-word line each, Danger zone last in Server, Schedules in Downloads', () => {
 		const home = groups.filter((g) => g.id !== 'account');
-		expect(home.map((g) => g.label)).toEqual(['Library', 'Downloads', 'People', 'Linked apps', 'Server']);
+		expect(home.map((g) => g.label)).toEqual(['Library', 'Downloads', 'Streaming', 'People', 'Linked apps', 'Server']);
 		for (const g of home) expect(g.line.split(' ')).toHaveLength(3);
 		const m = grouped(sections).find((g) => g.group.id === 'system')!;
 		expect(m.items.at(-1)?.href).toBe('/settings/danger');

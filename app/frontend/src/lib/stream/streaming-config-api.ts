@@ -129,6 +129,47 @@ export interface SimklPINChallenge {
 	interval: number;
 }
 
+export interface PresetAddon {
+	id: string;
+	name: string;
+	category: string;
+	description: string;
+	manifest_url: string;
+	default: boolean;
+	installed: boolean;
+}
+
+export interface PresetPluginRepo {
+	id: string;
+	name: string;
+	category: string;
+	description: string;
+	manifest_url: string;
+	default: boolean;
+	default_scrapers?: string[];
+	installed: boolean;
+}
+
+export interface PresetCatalog {
+	addons: PresetAddon[];
+	plugins: PresetPluginRepo[];
+}
+
+export interface PresetSetupResult {
+	installed: string[];
+	skipped: string[];
+	errors?: string[];
+	catalog: PresetCatalog;
+}
+
+export function getStreamingPresets(): Promise<PresetCatalog> {
+	return api.get<PresetCatalog>('/streaming/presets');
+}
+
+export function applyStreamingPresets(req: { kind?: string; id?: string; recommended?: boolean } = { recommended: true }): Promise<PresetSetupResult> {
+	return api.post<PresetSetupResult>('/streaming/presets/setup', req);
+}
+
 export function getStreamingPrefs(): Promise<StreamPrefs> {
 	return api.get<StreamPrefs>('/streaming/prefs');
 }

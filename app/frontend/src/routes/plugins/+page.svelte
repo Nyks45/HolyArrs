@@ -19,6 +19,7 @@
 	import '../(frame)/settings-content.css';
 	import { date } from '#lib/core/format.ts';
 	import { PluginInfo, PluginSettings, AddSheet, DevActions, NoLockCard, NoNetLockCard, ApproveAccess, wheelSideways, fitChips, tagRoom, arrowKeys, tint, LanguagesSection, languageCard, LANGUAGE_PACKS_VERSION, LANGUAGE_PACKS_ICON } from '#lib/plugins/index.ts';
+	import { PluginsModeBar, StreamingSettings } from '#lib/stream/index.ts';
 	import { listLanguages, packList } from '#lib/core/i18n/language-packs.svelte.ts';
 	import { abilities, newAbilities, noLockNotice, categories, categoryLabel, categoryOf, developers, findPlugins, hasUpdate, inTab, notices, pluginAbout, pluginState, pluginBadge as badge, showsNoLockCard, showsNoNetLockCard, showsNoLockTag, shownName, shownVersion, sortPlugins, stateLabel, foldersMissing, isNew, freshUpdate, trendingIds, shortCount, shortDate as shortDay, numDate as numDay, pluginIcon, devPicture, isProject, brokenPics as broken, settingsPage, type Plugin, type PluginOverview, type PluginSort, type PluginTab } from '#lib/plugins/index.ts';
 	import Avatar from '#lib/ui/Avatar.svelte';
@@ -76,6 +77,7 @@
 	const q = $derived(pluginScope.term);
 	let tab = $state<PluginTab>('all');
 	let langOpen = $state(false);
+	let pluginMode = $state<'app' | 'streaming'>('app');
 	// Language Packs' own logo (tinted like a plugin's) and its version as a plugin.
 	const LANG_ICON = to('/plugins/language-packs.svg');
 	const LANG_VERSION = LANGUAGE_PACKS_VERSION;
@@ -181,8 +183,8 @@
 	});
 	// From 768px the tools sit beside the top bar's search box; below that (bar hidden) beside the page's own box.
 	$effect(() => {
-		barTools.snippet = vw >= 768 ? pageTools : null;
-		barLead.snippet = vw >= 768 ? addBtn : null;
+		barTools.snippet = pluginMode === 'app' && vw >= 768 ? pageTools : null;
+		barLead.snippet = pluginMode === 'app' && vw >= 768 ? addBtn : null;
 	});
 
 	function show(p: Plugin) {
@@ -487,7 +489,11 @@
 
 {#if !owner}
 	<EmptyState icon="shield" title={t('plugins.title')} text={t('plugins.ownerOnly')} />
-{:else if !loaded}
+{:else}
+	<PluginsModeBar bind:mode={pluginMode} />
+	{#if pluginMode === 'streaming'}
+		<StreamingSettings />
+	{:else if !loaded}
 	<SkSettings rows={2} />
 {:else if missing}
 	<EmptyState icon="shield" title={t('plugins.title')} text={t('plugins.missing')} />
@@ -552,6 +558,7 @@
 				{/if}
 			</div>
 	</div>
+	{/if}
 {/if}
 
 <Sheet bind:open={langOpen} size="lg" placement={phone ? 'full' : 'center'} title={t('plugins.tabLanguagePacks')} hideTitle onclose={() => void tick().then(() => document.querySelector<HTMLElement>('[data-testid="language-packs-card"] .open')?.focus())}>

@@ -259,11 +259,13 @@
   :root { --shelf-gap: 12px; }
 }
 
-/* Page changes (lib/motion.ts): the content cross-fades and rises; the shell stays put. */
+/* Page changes (lib/motion.ts): the content cross-fades and rises without height stretching; the shell stays put. */
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+::view-transition-group(*) { animation-duration: var(--dur-page); animation-timing-function: var(--ease-out); }
+::view-transition-group(page) { animation: none; }
+::view-transition-old(page), ::view-transition-new(page) { width: 100%; height: auto; }
 ::view-transition-old(page) { animation: vt-out var(--dur-fast) var(--ease-in) both; }
 ::view-transition-new(page) { animation: vt-in var(--dur-page) var(--ease-out) both; }
-::view-transition-group(*) { animation-duration: var(--dur-page); animation-timing-function: var(--ease-out); }
 @keyframes vt-out { to { opacity: 0; } }
 @keyframes vt-in { from { opacity: 0; transform: translateY(var(--rise)); } }
 

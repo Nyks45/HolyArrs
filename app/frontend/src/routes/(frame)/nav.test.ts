@@ -22,7 +22,7 @@ describe('buildNav', () => {
 			['Library', ['Movies', 'TV shows', 'Music', 'Stats']],
 			['Your stuff', ['Calendar', 'Requests']],
 			['Activity', ['Downloads', 'History']],
-			['System', ['Status', 'Plugins', 'Settings']]
+			['System', ['Status', 'Plugins', 'Streaming', 'Settings']]
 		]);
 	});
 	it('lists Library stats only for people who manage the Library', () => {

@@ -103,6 +103,7 @@ adding
 addition_date
 addon_id
 addon_name
+addons
 address
 addresses
 admin
@@ -358,6 +359,7 @@ card_logo
 cards
 cast
 cat
+catalog
 catalog_id
 catalogs
 categories
@@ -516,6 +518,7 @@ deezer
 default
 default_off
 default_pick_rules_id
+default_scrapers
 default_url
 defaults
 delay_ms
@@ -1689,6 +1692,7 @@ recap
 recent
 recheck_progress
 recommendations
+recommended
 recording
 recording_id
 recordings

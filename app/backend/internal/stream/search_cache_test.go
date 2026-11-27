@@ -271,3 +271,46 @@ func TestProxyManagerUnwrapsDisguisedTSManifestSanitizeAndDeepPreflight(t *testi
 		}
 	}
 }
+
+func TestPreflightAggregatesProviderHealthPerSearch(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/ok.mp4" {
+			w.Header().Set("Content-Type", "video/mp4")
+			_, _ = w.Write([]byte("0000ftypmp42"))
+			return
+		}
+		http.Error(w, "forbidden", http.StatusForbidden)
+	}))
+	defer srv.Close()
+
+	pm := NewProxyManager()
+	pm.SetHTTPClient(srv.Client())
+	health := NewProviderHealth()
+
+	rawMixed := []UnifiedCandidate{
+		{Kind: "http", Provider: "4khdhub", Title: "Dead1", StreamURL: srv.URL + "/bad1"},
+		{Kind: "http", Provider: "4khdhub", Title: "Dead2", StreamURL: srv.URL + "/bad2"},
+		{Kind: "http", Provider: "4khdhub", Title: "Dead3", StreamURL: srv.URL + "/bad3"},
+		{Kind: "http", Provider: "4khdhub", Title: "Dead4", StreamURL: srv.URL + "/bad4"},
+		{Kind: "http", Provider: "4khdhub", Title: "Good1", StreamURL: srv.URL + "/ok.mp4"},
+	}
+	kept := PreflightAndMeasureCandidates(context.Background(), pm, rawMixed, health)
+	if len(kept) != 1 || kept[0].Title != "Good1" {
+		t.Fatalf("expected 1 kept candidate Good1, got %+v", kept)
+	}
+	if health.ShouldSkip("4khdhub") {
+		t.Fatal("expected mixed provider with a working mirror not to enter cooldown")
+	}
+
+	allDead := []UnifiedCandidate{
+		{Kind: "http", Provider: "deadprov", Title: "DeadA", StreamURL: srv.URL + "/dead1"},
+		{Kind: "http", Provider: "deadprov", Title: "DeadB", StreamURL: srv.URL + "/dead2"},
+		{Kind: "http", Provider: "deadprov", Title: "DeadC", StreamURL: srv.URL + "/dead3"},
+	}
+	for i := 0; i < 3; i++ {
+		PreflightAndMeasureCandidates(context.Background(), pm, allDead, health)
+	}
+	if !health.ShouldSkip("deadprov") {
+		t.Fatal("expected provider failing all mirrors across 3 searches to enter cooldown")
+	}
+}

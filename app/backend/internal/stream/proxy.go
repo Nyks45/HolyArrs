@@ -659,7 +659,7 @@ func applyProxyHeaders(dst *http.Request, stored map[string]string, clientHdr ht
 			continue
 		}
 		switch canon {
-		case "Host", "Content-Length", "Connection", "Transfer-Encoding":
+		case "Host", "Content-Length", "Connection", "Transfer-Encoding", "Accept-Encoding":
 			continue
 		case "User-Agent":
 			uaSet = true

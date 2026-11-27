@@ -3,7 +3,9 @@ package stream
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	_ "embed"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -479,14 +481,16 @@ func (p *PluginStore) SearchStreams(ctx context.Context, kind, tmdbID string, se
 		return nil, nil
 	}
 	type job struct {
-		repoName string
-		scraper  NuvioScraper
-		code     string
-		latency  float64
+		repoName  string
+		scraper   NuvioScraper
+		code      string
+		healthKey string
+		latency   float64
+		size      int
 	}
 	p.mu.RLock()
 	var matching []job
-	seenIDs := map[string]bool{}
+	seenCode := map[string]bool{}
 	for _, r := range p.repos {
 		if !r.Enabled {
 			continue
@@ -495,22 +499,25 @@ func (p *PluginStore) SearchStreams(ctx context.Context, kind, tmdbID string, se
 			if !sc.Enabled || !scraperMatchesContext(sc, kind, mc) || sc.LocalFile == "" {
 				continue
 			}
-			idKey := strings.ToLower(strings.TrimSpace(sc.ID))
-			if idKey != "" && seenIDs[idKey] {
-				continue
-			}
 			raw, err := os.ReadFile(sc.LocalFile)
-			if err != nil || len(raw) == 0 {
+			trimmed := bytes.TrimSpace(raw)
+			if err != nil || len(trimmed) == 0 {
 				continue
 			}
-			if idKey != "" {
-				seenIDs[idKey] = true
+			sum := sha256.Sum256(trimmed)
+			codeHash := hex.EncodeToString(sum[:])
+			if seenCode[codeHash] {
+				continue
 			}
+			seenCode[codeHash] = true
+			hKey := r.ID + ":" + sc.ID
 			matching = append(matching, job{
-				repoName: r.Name,
-				scraper:  sc,
-				code:     string(raw),
-				latency:  health.LatencyMS(sc.ID),
+				repoName:  r.Name,
+				scraper:   sc,
+				code:      string(raw),
+				healthKey: hKey,
+				latency:   health.LatencyMS(hKey),
+				size:      len(trimmed),
 			})
 		}
 	}
@@ -521,7 +528,7 @@ func (p *PluginStore) SearchStreams(ctx context.Context, kind, tmdbID string, se
 
 	jobs := make([]job, 0, len(matching))
 	for _, jb := range matching {
-		if health != nil && health.ShouldSkip(jb.scraper.ID) {
+		if health != nil && health.ShouldSkip(jb.healthKey) {
 			continue
 		}
 		jobs = append(jobs, jb)
@@ -532,7 +539,10 @@ func (p *PluginStore) SearchStreams(ctx context.Context, kind, tmdbID string, se
 	sort.SliceStable(jobs, func(i, j int) bool {
 		si := jobs[i].latency + float64(fastScraperPriority(jobs[i].scraper.ID))*2000
 		sj := jobs[j].latency + float64(fastScraperPriority(jobs[j].scraper.ID))*2000
-		return si < sj
+		if si != sj {
+			return si < sj
+		}
+		return jobs[i].size > jobs[j].size
 	})
 
 	mediaType := "movie"
@@ -543,8 +553,8 @@ func (p *PluginStore) SearchStreams(ctx context.Context, kind, tmdbID string, se
 	totalBudget := 12 * time.Second
 	perTimeout := 6500 * time.Millisecond
 	if fast {
-		totalBudget = 5500 * time.Millisecond
-		perTimeout = 3500 * time.Millisecond
+		totalBudget = 6000 * time.Millisecond
+		perTimeout = 4200 * time.Millisecond
 	}
 	sctx, cancelAll := context.WithTimeout(ctx, totalBudget)
 	defer cancelAll()
@@ -554,17 +564,18 @@ func (p *PluginStore) SearchStreams(ctx context.Context, kind, tmdbID string, se
 	var mu sync.Mutex
 	var out []UnifiedCandidate
 	var warnings []string
+	instantProvs := map[string]bool{}
 	var wg sync.WaitGroup
 	earlyStopped := false
 	tryEarlyStop := func() {
-		if fast && !earlyStopped && len(out) >= 3 && time.Since(startedAt) >= 2200*time.Millisecond {
+		if fast && !earlyStopped && len(instantProvs) >= 5 && time.Since(startedAt) >= 3000*time.Millisecond {
 			earlyStopped = true
 			cancelAll()
 		}
 	}
 	var earlyTimer *time.Timer
 	if fast {
-		earlyTimer = time.AfterFunc(2250*time.Millisecond, func() {
+		earlyTimer = time.AfterFunc(3050*time.Millisecond, func() {
 			mu.Lock()
 			tryEarlyStop()
 			mu.Unlock()
@@ -595,13 +606,23 @@ func (p *PluginStore) SearchStreams(ctx context.Context, kind, tmdbID string, se
 			defer mu.Unlock()
 			if err != nil {
 				if health != nil && ctx.Err() == nil && sctx.Err() == nil {
-					health.RecordFailure(jb.scraper.ID)
+					health.RecordFailure(jb.healthKey)
 				}
 				warnings = append(warnings, jb.scraper.Name+": "+err.Error())
 				return
 			}
+			hasInstant := false
+			for _, c := range cands {
+				if c.Kind == "http" || c.Kind == "hls" {
+					hasInstant = true
+					break
+				}
+			}
 			if health != nil && len(cands) > 0 {
-				health.RecordSuccess(jb.scraper.ID, dur)
+				health.RecordSuccess(jb.healthKey, dur)
+			}
+			if hasInstant {
+				instantProvs[jb.healthKey] = true
 			}
 			out = append(out, cands...)
 			tryEarlyStop()

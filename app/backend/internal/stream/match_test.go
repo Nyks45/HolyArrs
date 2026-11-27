@@ -177,6 +177,45 @@ func TestVerifyCandidateMatchesAndRejects(t *testing.T) {
 		t.Fatal("expected Dune.2.2024.1080p.mkv to match Dune: Part Two")
 	}
 
+	duneMultilineVidRock := UnifiedCandidate{
+		Kind:         "hls",
+		Instant:      true,
+		Provider:     "VidRock",
+		ProviderType: "nuvio",
+		Title:        "🎬 Dune: Part Two - (2024)\n🚀 1080p | 🌍 Original Audio | 🎧 AAC",
+		ReleaseName:  "🎬 Dune: Part Two - (2024)\n🚀 1080p | 🌍 Original Audio | 🎧 AAC",
+		StreamURL:    "https://vercetti.org/movie/abc/bigtits.m3u8",
+	}
+	if !VerifyCandidate(duneMultilineVidRock, duneMC) {
+		t.Fatal("expected VidRock multi-line Dune: Part Two title to be accepted")
+	}
+
+	duneCastle := UnifiedCandidate{
+		Kind:         "hls",
+		Instant:      true,
+		Provider:     "Castle",
+		ProviderType: "nuvio",
+		Title:        "Dune: Part Two (2024)",
+		ReleaseName:  "Dune: Part Two (2024)",
+		StreamURL:    "https://img1.fcxmb.com/myhls_mps/2024/8yue/Dune2/Hindi_720/index_266.m3u8",
+	}
+	if !VerifyCandidate(duneCastle, duneMC) {
+		t.Fatal("expected Castle Dune: Part Two (2024) title to be accepted")
+	}
+
+	dunePurstream := UnifiedCandidate{
+		Kind:         "hls",
+		Instant:      true,
+		Provider:     "Purstream",
+		ProviderType: "nuvio",
+		Title:        "🎬 Dune: Part Two - 2024\n🔥 1080p | 🔊 Dual-Audio",
+		ReleaseName:  "🎬 Dune: Part Two - 2024\n🔥 1080p | 🔊 Dual-Audio",
+		StreamURL:    "https://free.finepulfe.xyz/movies/693134-mrp8j/master.m3u8",
+	}
+	if !VerifyCandidate(dunePurstream, duneMC) {
+		t.Fatal("expected Purstream/Movix Dune: Part Two - 2024 title to be accepted")
+	}
+
 	movie1917 := NewSearchMatchContext("movie", "1917", "", 2019, 0, 0, []string{"War"}, "en", []string{"GB"}, false)
 	cand1917 := UnifiedCandidate{
 		Kind:         "http",

@@ -191,16 +191,28 @@ export function countCandidateKinds(cands: StreamCandidate[]): { local: number; 
 export function mergeCandidateLists(current: StreamCandidate[], incoming: StreamCandidate[]): StreamCandidate[] {
 	if (incoming.length === 0) return current;
 	if (current.length === 0) return incoming;
-	const seen = new Set<string>();
+	const seenLinks = new Set<string>();
+	const seenIds = new Set<string>();
+	const incomingBaseSigs = new Set<string>();
 	const merged: StreamCandidate[] = [];
-	const push = (c: StreamCandidate) => {
-		const k = `${c.provider || c.source_name}:${c.release_name || c.title}:${c.quality || c.resolution}:${c.info_hash || c.link}`;
-		if (seen.has(k)) return;
-		seen.add(k);
+	const push = (c: StreamCandidate, fromIncoming: boolean) => {
+		const base = `${c.provider || c.source_name}:${c.release_name || c.title}:${c.quality || c.resolution}`;
+		const ref = c.info_hash || c.link;
+		if (ref) {
+			const k = `${base}:${ref}`;
+			if (seenLinks.has(k)) return;
+			seenLinks.add(k);
+			merged.push(c);
+			return;
+		}
+		if (c.id && seenIds.has(c.id)) return;
+		if (!fromIncoming && incomingBaseSigs.has(base)) return;
+		if (c.id) seenIds.add(c.id);
+		if (fromIncoming) incomingBaseSigs.add(base);
 		merged.push(c);
 	};
-	for (const c of incoming) push(c);
-	for (const c of current) push(c);
+	for (const c of incoming) push(c, true);
+	for (const c of current) push(c, false);
 	return merged;
 }
 

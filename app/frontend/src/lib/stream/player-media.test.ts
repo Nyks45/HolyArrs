@@ -4,6 +4,7 @@ import {
 	extractRegularSeasons,
 	formatSyncDelta,
 	isTimeBuffered,
+	mergeCandidateLists,
 	pickBestSubtitleCandidate,
 	resolveTotalDuration,
 	selectAutoPlayCandidate,
@@ -330,5 +331,16 @@ describe('seek helpers', () => {
 				seekableEnd: 3600
 			})
 		).toBe(false);
+	});
+});
+
+describe('mergeCandidateLists', () => {
+	it('keeps distinct proxied instant candidates with unique IDs while preserving fast-only providers', () => {
+		const fastOnly = cand({ id: 'fast-only-1', provider: 'FastOnly', kind: 'hls', instant: true, link: '', title: 'Movie (2024)' });
+		const fastDup = cand({ id: 'vr-fast', provider: 'VidRock', kind: 'hls', instant: true, link: '', title: 'Movie (2024)' });
+		const fullA = cand({ id: 'vr-1', provider: 'VidRock', kind: 'hls', instant: true, link: '', title: 'Movie (2024)' });
+		const fullB = cand({ id: 'vr-2', provider: 'VidRock', kind: 'hls', instant: true, link: '', title: 'Movie (2024)' });
+		const merged = mergeCandidateLists([fastOnly, fastDup], [fullA, fullB]);
+		expect(merged.map((c) => c.id)).toEqual(['vr-1', 'vr-2', 'fast-only-1']);
 	});
 });

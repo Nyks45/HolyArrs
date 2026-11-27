@@ -173,7 +173,7 @@ var (
 	reCandCrossEp       = regexp.MustCompile(`(?i)(?:^|[^a-z0-9])(\d{1,2})x(\d{1,3})(?:[^a-z0-9]|$)`)
 	reCandSeasonOnly    = regexp.MustCompile(`(?i)(?:^|[^a-z0-9])(?:s(\d{1,2})|season\s+(\d{1,2}))(?:[^a-z0-9]|$)`)
 	reTechBoundary      = regexp.MustCompile(`(?i)(?:^|[\s._(\[-])(s\d{1,2}\s*e\d{1,3}|\d{1,2}x\d{1,3}|season\s+\d{1,2}|2160p|1080p|720p|480p|4k|uhd|fhd|web-dl|webdl|webrip|bluray|bdrip|hdrip|hdcam|cam|hdtv|remux|x264|x265|h264|h265|hevc|av1|10bit|dual\s+audio|multi\s+audio|esub)(?:$|[\s._)\]-])`)
-	reServerNumLabel    = regexp.MustCompile(`(?i)\b(?:server|srv|mirror|source|link|node|cdn|ep|episode|part)\s*#?\d+\b`)
+	reServerNumLabel    = regexp.MustCompile(`(?i)\b(?:server|srv|mirror|source|link|node|cdn|ep|episode)\s*#?\d+\b`)
 	reSceneIndicators   = regexp.MustCompile(`(?i)(moviesdrive|hdhub4u|4khdhub|uhdmovies|web-dl|webrip|bluray|dual audio)`)
 	reStatsLineCheck    = regexp.MustCompile(`(?i)^(server|source|quality|auto|hls|mp4|hd|4k|1080p|720p|480p|\d+(\.\d+)?\s*(gb|mb))`)
 	reURLTMDBID         = regexp.MustCompile(`(?i)/(?:tv|movie)/(\d+)(?:[-/]|$)`)

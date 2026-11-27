@@ -255,8 +255,8 @@ func PreflightAndMeasureCandidates(ctx context.Context, pm *ProxyManager, cands 
 		deduped = append(deduped, c)
 	}
 
-	// Pick up to 32 instant candidates round-robin across providers so every healthy provider gets probed.
-	const maxProbes = 32
+	// Pick up to 48 instant candidates round-robin across providers so every healthy provider gets probed.
+	const maxProbes = 48
 	probeIndices := make([]int, 0, maxProbes)
 	round := 0
 	for len(probeIndices) < maxProbes {
@@ -284,9 +284,11 @@ func PreflightAndMeasureCandidates(ctx context.Context, pm *ProxyManager, cands 
 	pctx, cancelAll := context.WithTimeout(ctx, 4500*time.Millisecond)
 	defer cancelAll()
 
-	sem := make(chan struct{}, 16)
+	sem := make(chan struct{}, 24)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
+	provBest := map[string]time.Duration{}
+	provFailed := map[string]bool{}
 
 	for _, idx := range probeIndices {
 		wg.Add(1)
@@ -300,6 +302,7 @@ func PreflightAndMeasureCandidates(ctx context.Context, pm *ProxyManager, cands 
 			defer func() { <-sem }()
 
 			c := deduped[i]
+			pk := normProviderKey(fallbackString(c.Provider, c.SourceName))
 			ic, icCancel := context.WithTimeout(pctx, 3800*time.Millisecond)
 			t0 := time.Now()
 			ct, isHLS, err := pm.Preflight(ic, c.StreamURL, c.Headers)
@@ -307,11 +310,11 @@ func PreflightAndMeasureCandidates(ctx context.Context, pm *ProxyManager, cands 
 			icCancel()
 
 			if err != nil {
-				if health != nil {
-					health.RecordFailure(fallbackString(c.Provider, c.SourceName))
-				}
 				mu.Lock()
 				dropped[i] = true
+				if pk != "" {
+					provFailed[pk] = true
+				}
 				mu.Unlock()
 				return
 			}
@@ -319,9 +322,6 @@ func PreflightAndMeasureCandidates(ctx context.Context, pm *ProxyManager, cands 
 			ms := int(elapsed.Milliseconds())
 			if ms < 1 {
 				ms = 1
-			}
-			if health != nil {
-				health.RecordSuccess(fallbackString(c.Provider, c.SourceName), elapsed)
 			}
 			c.ProbeMS = ms
 			c.Verified = true
@@ -334,10 +334,26 @@ func PreflightAndMeasureCandidates(ctx context.Context, pm *ProxyManager, cands 
 			}
 			mu.Lock()
 			deduped[i] = c
+			if pk != "" {
+				if prev, ok := provBest[pk]; !ok || elapsed < prev {
+					provBest[pk] = elapsed
+				}
+			}
 			mu.Unlock()
 		}(idx)
 	}
 	wg.Wait()
+
+	if health != nil {
+		for pk, best := range provBest {
+			health.RecordSuccess(pk, best)
+		}
+		for pk := range provFailed {
+			if _, ok := provBest[pk]; !ok {
+				health.RecordFailure(pk)
+			}
+		}
+	}
 
 	out := make([]UnifiedCandidate, 0, len(deduped))
 	for i, c := range deduped {

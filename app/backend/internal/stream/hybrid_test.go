@@ -1,6 +1,7 @@
 package stream
 
 import (
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"io"
@@ -723,5 +724,37 @@ func TestStartVerifiedRemoteSkipsDuplicatePreflight(t *testing.T) {
 	}
 	if hits.Load() == 0 {
 		t.Fatal("expected unverified candidate to hit upstream Preflight")
+	}
+}
+
+func TestPreflightHandlesStoredAcceptEncodingGzip(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/master.m3u8":
+			if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+				t.Fatalf("expected Go Transport to manage Accept-Encoding gzip, got %q", r.Header.Get("Accept-Encoding"))
+			}
+			w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
+			w.Header().Set("Content-Encoding", "gzip")
+			gz := gzip.NewWriter(w)
+			_, _ = io.WriteString(gz, "#EXTM3U\n#EXT-X-TARGETDURATION:4\nseg0.ts\n")
+			_ = gz.Close()
+		case "/seg0.ts":
+			w.Header().Set("Content-Type", "video/mp2t")
+			_, _ = io.WriteString(w, "TSDATA")
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	pm := NewProxyManager()
+	pm.SetHTTPClient(srv.Client())
+	_, isHLS, err := pm.Preflight(context.Background(), srv.URL+"/master.m3u8", map[string]string{
+		"Accept-Encoding": "gzip, deflate, br",
+		"Referer":         "https://example.com/",
+	})
+	if err != nil || !isHLS {
+		t.Fatalf("expected stripped Accept-Encoding to allow transparent gzip HLS preflight, got isHLS=%v err=%v", isHLS, err)
 	}
 }

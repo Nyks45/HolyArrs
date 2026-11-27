@@ -63,6 +63,7 @@ type hlsState struct {
 	quality     string
 	audioIdx    int
 	startSec    float64
+	reencode    bool
 	dir         string
 	playlistURL string
 	cmd         *exec.Cmd
@@ -225,7 +226,7 @@ func tagCI(tags map[string]string, key string) string {
 	return ""
 }
 
-func buildFFmpegArgs(mediaURL, outDir string, probe *MediaProbe, quality string, audioIdx int, startSec float64) []string {
+func buildFFmpegArgs(mediaURL, outDir string, probe *MediaProbe, quality string, audioIdx int, startSec float64, reencode bool) []string {
 	switch quality {
 	case "original", "1080p", "720p", "480p":
 	default:
@@ -249,12 +250,15 @@ func buildFFmpegArgs(mediaURL, outDir string, probe *MediaProbe, quality string,
 	}
 	args = append(args, "-map", "0:v:0", "-map", audioMap, "-sn")
 
-	copyVideo := quality == "original" && probe != nil && probe.VideoCodec == "h264" &&
+	copyVideo := !reencode && startSec <= 0.5 && quality == "original" && probe != nil && probe.VideoCodec == "h264" &&
 		(probe.PixFmt == "" || probe.PixFmt == "yuv420p" || probe.PixFmt == "yuvj420p")
 	if copyVideo {
 		args = append(args, "-c:v", "copy")
 	} else {
-		args = append(args, "-c:v", "libx264", "-preset", "superfast", "-crf", "23", "-pix_fmt", "yuv420p", "-g", "48", "-sc_threshold", "0")
+		args = append(args,
+			"-c:v", "libx264", "-preset", "superfast", "-crf", "23", "-pix_fmt", "yuv420p",
+			"-g", "48", "-keyint_min", "48", "-sc_threshold", "0", "-force_key_frames", "expr:gte(t,n_forced*2)",
+		)
 		switch quality {
 		case "1080p":
 			args = append(args, "-vf", "scale=-2:'min(1080,ih)'")
@@ -267,6 +271,8 @@ func buildFFmpegArgs(mediaURL, outDir string, probe *MediaProbe, quality string,
 
 	args = append(args,
 		"-c:a", "aac", "-ac", "2", "-b:a", "192k",
+		"-avoid_negative_ts", "make_zero",
+		"-max_muxing_queue_size", "1024",
 		"-f", "hls",
 		"-hls_time", "2",
 		"-hls_list_size", "0",
@@ -292,7 +298,7 @@ func (s *Session) stopHLSLocked() {
 }
 
 // EnsureHLS starts or switches the ffmpeg HLS pipeline for browser playback.
-func (m *Manager) EnsureHLS(ctx context.Context, id, quality string, audioIdx int, startSec float64) (playlistURL string, actualStart float64, err error) {
+func (m *Manager) EnsureHLS(ctx context.Context, id, quality string, audioIdx int, startSec float64, reencode bool) (playlistURL string, actualStart float64, err error) {
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
 		return "", 0, errors.New("ffmpeg is not installed")
 	}
@@ -315,7 +321,7 @@ func (m *Manager) EnsureHLS(ctx context.Context, id, quality string, audioIdx in
 	}
 	// Reuse running pipeline if parameters match.
 	if sess.hls != nil && sess.hls.quality == quality && sess.hls.audioIdx == audioIdx &&
-		absFloat(sess.hls.startSec-startSec) < 0.5 && sess.hls.errText == "" {
+		sess.hls.reencode == reencode && absFloat(sess.hls.startSec-startSec) < 0.5 && sess.hls.errText == "" {
 		url := sess.hls.playlistURL
 		st := sess.hls.startSec
 		sess.lastActivity = time.Now()
@@ -337,7 +343,7 @@ func (m *Manager) EnsureHLS(ctx context.Context, id, quality string, audioIdx in
 	mediaURL := target
 	playlistPath := fmt.Sprintf("/api/v1/stream/%s/hls/%s/%d/index.m3u8", sess.id, sess.token, gen)
 
-	args := buildFFmpegArgs(mediaURL, outDir, probe, quality, audioIdx, startSec)
+	args := buildFFmpegArgs(mediaURL, outDir, probe, quality, audioIdx, startSec, reencode)
 	cmd := exec.CommandContext(sess.ctx, "ffmpeg", args...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -353,6 +359,7 @@ func (m *Manager) EnsureHLS(ctx context.Context, id, quality string, audioIdx in
 		quality:     quality,
 		audioIdx:    audioIdx,
 		startSec:    startSec,
+		reencode:    reencode,
 		dir:         outDir,
 		playlistURL: playlistPath,
 		cmd:         cmd,

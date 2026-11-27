@@ -23,7 +23,7 @@
 	import { prefetchStreamSources } from '#lib/stream/index.ts';
 
 	type Ep = { number: number; name?: string; overview?: string; runtime?: number; still?: string; air_day?: string };
-	type EpCard = { key: number; title: string; rawName: string; still?: string | null; line: string; overview?: string; release: EpisodeReleaseInfo };
+	type EpCard = { key: number; title: string; rawName: string; still?: string | null; line: string; runtime?: number; overview?: string; release: EpisodeReleaseInfo };
 
 	let {
 		tmdb,
@@ -80,7 +80,7 @@
 		}
 	}
 
-	function scheduleHoverPrefetch(sNum: number, epNum: number) {
+	function scheduleHoverPrefetch(sNum: number, epNum: number, runtimeMin = 0) {
 		if (!onstream || !tmdb) return;
 		clearHoverPrefetch();
 		hoverPrefetchTimer = setTimeout(() => {
@@ -96,7 +96,8 @@
 				original_title: showMeta?.original_title,
 				genres: showMeta?.genres,
 				original_language: showMeta?.original_language,
-				origin_country: showMeta?.origin_country
+				origin_country: showMeta?.origin_country,
+				runtime_min: runtimeMin || 0
 			});
 		}, 350);
 	}
@@ -175,6 +176,7 @@
 				rawName,
 				still: e.still || fallback,
 				line: [e.runtime ? runtimeWords(e.runtime) : '', abs ? `${when} · ${t('shows.list.absolute', { n: abs })}` : when].filter(Boolean).join(' · '),
+				runtime: e.runtime,
 				overview: e.overview,
 				release
 			});
@@ -288,7 +290,7 @@
 									class:row={viewMode === 'list'}
 									class:upcoming={!c.release.isReleased}
 									class:next-up={isNextUp}
-									onmouseenter={() => { if (c.release.isReleased) scheduleHoverPrefetch(shown, c.key); }}
+									onmouseenter={() => { if (c.release.isReleased) scheduleHoverPrefetch(shown, c.key, c.runtime ?? 0); }}
 									onmouseleave={clearHoverPrefetch}
 								>
 									{#if onstream && c.release.isReleased}

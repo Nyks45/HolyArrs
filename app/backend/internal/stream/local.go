@@ -21,6 +21,7 @@ func looksIncompatibleForDirectPlay(releaseTitle, streamURL, contentType string)
 	for _, tok := range []string{
 		".mkv", ".avi", ".ts", ".m2ts",
 		"hevc", "x265", "h265", "h.265",
+		"hi10", "main10", "av01", ".av1", " av1", "[av1", "(av1", "-av1",
 		"10bit", "10-bit", "dovi", "dolby vision", "hdr10",
 		"ddp", "eac3", "e-ac-3", "ac3", "dts", "truehd", "atmos", "flac",
 		" dv ", ".dv.", "[dv", "(dv",
@@ -132,9 +133,7 @@ func (m *Manager) startRemote(ctx context.Context, userID int64, streamURL strin
 	var ct string
 	if !verified {
 		t0 := time.Now()
-		var detectedHLS bool
-		var err error
-		ct, detectedHLS, err = m.Proxy.Preflight(ctx, streamURL, headers)
+		pr, err := m.Proxy.PreflightDetailed(ctx, streamURL, headers)
 		elapsed := time.Since(t0)
 		provKey := fallbackString(provider, req.SourceName)
 		if err != nil {
@@ -146,7 +145,8 @@ func (m *Manager) startRemote(ctx context.Context, userID int64, streamURL strin
 		if m.Health != nil {
 			m.Health.RecordSuccess(provKey, elapsed)
 		}
-		if detectedHLS {
+		ct = pr.ContentType
+		if pr.IsHLS {
 			isHLS = true
 		}
 	}

@@ -43,7 +43,8 @@
 				imdb: entry.imdb ?? '',
 				tmdb,
 				season: entry.kind === 'show' ? (entry.season || 1) : 0,
-				episode: entry.kind === 'show' ? (entry.episode || 1) : 0
+				episode: entry.kind === 'show' ? (entry.episode || 1) : 0,
+				runtime_min: entry.duration_sec > 0 ? Math.round(entry.duration_sec / 60) : 0
 			});
 		}, 350);
 	}

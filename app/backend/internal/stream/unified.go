@@ -3,6 +3,7 @@ package stream
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"math"
 	"regexp"
 	"slices"
 	"sort"
@@ -43,10 +44,12 @@ type UnifiedCandidate struct {
 	DebridProvider string            `json:"debrid_provider,omitempty"`
 	Headers        map[string]string `json:"-"`
 	Filename       string            `json:"filename,omitempty"`
-	FastStart      bool              `json:"fast_start,omitempty"`
-	ProbeMS        int               `json:"probe_ms,omitempty"`
-	Verified       bool              `json:"verified,omitempty"`
-	Score          int               `json:"score"`
+	FastStart        bool              `json:"fast_start,omitempty"`
+	ProbeMS          int               `json:"probe_ms,omitempty"`
+	Verified         bool              `json:"verified,omitempty"`
+	DurationSec      float64           `json:"duration_sec,omitempty"`
+	DurationMismatch string            `json:"duration_mismatch,omitempty"`
+	Score            int               `json:"score"`
 }
 
 type cachedCandidate struct {
@@ -210,9 +213,39 @@ func EnrichReleaseMeta(text string, q, codec, audio, hdr string) (string, string
 	return q, codec, audio, hdr, is3D
 }
 
+func classifyDurationMismatch(kind string, candSec, expectedSec float64) string {
+	if candSec <= 0 || expectedSec < 300 {
+		return ""
+	}
+	diffMin := math.Abs(candSec-expectedSec) / 60.0
+	ratio := candSec / expectedSec
+	if kind == "movie" {
+		if (candSec < 900 && expectedSec >= 3000) || diffMin >= 35 || ratio < 0.55 || ratio > 1.55 {
+			return "severe"
+		}
+		if diffMin >= 20 || (diffMin >= 15 && (ratio < 0.78 || ratio > 1.25)) {
+			return "warn"
+		}
+		return ""
+	}
+	if (candSec < 300 && expectedSec >= 900) || (candSec <= 630 && expectedSec >= 1800) || diffMin >= 20 || ratio < 0.50 || ratio > 1.70 {
+		return "severe"
+	}
+	if diffMin >= 10 || (expectedSec <= 2100 && diffMin >= 7 && (ratio < 0.70 || ratio > 1.35)) {
+		return "warn"
+	}
+	return ""
+}
+
 // FilterAndRankCandidates applies user filters (exclude terms, 3D, max GB) and
 // ranks Local > Debrid Cached / HTTP / HLS > Torrents.
 func FilterAndRankCandidates(cands []UnifiedCandidate, prefs StreamPrefs) []UnifiedCandidate {
+	return FilterAndRankCandidatesWithRuntime(cands, prefs, "", 0)
+}
+
+// FilterAndRankCandidatesWithRuntime applies user filters, evaluates runtime
+// mismatch against expectedSec, and ranks Local > Debrid / HTTP / HLS > Torrents.
+func FilterAndRankCandidatesWithRuntime(cands []UnifiedCandidate, prefs StreamPrefs, kind string, expectedSec float64) []UnifiedCandidate {
 	maxBytes := int64(0)
 	if prefs.MaxSizeGB > 0 {
 		maxBytes = int64(prefs.MaxSizeGB * 1024 * 1024 * 1024)
@@ -223,6 +256,7 @@ func FilterAndRankCandidates(cands []UnifiedCandidate, prefs StreamPrefs) []Unif
 		metaText := strings.TrimSpace(c.ReleaseName + " " + c.Title + " " + c.Filename)
 		q, codec, audio, hdr, is3D := EnrichReleaseMeta(metaText, fallbackString(c.Quality, c.Resolution), c.Codec, c.Audio, c.HDR)
 		c.Quality, c.Resolution, c.Codec, c.Audio, c.HDR = q, q, codec, audio, hdr
+		c.DurationMismatch = ""
 		if c.Kind != "local" {
 			if prefs.Exclude3D && is3D {
 				continue
@@ -232,6 +266,13 @@ func FilterAndRankCandidates(cands []UnifiedCandidate, prefs StreamPrefs) []Unif
 			}
 			if matchesExcludeTerm(metaText, prefs.ExcludeTerms) {
 				continue
+			}
+			if expectedSec >= 300 {
+				if c.DurationSec > 0 {
+					c.DurationMismatch = classifyDurationMismatch(kind, c.DurationSec, expectedSec)
+				} else if c.Kind == "http" && c.Size > 0 && c.Size < 3*1024*1024 && expectedSec >= 600 {
+					c.DurationMismatch = "severe"
+				}
 			}
 		}
 		if c.InfoHash == "" && c.Magnet != "" {
@@ -244,7 +285,7 @@ func FilterAndRankCandidates(cands []UnifiedCandidate, prefs StreamPrefs) []Unif
 			c.FastStart = c.Kind == "local" || c.Kind == "hls" ||
 				(c.Kind == "http" && !looksIncompatibleForDirectPlay(metaText, c.StreamURL, ""))
 		}
-		c.Score = scoreCandidate(c, prefQ)
+		c.Score = scoreCandidate(c, prefQ, expectedSec)
 		out = append(out, c)
 	}
 	sort.SliceStable(out, func(i, j int) bool {
@@ -326,7 +367,7 @@ func matchesExcludeTerm(text string, terms []string) bool {
 	return false
 }
 
-func scoreCandidate(c UnifiedCandidate, prefQ string) int {
+func scoreCandidate(c UnifiedCandidate, prefQ string, expectedSec float64) int {
 	score := 0
 	switch c.Kind {
 	case "local":
@@ -386,6 +427,16 @@ func scoreCandidate(c UnifiedCandidate, prefQ string) int {
 				seedScore = 1200
 			}
 			score += seedScore
+		}
+	}
+	switch c.DurationMismatch {
+	case "severe":
+		score -= 60000
+	case "warn":
+		score -= 22000
+	default:
+		if c.DurationSec > 0 && expectedSec >= 300 {
+			score += 1500
 		}
 	}
 	return score

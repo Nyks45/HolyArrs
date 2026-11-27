@@ -100,6 +100,7 @@ func (h *Handlers) search(w http.ResponseWriter, r *http.Request) {
 		Mode             string   `json:"mode"`
 		NoCache          bool     `json:"no_cache"`
 		PreferredQuality string   `json:"preferred_quality"`
+		RuntimeMin       int      `json:"runtime_min"`
 	}
 	if !webserver.Decode(w, r, &in, "send {query, kind, year, season, episode, imdb, tmdb, source_ids}") {
 		return
@@ -108,6 +109,7 @@ func (h *Handlers) search(w http.ResponseWriter, r *http.Request) {
 	if in.Kind == "show" {
 		kind = "show"
 	}
+	expectedSec := float64(in.RuntimeMin) * 60
 	tmdbStr := ""
 	if in.TMDB > 0 {
 		tmdbStr = strconv.Itoa(in.TMDB)
@@ -129,14 +131,14 @@ func (h *Handlers) search(w http.ResponseWriter, r *http.Request) {
 	if canCache && !in.NoCache {
 		fullKey := SearchCacheKey(kind, tmdbStr, imdbID, in.Season, in.Episode, in.Query, "full")
 		if cached, ok := h.Mgr.SearchCache.Get(fullKey); ok {
-			ranked := FilterAndRankCandidates(cached.Candidates, prefs)
+			ranked := FilterAndRankCandidatesWithRuntime(cached.Candidates, prefs, kind, expectedSec)
 			writeSearchCandidates(w, h.Mgr.CandCache, ranked, cached.Sources, cached.Warnings)
 			return
 		}
 		if mode == "fast" {
 			fastKey := SearchCacheKey(kind, tmdbStr, imdbID, in.Season, in.Episode, in.Query, "fast")
 			if cached, ok := h.Mgr.SearchCache.Get(fastKey); ok {
-				ranked := FilterAndRankCandidates(cached.Candidates, prefs)
+				ranked := FilterAndRankCandidatesWithRuntime(cached.Candidates, prefs, kind, expectedSec)
 				writeSearchCandidates(w, h.Mgr.CandCache, ranked, cached.Sources, cached.Warnings)
 				return
 			}
@@ -303,7 +305,7 @@ func (h *Handlers) search(w http.ResponseWriter, r *http.Request) {
 
 	rawCands = FilterVerifiedCandidates(rawCands, mc)
 	rawCands = PreflightAndMeasureCandidates(r.Context(), h.Mgr.Proxy, rawCands, h.Mgr.Health)
-	ranked := FilterAndRankCandidates(rawCands, prefs)
+	ranked := FilterAndRankCandidatesWithRuntime(rawCands, prefs, kind, expectedSec)
 	if canCache && len(ranked) > 0 {
 		h.Mgr.SearchCache.Set(SearchCacheKey(kind, tmdbStr, imdbID, in.Season, in.Episode, in.Query, mode), CachedSearchResult{
 			Candidates: ranked,
@@ -500,11 +502,12 @@ func (h *Handlers) startHLS(w http.ResponseWriter, r *http.Request) {
 		Quality    string  `json:"quality"`
 		AudioIndex int     `json:"audio_index"`
 		StartSec   float64 `json:"start_sec"`
+		Reencode   bool    `json:"reencode"`
 	}
 	if r.ContentLength != 0 && !webserver.Decode(w, r, &in, "send {quality, audio_index, start_sec}") {
 		return
 	}
-	url, startSec, err := h.Mgr.EnsureHLS(r.Context(), r.PathValue("id"), in.Quality, in.AudioIndex, in.StartSec)
+	url, startSec, err := h.Mgr.EnsureHLS(r.Context(), r.PathValue("id"), in.Quality, in.AudioIndex, in.StartSec, in.Reencode)
 	if err != nil {
 		webserver.Fail(w, http.StatusBadGateway, err.Error())
 		return

@@ -10,6 +10,7 @@
 	import { ensureStreamHLS, formatEndsAt, formatTimeLeft, getStreamStatus, getTitleWatchHistory, launchStreamMPV, listStreamSources, saveWatchProgress, searchStreamReleases, searchStreamSubtitles, selectStreamFile, setStreamKeep, startStream, stopStream, type SessionStatus, type StreamCandidate, type StreamSubCandidate, type SubPref, type WatchEntry } from './stream-api.ts';
 	import { getStreamingPrefs, saveStreamingPrefs, type SkipSegment, type StreamPrefs, type SubStylePrefs } from './streaming-config-api.ts';
 	import { attachHlsMedia, buildEpisodeProgressMap, buildResumeCandidate, buildSearchReq, buildWatchEntryPayload, candidateKey, canSeekInLocalHlsBuffer, clearPlayerTimers, countCandidateKinds, DEFAULT_SUB_STYLE, extractRegularSeasons, fetchTitleSkips, findNextEpisodeTarget, isTimeBuffered, matchPlayerHotkey, mergeCandidateLists, mergeWatchHistory, normQualityChoice, parseSavedPlayerPrefs, postWatchScrobble, prefetchStreamSources, resolveEmbeddedSub, resolveSiteSub, resolveTotalDuration, resolveUploadedSub, runAutoFindAndSyncSubtitle, selectAutoPlayCandidate, shouldAcceptEnded, shouldAcceptTimeUpdate, shouldFallbackDirectSeekToTranscode, sortCandidatesForQuality, syncVttToSessionAudio, type HlsQualityLevel, type SeasonEp } from './player-media.ts';
+	import { checkMeasuredRuntimeMismatch, createVideoWatchdogState, durationMismatchTier, nextFreezeRecoveryAction, readDecodedVideoFrames, resetVideoWatchdog, tickVideoWatchdog, type FreezeReason } from './video-watchdog.ts';
 	import { resolveSubtitleStyle, stripSdhCueLines } from './subtitle-style.ts';
 	import { activeCuesAt, type VTTCue } from './vtt.ts';
 	import PlayerHud from './PlayerHud.svelte';
@@ -114,20 +115,12 @@
 	let nextCountdown = $state(10);
 
 	let hlsInstance: HlsType | null = null;
-	let pollTimer: ReturnType<typeof setInterval> | null = null;
-	let progressTimer: ReturnType<typeof setInterval> | null = null;
-	let scrobbleTimer: ReturnType<typeof setInterval> | null = null;
-	let skipTimer: ReturnType<typeof setInterval> | null = null;
-	let hudTimer: ReturnType<typeof setTimeout> | null = null;
-	let feedbackTimer: ReturnType<typeof setTimeout> | null = null;
-	let waitingTimer: ReturnType<typeof setTimeout> | null = null;
-	let nextTimer: ReturnType<typeof setInterval> | null = null;
-	let attachedSessionKey = '';
-	let loadReqSeq = 0, searchSeq = 0, startSeq = 0;
-	let didInitialResumeDecision = false;
-	let autoSubSessionId = '';
-	let destroyed = false;
-	let reseekingHls = false, sourceStarted = false, sameSourceRetries = 0;
+	let pollTimer: ReturnType<typeof setInterval> | null = null, progressTimer: ReturnType<typeof setInterval> | null = null, scrobbleTimer: ReturnType<typeof setInterval> | null = null, skipTimer: ReturnType<typeof setInterval> | null = null, nextTimer: ReturnType<typeof setInterval> | null = null, watchdogTimer: ReturnType<typeof setInterval> | null = null;
+	let hudTimer: ReturnType<typeof setTimeout> | null = null, feedbackTimer: ReturnType<typeof setTimeout> | null = null, waitingTimer: ReturnType<typeof setTimeout> | null = null;
+	let attachedSessionKey = '', autoSubSessionId = '', usingLocalHls = $state(false);
+	let loadReqSeq = 0, searchSeq = 0, startSeq = 0, freezeRecoveries = 0, sameSourceRetries = 0;
+	let didInitialResumeDecision = false, destroyed = false, reseekingHls = false, sourceStarted = false, usingForceReencode = false, userSelectedCurrent = false;
+	const watchdog = createVideoWatchdogState();
 
 	const pipAvailable = $derived(typeof document !== 'undefined' && !!document.pictureInPictureEnabled);
 	const prefQuality = $derived(prefs ? normQualityChoice(prefs.preferred_quality) : '1080p');
@@ -147,7 +140,7 @@
 	const backdropUrl = $derived(details?.backdrop ? sized(details.backdrop, 'backdrop') : activeSaved?.backdrop ? sized(activeSaved.backdrop, 'backdrop') : '');
 	const headerTitle = $derived(details?.name || activeSaved?.title || 'Watch');
 	const headerSub = $derived(kind === 'show' ? `S${String(season).padStart(2, '0')}E${String(episode).padStart(2, '0')}${curEpObj?.name ? ` · ${curEpObj.name}` : ''}` : '');
-	const isLocalEventHls = $derived(pipelineMode === 'hls' && session?.transport !== 'hls_remote');
+	const isLocalEventHls = $derived(pipelineMode === 'hls' && usingLocalHls);
 	const currentPos = $derived(isScrubbing ? scrubValue : pendingSeekTarget !== null ? pendingSeekTarget : pipelineMode === 'hls' ? seekOffset + videoTime : videoTime);
 	const totalDuration = $derived(resolveTotalDuration({ probeDuration: session?.probe?.duration_sec, videoDuration, knownDuration: knownDurationSec, savedDuration: activeSaved?.duration_sec, metadataRuntimeMin: curEpObj?.runtime || details?.runtime, isLocalEventHls, seekOffset, currentPos }));
 	const remainingText = $derived(formatTimeLeft(currentPos, totalDuration));
@@ -189,7 +182,13 @@
 	}
 
 	function clearStall(keepSeamless = false) { if (waitingTimer) { clearTimeout(waitingTimer); waitingTimer = null; } stalled = false; if (!keepSeamless) { seamlessStatus = ''; pendingSeekTarget = null; } }
-	function syncVideoDuration() { if (!switchingSource && videoEl && Number.isFinite(videoEl.duration) && videoEl.duration > 0) { videoDuration = videoEl.duration; if (!isLocalEventHls && videoEl.duration > 10) knownDurationSec = videoEl.duration; } }
+	function checkRuntimeMismatch(measuredSec: number) {
+		const msg = checkMeasuredRuntimeMismatch({ kind, measuredSec, expectedRuntimeMin: curEpObj?.runtime || details?.runtime || 0, userSelectedCurrent, autoFallbackEnabled: !prefs || prefs.auto_fallback, autoFallbacks });
+		if (!msg) return;
+		const alt = sortCandidatesForQuality(candidates, targetQuality).find((c) => !triedCandKeys.has(candidateKey(c)) && durationMismatchTier(c) < 2 && (c.instant || c.seeders > 0));
+		if (alt) tryFallbackSource(pendingStartSec || currentPos, msg);
+	}
+	function syncVideoDuration() { if (!switchingSource && videoEl && Number.isFinite(videoEl.duration) && videoEl.duration > 0) { videoDuration = videoEl.duration; if (!isLocalEventHls && videoEl.duration > 10) { knownDurationSec = videoEl.duration; checkRuntimeMismatch(videoEl.duration); } } }
 	function onVideoWaiting() {
 		if (pipelineMode === 'none' || switchingSource) return;
 		if (waitingTimer) clearTimeout(waitingTimer);
@@ -216,7 +215,7 @@
 		clearStall();
 	}
 	function destroyVideoPipeline() {
-		loadingMedia = false; switchingSource = false; clearStall(); hlsLevels = []; hlsLevelIdx = -1; videoDuration = 0; bufferedEnd = 0;
+		loadingMedia = false; switchingSource = false; clearStall(); resetVideoWatchdog(watchdog); usingLocalHls = false; usingForceReencode = false; hlsLevels = []; hlsLevelIdx = -1; videoDuration = 0; bufferedEnd = 0;
 		if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
 		if (videoEl) { videoEl.pause(); videoEl.removeAttribute('src'); videoEl.load(); }
 		pipelineMode = 'none';
@@ -234,7 +233,7 @@
 			const st = await getStreamStatus(id);
 			if (destroyed || !session || session.id !== id) return;
 			session = st;
-			if (st.probe?.duration_sec && st.probe.duration_sec > 0) knownDurationSec = st.probe.duration_sec;
+			if (st.probe?.duration_sec && st.probe.duration_sec > 0) { knownDurationSec = st.probe.duration_sec; checkRuntimeMismatch(st.probe.duration_sec); }
 			if (st.state === 'error') { pendingMPV = false; switchingSource = false; seamlessStatus = ''; return; }
 			if (pendingMPV && ((st.transport && st.transport !== 'torrent') || (st.files.length > 0 && st.state !== 'resolving'))) {
 				pendingMPV = false;
@@ -273,18 +272,10 @@
 	async function loadInitial() {
 		loadingPage = true; pageError = '';
 		try {
-			const [d, hist, srcs, pf] = await Promise.all([
-				loadDetails(api.get, kind, tmdb),
-				getTitleWatchHistory(kind, tmdb).catch(() => ({ latest: null, episodes: [] })),
-				listStreamSources(kind),
-				getStreamingPrefs().catch(() => null)
-			]);
+			const [d, hist, srcs, pf] = await Promise.all([loadDetails(api.get, kind, tmdb), getTitleWatchHistory(kind, tmdb).catch(() => ({ latest: null, episodes: [] })), listStreamSources(kind), getStreamingPrefs().catch(() => null)]);
 			if (destroyed) return;
-			details = d ?? null;
-			historyLatest = hist.latest;
-			historyEpisodes = hist.episodes ?? [];
-			mpvAvailable = srcs.mpv_available;
-			ffmpegAvailable = srcs.ffmpeg_available;
+			details = d ?? null; historyLatest = hist.latest; historyEpisodes = hist.episodes ?? [];
+			mpvAvailable = srcs.mpv_available; ffmpegAvailable = srcs.ffmpeg_available;
 			if (pf) { prefs = pf; subStyle = { ...pf.sub_style }; if (pf.preferred_sub_langs?.length) siteSubLangsInput = pf.preferred_sub_langs.join(', '); }
 			queryText = d?.name || hist.latest?.title || '';
 
@@ -295,24 +286,15 @@
 				await loadSeasonEpisodes(sDef);
 			}
 			const sv = kind === 'show' ? (historyEpisodes.find((h) => (h.season ?? 0) === season && (h.episode ?? 0) === episode) ?? null) : historyLatest;
-			applySavedPrefs(sv);
-			void fetchSkips();
-			await runSearch();
+			applySavedPrefs(sv); void fetchSkips(); await runSearch();
 
 			if (!didInitialResumeDecision) {
 				didInitialResumeDecision = true;
-				if (initialDrawer === 'sources') {
-					drawer = 'sources';
-				} else if (autoResume && sv && !sv.completed) {
+				if (initialDrawer === 'sources') drawer = 'sources';
+				else if (autoResume && sv && !sv.completed) {
 					if (sv.release_link) void resumeFromSaved(sv, sv.position_sec);
-					else {
-						const b = selectAutoPlayCandidate(candidates, targetQuality, false);
-						if (b) void startCandidate(b, 'browser', sv.position_sec, true);
-					}
-				} else if (autoPlayOn) {
-					const b = selectAutoPlayCandidate(candidates, targetQuality, false);
-					if (b) void startCandidate(b, 'browser', 0, true);
-				}
+					else { const b = selectAutoPlayCandidate(candidates, targetQuality, false); if (b) void startCandidate(b, 'browser', sv.position_sec, true); }
+				} else if (autoPlayOn) { const b = selectAutoPlayCandidate(candidates, targetQuality, false); if (b) void startCandidate(b, 'browser', 0, true); }
 			}
 		} catch (e) { pageError = message(e); } finally { loadingPage = false; wakeHud(); }
 	}
@@ -322,19 +304,13 @@
 		const p = parseSavedPlayerPrefs(sv);
 		if (p.browserQuality) browserQuality = p.browserQuality;
 		audioIdx = p.audioIdx; playbackRate = p.playbackRate;
-		if (sv.subtitle) {
-			subDelayMS = p.subDelayMS; if (p.subSize) subSize = p.subSize;
-			subLang = p.subLang; subLabel = p.subLabel; subSiteId = p.subSiteId;
-			subSiteKey = p.subSiteKey; subIndex = p.subIndex; subMode = p.subMode;
-		}
+		if (sv.subtitle) { subDelayMS = p.subDelayMS; if (p.subSize) subSize = p.subSize; subLang = p.subLang; subLabel = p.subLabel; subSiteId = p.subSiteId; subSiteKey = p.subSiteKey; subIndex = p.subIndex; subMode = p.subMode; }
 	}
 
 	function warmNextEpisode() {
 		if (kind !== 'show' || !nextEpisodeTarget || !details?.name) return;
-		prefetchStreamSources(buildSearchReq({
-			query: details.name, kind: 'show', year: details.year || 0, season: nextEpisodeTarget.season, episode: nextEpisodeTarget.episode,
-			imdb: imdbId, tmdb: Number(tmdb) || 0, details, preferredQuality: prefs?.preferred_quality
-		}));
+		const nxtEp = seasonEpisodes[nextEpisodeTarget.season]?.find((e) => e.number === nextEpisodeTarget.episode);
+		prefetchStreamSources(buildSearchReq({ query: details.name, kind: 'show', year: details.year || 0, season: nextEpisodeTarget.season, episode: nextEpisodeTarget.episode, imdb: imdbId, tmdb: Number(tmdb) || 0, details, preferredQuality: prefs?.preferred_quality, runtimeMin: nxtEp?.runtime || details.runtime || 0 }));
 	}
 
 	async function runSearch(noCache = false) {
@@ -342,10 +318,7 @@
 		if (!q && !imdbId && !tmdb) return;
 		const seq = ++searchSeq;
 		searching = true; loadingMoreSources = false; searchError = '';
-		const baseReq = buildSearchReq({
-			query: q, kind, year: details?.year || activeSaved?.year || 0, season, episode,
-			imdb: imdbId, tmdb: Number(tmdb) || 0, details, preferredQuality: prefs?.preferred_quality
-		});
+		const baseReq = buildSearchReq({ query: q, kind, year: details?.year || activeSaved?.year || 0, season, episode, imdb: imdbId, tmdb: Number(tmdb) || 0, details, preferredQuality: prefs?.preferred_quality, runtimeMin: curEpObj?.runtime || details?.runtime || 0 });
 		try {
 			const res = await searchStreamReleases({ ...baseReq, mode: 'fast', no_cache: noCache });
 			if (destroyed || seq !== searchSeq) return;
@@ -382,17 +355,18 @@
 		if (sv.subtitle?.mode === 'site' && sv.subtitle.site_id) await loadSiteSubtitleById(sv.subtitle.site_id, sv.subtitle.language ?? '', sv.subtitle.label ?? '', true);
 	}
 
-	async function startCandidate(c: StreamCandidate, mode: 'browser' | 'mpv', startAt = 0, keepExternalSubs = true) {
+	async function startCandidate(c: StreamCandidate, mode: 'browser' | 'mpv', startAt = 0, keepExternalSubs = true, userPicked = false) {
 		if (pipelineMode !== 'none' && currentPos > 5) await persistProgress(currentPos);
 		const myStart = ++startSeq;
 		const keepLiveFrame = mode === 'browser' && pipelineMode !== 'none';
 		if (!keepLiveFrame) destroyVideoPipeline(); else { switchingSource = true; seamlessStatus = 'Switching source...'; }
 		stopPolling();
 		const prevSession = session;
-		attachedSessionKey = ''; activeCandidate = c; triedCandKeys.add(candidateKey(c));
+		attachedSessionKey = ''; activeCandidate = c; triedCandKeys.add(candidateKey(c)); userSelectedCurrent = userPicked;
 		playMode = mode; pendingMPV = mode === 'mpv'; pendingStartSec = Math.max(0, startAt);
-		sourceStarted = false; sameSourceRetries = 0; reseekingHls = false; starting = true; playerError = '';
-		if (!keepLiveFrame) { session = null; seekOffset = pendingStartSec; videoTime = pendingStartSec; }
+		sourceStarted = false; sameSourceRetries = 0; freezeRecoveries = 0; reseekingHls = false; starting = true; playerError = '';
+		resetVideoWatchdog(watchdog);
+		if (!keepLiveFrame) { session = null; seekOffset = pendingStartSec; videoTime = pendingStartSec; knownDurationSec = (c.duration_sec ?? 0) > 30 && !c.duration_mismatch ? c.duration_sec! : 0; }
 		if (!keepExternalSubs || subMode === 'embedded') { subMode = 'off'; parsedCues = []; subFile = ''; activeSubVtt = ''; syncNote = ''; }
 
 		try {
@@ -405,7 +379,7 @@
 			});
 			if (destroyed || myStart !== startSeq) { void stopStream(st.id).catch(() => {}); return; }
 			if (prevSession && prevSession.id !== st.id && !prevSession.mpv_running) void stopStream(prevSession.id).catch(() => {});
-			if (st.probe?.duration_sec && st.probe.duration_sec > 0) knownDurationSec = st.probe.duration_sec;
+			if (st.probe?.duration_sec && st.probe.duration_sec > 0) { knownDurationSec = st.probe.duration_sec; checkRuntimeMismatch(st.probe.duration_sec); }
 			session = st; startPolling(st.id);
 			if (st.state === 'ready' || (pendingMPV && st.state !== 'resolving')) void pollSession(st.id);
 			wakeHud(); warmNextEpisode();
@@ -417,13 +391,14 @@
 		} finally { if (myStart === startSeq) starting = false; }
 	}
 
-	function tryFallbackSource(resumeAt?: number) {
+	function tryFallbackSource(resumeAt?: number, noticeOverride?: string) {
 		if ((prefs && !prefs.auto_fallback) || autoFallbacks >= 5) return;
 		const pool = sortCandidatesForQuality(candidates, targetQuality);
-		const next = pool.find((c) => !triedCandKeys.has(candidateKey(c)) && (c.instant || c.seeders > 0));
+		const avail = (c: StreamCandidate) => !triedCandKeys.has(candidateKey(c)) && (c.instant || c.seeders > 0);
+		const next = pool.find((c) => avail(c) && durationMismatchTier(c) < 2) ?? pool.find(avail);
 		if (!next) return;
 		autoFallbacks++;
-		fallbackNotice = `Switching to fallback: ${next.provider || next.source_name}`;
+		fallbackNotice = noticeOverride || `Switching to fallback: ${next.provider || next.source_name}`;
 		const pos = resumeAt ?? pendingSeekTarget ?? currentPos;
 		void startCandidate(next, playMode, pos > 10 ? pos : 0, true);
 	}
@@ -437,7 +412,7 @@
 			}
 			if (sameSourceRetries < 1) {
 				sameSourceRetries++; pendingSeekTarget = resumeAt;
-				void attachPlayback(resumeAt, pipelineMode === 'hls' && session.transport !== 'hls_remote', true, 'Retrying position...');
+				void attachPlayback(resumeAt, pipelineMode === 'hls' && usingLocalHls, true, 'Retrying position...');
 				return;
 			}
 		}
@@ -445,11 +420,25 @@
 		tryFallbackSource(resumeAt);
 	}
 
+	function handleVideoFreeze(reason: FreezeReason) {
+		if (destroyed || !session || !videoEl || playMode !== 'browser' || switchingSource || pipelineMode === 'none') return;
+		const action = nextFreezeRecoveryAction({ reason, attempts: freezeRecoveries, pipelineMode, usingLocalHls, usingForceReencode, ffmpegAvailable });
+		freezeRecoveries++;
+		if (action === 'fallback_source') {
+			const msg = reason === 'no_video' ? 'No video track - switching source...' : 'Video froze - switching source...';
+			tryFallbackSource(currentPos, msg); return;
+		}
+		if (action === 'reencode_hls') { void attachPlayback(currentPos, true, true, 'Re-encoding video...', true); return; }
+		seamlessStatus = 'Recovering video...';
+		if (action === 'kick_hls') { hlsInstance?.recoverMediaError(); videoEl.currentTime = Math.max(0, videoEl.currentTime + 0.15); hlsInstance?.startLoad(videoEl.currentTime); }
+		else { videoEl.currentTime = Math.max(0, videoEl.currentTime + 0.1); void videoEl.play().catch(() => {}); }
+	}
+
 	function maybeAutoSub(sid: string) {
 		if (prefs?.auto_find_subtitles && ffmpegAvailable && subMode === 'off' && autoSubSessionId !== sid) { autoSubSessionId = sid; void autoFindAndSyncSubtitle(true); }
 	}
 
-	async function attachPlayback(startSec: number, forceHLS = false, seamless = false, statusText = '') {
+	async function attachPlayback(startSec: number, forceHLS = false, seamless = false, statusText = '', forceReencode = false) {
 		const st = session;
 		if (!st || !videoEl) return;
 		const req = ++loadReqSeq;
@@ -469,21 +458,22 @@
 			const hlsOpts = (url: string, at: number) => attachHlsMedia({
 				video: videoEl!, srcUrl: url, startSec: at, playbackRate, volume, muted, isCancelled,
 				onRecovering: (s) => { if (!isCancelled()) seamlessStatus = s; },
+				onVideoCodecError: () => { if (!isCancelled() && !switchingSource) handleVideoFreeze('codec_error'); },
 				onFatalError: (d) => { if (isCancelled() || switchingSource) return; handlePlaybackFailure(`Playback error (${d})`); },
 				onStarted: () => { switchingSource = false; clearStall(!!videoEl?.seeking || pendingSeekTarget !== null); loadingMedia = false; void sendScrobble('start'); maybeAutoSub(st.id); },
 				onLevelsLoaded: (levels) => { if (!isCancelled()) { hlsLevels = levels; hlsLevelIdx = -1; } }
 			});
 
-			if (tr === 'hls_remote') {
+			if (tr === 'hls_remote' && !forceHLS && !forceReencode) {
 				const oldHls = hlsInstance; hlsInstance = null; oldHls?.destroy();
-				switchingSource = false; pipelineMode = 'hls'; seekOffset = 0; videoTime = startSec > 0.5 ? startSec : 0; videoDuration = 0; bufferedEnd = 0;
+				switchingSource = false; pipelineMode = 'hls'; usingLocalHls = false; usingForceReencode = false; seekOffset = 0; videoTime = startSec > 0.5 ? startSec : 0; videoDuration = 0; bufferedEnd = 0; resetVideoWatchdog(watchdog);
 				hlsInstance = await hlsOpts(playURL, startSec);
 				return;
 			}
-			const canDirect = !forceHLS && browserQuality === 'original' && audioIdx === 0 && !st.needs_transcode && (tr === 'local' || tr === 'direct' ? st.probe?.direct_playable !== false : !!st.probe?.direct_playable);
+			const canDirect = !forceHLS && !forceReencode && browserQuality === 'original' && audioIdx === 0 && !st.needs_transcode && (tr === 'local' || tr === 'direct' ? st.probe?.direct_playable !== false : !!st.probe?.direct_playable);
 			if (canDirect) {
 				const oldHls = hlsInstance; hlsInstance = null; oldHls?.destroy();
-				switchingSource = false; pipelineMode = 'direct'; seekOffset = 0; videoTime = startSec > 0.5 ? startSec : 0; videoDuration = 0; hlsLevels = [];
+				switchingSource = false; pipelineMode = 'direct'; usingLocalHls = false; usingForceReencode = false; seekOffset = 0; videoTime = startSec > 0.5 ? startSec : 0; videoDuration = 0; hlsLevels = []; resetVideoWatchdog(watchdog);
 				if (startSec > 0.5) videoEl.addEventListener('loadedmetadata', () => { if (videoEl) videoEl.currentTime = startSec; }, { once: true });
 				videoEl.src = playURL; videoEl.playbackRate = playbackRate; videoEl.volume = volume; videoEl.muted = muted;
 				await videoEl.play().catch(() => {});
@@ -491,11 +481,11 @@
 			}
 			if (!ffmpegAvailable) throw new Error('ffmpeg is not installed for transcoding');
 			if (keepLive) reseekingHls = true;
-			const hlsRes = await ensureStreamHLS(st.id, browserQuality, audioIdx, startSec);
+			const hlsRes = await ensureStreamHLS(st.id, browserQuality, audioIdx, startSec, forceReencode);
 			if (req === loadReqSeq) reseekingHls = false;
 			if (isCancelled() || !session || session.id !== st.id) return;
 			const oldHls = hlsInstance; hlsInstance = null; oldHls?.destroy();
-			switchingSource = false; seekOffset = hlsRes.start_sec; videoTime = 0; videoDuration = 0; bufferedEnd = 0; pipelineMode = 'hls';
+			switchingSource = false; seekOffset = hlsRes.start_sec; videoTime = 0; videoDuration = 0; bufferedEnd = 0; pipelineMode = 'hls'; usingLocalHls = true; usingForceReencode = forceReencode || browserQuality !== 'original'; resetVideoWatchdog(watchdog);
 			hlsInstance = await hlsOpts(to(hlsRes.playlist_url), 0);
 		} catch (e) { if (req === loadReqSeq) handlePlaybackFailure(message(e)); } finally { if (req === loadReqSeq) { loadingMedia = false; reseekingHls = false; } }
 	}
@@ -524,7 +514,7 @@
 		const actualNow = pipelineMode === 'hls' ? seekOffset + videoTime : videoTime;
 		if (Math.abs(t - actualNow) < 0.25 && !videoEl.seeking) { clearStall(); return; }
 		pendingSeekTarget = t;
-		if (pipelineMode === 'direct' || session.transport === 'hls_remote') {
+		if (pipelineMode === 'direct' || (pipelineMode === 'hls' && !usingLocalHls)) {
 			if (!isTimeBuffered(videoEl.buffered, t)) seamlessStatus = 'Seeking...';
 			videoEl.currentTime = t; videoTime = t; return;
 		}
@@ -604,7 +594,7 @@
 		if (pipelineMode !== 'none' && currentPos > 5) await persistProgress(currentPos);
 		destroyVideoPipeline(); stopPolling();
 		if (session) { void stopStream(session.id).catch(() => {}); session = null; }
-		season = nextSeason; drawerSeason = nextSeason; episode = nextEpisode; activeCandidate = null;
+		season = nextSeason; drawerSeason = nextSeason; episode = nextEpisode; activeCandidate = null; userSelectedCurrent = false; freezeRecoveries = 0; resetVideoWatchdog(watchdog);
 		attachedSessionKey = ''; pendingStartSec = 0; seekOffset = 0; videoTime = 0; knownDurationSec = 0; autoSubSessionId = ''; activeSubVtt = ''; syncNote = ''; drawer = 'none'; triedCandKeys.clear(); fallbackNotice = '';
 		await loadSeasonEpisodes(nextSeason);
 		const savedEp = episodeProgressMap[`${nextSeason}:${nextEpisode}`];
@@ -653,6 +643,11 @@
 		void loadInitial();
 		progressTimer = setInterval(() => { if (!paused && pipelineMode !== 'none' && currentPos > 5) void persistProgress(); }, 8000);
 		scrobbleTimer = setInterval(() => { if (!paused && pipelineMode !== 'none' && currentPos > 10) void sendScrobble('start'); }, 60000);
+		watchdogTimer = setInterval(() => {
+			if (!videoEl || pipelineMode === 'none') return;
+			const res = tickVideoWatchdog(watchdog, { nowMs: Date.now(), visible: typeof document === 'undefined' || document.visibilityState === 'visible' || isPiP, paused: videoEl.paused, ended: videoEl.ended, seeking: videoEl.seeking, busy: switchingSource || reseekingHls || loadingMedia || pendingSeekTarget !== null || stalled || starting, readyState: videoEl.readyState, playbackRate: videoEl.playbackRate, currentTime: videoEl.currentTime, videoWidth: videoEl.videoWidth, videoHeight: videoEl.videoHeight, totalFrames: readDecodedVideoFrames(videoEl) });
+			if (res !== 'ok') handleVideoFreeze(res);
+		}, 1000);
 		const onFs = () => { isFullscreen = !!document.fullscreenElement; };
 		const onPip = () => { isPiP = typeof document !== 'undefined' && document.pictureInPictureElement === videoEl; };
 		const onUnload = () => { if (pipelineMode !== 'none' && currentPos > 5) { void persistProgress(currentPos, true); void sendScrobble('stop'); } if (session && !session.mpv_running) void stopStream(session.id).catch(() => {}); };
@@ -664,7 +659,7 @@
 	onDestroy(() => {
 		destroyed = true;
 		if (pipelineMode !== 'none' && currentPos > 5) { void persistProgress(currentPos, true); void sendScrobble('stop'); }
-		clearPlayerTimers([progressTimer, scrobbleTimer, skipTimer, nextTimer], [hudTimer, feedbackTimer, waitingTimer]);
+		clearPlayerTimers([progressTimer, scrobbleTimer, skipTimer, nextTimer, watchdogTimer], [hudTimer, feedbackTimer, waitingTimer]);
 		stopPolling(); destroyVideoPipeline();
 		if (session && !session.mpv_running) void stopStream(session.id).catch(() => {});
 	});
@@ -693,7 +688,7 @@
 		onpause={() => { paused = true; clearStall(); wakeHud(); }}
 		onloadedmetadata={syncVideoDuration}
 		ondurationchange={syncVideoDuration}
-		onloadeddata={() => { if (!switchingSource && pipelineMode === 'direct' && videoEl && videoEl.videoWidth === 0 && ffmpegAvailable && session) { void attachPlayback(currentPos, true, true, 'Transcoding video...'); } }}
+		onloadeddata={() => { if (!switchingSource && pipelineMode !== 'none' && videoEl && videoEl.videoWidth === 0 && session) handleVideoFreeze('no_video'); }}
 		onended={() => { if (!shouldAcceptEnded({ switchingSource, seamlessStatus, pipelineMode, currentPos, totalDuration })) return; paused = true; void persistProgress(totalDuration, false, true); void sendScrobble('stop'); if (nextEpisodeTarget) void switchEpisode(nextEpisodeTarget.season, nextEpisodeTarget.episode, true); }}
 		onerror={() => { if (switchingSource || pipelineMode === 'none' || !session) return; handlePlaybackFailure('Playback error', pipelineMode === 'direct'); }}
 	></video>
@@ -749,7 +744,7 @@
 		open={drawer === 'sources'} bind:queryText bind:sourceTab bind:resFilter preferredQuality={prefQuality} {searching} {loadingMoreSources} {searchError} {fallbackNotice} {candidates} {counts}
 		activeCandidateKey={activeCandidate ? candidateKey(activeCandidate) : ''} {session} {mpvAvailable}
 		onClose={() => { drawer = 'none'; }} onSearch={() => void runSearch(true)}
-		onStartCandidate={(c, m) => { const pos = pipelineMode !== 'none' && currentPos > 10 ? currentPos : 0; autoFallbacks = 0; drawer = 'none'; void startCandidate(c, m, pos, true); }}
+		onStartCandidate={(c, m) => { const pos = pipelineMode !== 'none' && currentPos > 10 ? currentPos : 0; autoFallbacks = 0; drawer = 'none'; void startCandidate(c, m, pos, true, true); }}
 		onSelectFile={(idx) => { if (session) void selectStreamFile(session.id, idx).then((s) => { session = s; attachedSessionKey = ''; }); }}
 		onToggleKeep={() => { if (session) void setStreamKeep(session.id, !session.keep_file).then((s) => { session = s; }); }}
 	/>

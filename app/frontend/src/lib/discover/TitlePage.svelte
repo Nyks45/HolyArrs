@@ -256,7 +256,7 @@
 		if (!details?.name || (kind !== 'movie' && kind !== 'show')) return;
 		const ss = kind === 'show' ? (resumeTarget?.season ?? seasons.find((s) => s.number > 0)?.number ?? 1) : 0;
 		const ee = kind === 'show' ? (resumeTarget?.episode ?? 1) : 0;
-		const req = { query: details.name, kind: kind as 'movie' | 'show', year: details.year || 0, season: ss, episode: ee, imdb: details.imdb ?? showExt?.imdb ?? '', tmdb: Number(tmdb) || 0, original_title: details.original_title, genres: details.genres, original_language: details.original_language, origin_country: details.origin_country };
+		const req = { query: details.name, kind: kind as 'movie' | 'show', year: details.year || 0, season: ss, episode: ee, imdb: details.imdb ?? showExt?.imdb ?? '', tmdb: Number(tmdb) || 0, original_title: details.original_title, genres: details.genres, original_language: details.original_language, origin_country: details.origin_country, runtime_min: details.runtime || 0 };
 		const timer = setTimeout(() => prefetchStreamSources(req), 500);
 		return () => clearTimeout(timer);
 	});

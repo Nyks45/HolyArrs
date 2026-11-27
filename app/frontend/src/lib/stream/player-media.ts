@@ -16,6 +16,7 @@ import {
 	type WatchEntry
 } from './stream-api.ts';
 import { getSkipSegments, postScrobble, type SkipSegment, type SubStylePrefs } from './streaming-config-api.ts';
+import { durationMismatchTier } from './video-watchdog.ts';
 import { parseWebVTT, type VTTCue } from './vtt.ts';
 
 export interface SeasonEp {
@@ -134,10 +135,13 @@ export function selectAutoPlayCandidate(
 ): StreamCandidate | null {
 	const ranked = sortCandidatesForQuality(cands, preferredQuality);
 	const top = ranked[0];
-	if (!top) return null;
+	if (!top || durationMismatchTier(top) === 2) {
+		if (!allowTorrent) return null;
+		return ranked.find((c) => durationMismatchTier(c) < 2 && (sourceClass(c) > 0 || c.seeders > 0)) ?? null;
+	}
 	if (sourceClass(top) > 0) return top;
 	if (!allowTorrent) return null;
-	return ranked.find((c) => sourceClass(c) > 0 || c.seeders > 0) ?? top;
+	return ranked.find((c) => durationMismatchTier(c) < 2 && (sourceClass(c) > 0 || c.seeders > 0)) ?? top;
 }
 
 export function sortCandidatesForQuality(
@@ -145,9 +149,12 @@ export function sortCandidatesForQuality(
 	resFilter: 'all' | '2160p' | '1080p' | '720p' | 'sd' = 'all'
 ): StreamCandidate[] {
 	return [...cands].sort((a, b) => {
-		const ca = sourceClass(a);
-		const cb = sourceClass(b);
+		const ma = durationMismatchTier(a);
+		const mb = durationMismatchTier(b);
+		const ca = ma === 2 ? -1 : sourceClass(a);
+		const cb = mb === 2 ? -1 : sourceClass(b);
 		if (ca !== cb) return cb - ca;
+		if (ma !== mb) return ma - mb;
 
 		const aMatch = matchesQualityFilter(a, resFilter) ? 1 : 0;
 		const bMatch = matchesQualityFilter(b, resFilter) ? 1 : 0;
@@ -246,6 +253,7 @@ export async function attachHlsMedia(opts: {
 	muted: boolean;
 	isCancelled: () => boolean;
 	onFatalError: (details: string) => void;
+	onVideoCodecError?: (details: string) => void;
 	onRecovering?: (status: string) => void;
 	onStarted: () => void;
 	onLevelsLoaded?: (levels: HlsQualityLevel[]) => void;
@@ -288,7 +296,13 @@ export async function attachHlsMedia(opts: {
 			netRecoveries = 0;
 		});
 		hls.on(Hls.Events.ERROR, (_ev, data) => {
-			if (opts.isCancelled() || !data.fatal) return;
+			if (opts.isCancelled()) return;
+			const det = String(data.details || '');
+			if (det === Hls.ErrorDetails.BUFFER_ADD_CODEC_ERROR || det === 'bufferAddCodecError') {
+				opts.onVideoCodecError?.(det);
+				return;
+			}
+			if (!data.fatal) return;
 			if (data.type === Hls.ErrorTypes.MEDIA_ERROR && mediaRecoveries < 3) {
 				mediaRecoveries++;
 				if (mediaRecoveries === 2) hls.swapAudioCodec();
@@ -553,6 +567,7 @@ export function buildSearchReq(args: {
 	tmdb: number;
 	details: TitleDetails | null;
 	preferredQuality?: string;
+	runtimeMin?: number;
 }): StreamSearchReq {
 	return {
 		query: args.query,
@@ -566,7 +581,8 @@ export function buildSearchReq(args: {
 		genres: args.details?.genres,
 		original_language: args.details?.original_language,
 		origin_country: args.details?.origin_country,
-		preferred_quality: args.preferredQuality || ''
+		preferred_quality: args.preferredQuality || '',
+		runtime_min: args.runtimeMin || 0
 	};
 }
 

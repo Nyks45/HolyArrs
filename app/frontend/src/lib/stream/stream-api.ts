@@ -32,6 +32,7 @@ export interface StreamSearchReq {
 	mode?: 'fast' | 'full';
 	no_cache?: boolean;
 	preferred_quality?: string;
+	runtime_min?: number;
 	source_ids?: number[];
 	local_only?: boolean;
 }
@@ -45,6 +46,8 @@ export interface StreamCandidate {
 	fast_start?: boolean;
 	probe_ms?: number;
 	verified?: boolean;
+	duration_sec?: number;
+	duration_mismatch?: 'warn' | 'severe';
 	provider?: string;
 	provider_type?: string;
 	release_name?: string;
@@ -323,11 +326,12 @@ export function selectStreamFile(id: string, fileIndex: number): Promise<Session
 	return api.post<SessionStatus>(`/stream/${encodeURIComponent(id)}/file`, { file_index: fileIndex });
 }
 
-export function ensureStreamHLS(id: string, quality: string, audioIndex: number, startSec: number): Promise<HLSResponse> {
+export function ensureStreamHLS(id: string, quality: string, audioIndex: number, startSec: number, reencode = false): Promise<HLSResponse> {
 	return api.post<HLSResponse>(`/stream/${encodeURIComponent(id)}/hls`, {
 		quality,
 		audio_index: audioIndex,
-		start_sec: startSec
+		start_sec: startSec,
+		reencode
 	});
 }
 

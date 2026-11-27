@@ -244,6 +244,9 @@ func VerifyCandidate(c UnifiedCandidate, mc SearchMatchContext) bool {
 			return false
 		}
 	}
+	if mc.Kind == "show" && mc.Season > 0 && mc.Episode > 0 && (c.ProviderType == "nuvio" || c.ProviderType == "stremio") && isMovieRefererForShow(c.Headers) {
+		return false
+	}
 	if strings.TrimSpace(mc.Title) == "" && strings.TrimSpace(mc.OriginalTitle) == "" {
 		return true
 	}
@@ -293,6 +296,27 @@ func VerifyCandidate(c UnifiedCandidate, mc SearchMatchContext) bool {
 		}
 	}
 	return true
+}
+
+var reRefererShowParams = regexp.MustCompile(`(?i)detail(?:se|ep)=[0-9]`)
+
+func isMovieRefererForShow(headers map[string]string) bool {
+	for k, v := range headers {
+		if !strings.EqualFold(k, "Referer") {
+			continue
+		}
+		low := strings.ToLower(strings.TrimSpace(v))
+		if low == "" {
+			continue
+		}
+		hasMovieMarker := strings.Contains(low, "/movies/detail/") ||
+			strings.Contains(low, "type=%2fmovie%2fdetail") ||
+			strings.Contains(low, "type=/movie/detail")
+		if hasMovieMarker && !reRefererShowParams.MatchString(low) {
+			return true
+		}
+	}
+	return false
 }
 
 func extractActualReleaseStrings(c UnifiedCandidate) ([]string, bool) {

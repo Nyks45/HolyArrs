@@ -2,6 +2,7 @@
 	import Icon from '#lib/ui/Icon.svelte';
 	import { bytes } from '#lib/core/format.ts';
 	import { candidateKey, matchesQualityFilter, sortCandidatesForQuality } from './player-media.ts';
+	import { formatShortDuration } from './video-watchdog.ts';
 	import type { SessionStatus, StreamCandidate } from './stream-api.ts';
 
 	let {
@@ -148,6 +149,11 @@
 									<span class="tag kind-{b.cls}">{b.text}</span>
 									<span class="tag src">{c.provider || c.source_name}</span>
 									{#if c.quality || c.resolution}<span class="tag res">{c.quality || c.resolution}</span>{/if}
+									{#if (c.duration_sec ?? 0) > 0}
+										<span class="tag {c.duration_mismatch === 'severe' ? 'dur-bad' : c.duration_mismatch === 'warn' ? 'dur-warn' : 'dur'}">
+											{formatShortDuration(c.duration_sec!)}{c.duration_mismatch === 'severe' ? ' · Wrong length' : c.duration_mismatch === 'warn' ? ' · Length diff' : ''}
+										</span>
+									{/if}
 									{#if c.probe_ms}<span class="tag ms">{c.probe_ms}ms</span>{/if}
 									{#if c.hdr}<span class="tag hdr">{c.hdr}</span>{/if}
 									{#if c.size > 0}<span>{bytes(c.size)}</span>{/if}
@@ -195,6 +201,9 @@
 	.tag.kind-instant { background: rgb(56 189 248 / 26%); color: #bae6fd; }
 	.tag.kind-torrent { background: rgb(245 158 11 / 22%); color: #fde68a; }
 	.tag.res { background: rgb(34 197 94 / 22%); }
+	.tag.dur { background: rgb(255 255 255 / 10%); color: rgb(255 255 255 / 84%); }
+	.tag.dur-warn { background: rgb(245 158 11 / 24%); color: #fde68a; }
+	.tag.dur-bad { background: rgb(239 68 68 / 28%); color: #fca5a5; }
 	.tag.ms { background: rgb(34 197 94 / 16%); color: #86efac; }
 	.tag.hdr { background: rgb(245 158 11 / 22%); }
 	.wp-cand-acts { display: flex; gap: 5px; flex: none; }

@@ -259,6 +259,23 @@ describe('selectAutoPlayCandidate', () => {
 		];
 		expect(selectAutoPlayCandidate(torrentOnly, '1080p', false)).toBeNull();
 		expect(selectAutoPlayCandidate(torrentOnly, '1080p', true)?.id).toBe('1080-tor');
+
+		const mismatchedInstant = [
+			cand({ id: 'fake-netmirror', kind: 'hls', instant: true, resolution: '1080p', resolution_num: 1080, probe_ms: 80, fast_start: true, duration_sec: 599.7, duration_mismatch: 'severe' }),
+			cand({ id: 'warn-ep', kind: 'hls', instant: true, resolution: '1080p', resolution_num: 1080, probe_ms: 150, fast_start: true, duration_sec: 1800, duration_mismatch: 'warn' }),
+			cand({ id: 'good-ep-480', kind: 'hls', instant: true, resolution: '480p', resolution_num: 480, probe_ms: 350, fast_start: true, duration_sec: 2561 }),
+			cand({ id: 'tor-1080', kind: 'torrent', instant: false, resolution: '1080p', resolution_num: 1080, seeders: 100 })
+		];
+		expect(sortCandidatesForQuality(mismatchedInstant, '1080p').map((c) => c.id)).toEqual([
+			'good-ep-480',
+			'warn-ep',
+			'tor-1080',
+			'fake-netmirror'
+		]);
+		expect(selectAutoPlayCandidate([mismatchedInstant[0]], '1080p', false)).toBeNull();
+		expect(selectAutoPlayCandidate([mismatchedInstant[0]], '1080p', true)).toBeNull();
+		expect(selectAutoPlayCandidate([mismatchedInstant[0], mismatchedInstant[3]], '1080p', false)).toBeNull();
+		expect(selectAutoPlayCandidate([mismatchedInstant[0], mismatchedInstant[3]], '1080p', true)?.id).toBe('tor-1080');
 	});
 });
 

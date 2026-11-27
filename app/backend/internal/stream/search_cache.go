@@ -312,7 +312,7 @@ func PreflightAndMeasureCandidates(ctx context.Context, pm *ProxyManager, cands 
 			pk := normProviderKey(fallbackString(c.Provider, c.SourceName))
 			ic, icCancel := context.WithTimeout(pctx, 3800*time.Millisecond)
 			t0 := time.Now()
-			ct, isHLS, err := pm.Preflight(ic, c.StreamURL, c.Headers)
+			pr, err := pm.PreflightDetailed(ic, c.StreamURL, c.Headers)
 			elapsed := time.Since(t0)
 			icCancel()
 
@@ -332,12 +332,18 @@ func PreflightAndMeasureCandidates(ctx context.Context, pm *ProxyManager, cands 
 			}
 			c.ProbeMS = ms
 			c.Verified = true
-			if isHLS || c.Kind == "hls" || looksLikeHLSURL(c.StreamURL) {
+			if pr.DurationSec > 0 {
+				c.DurationSec = pr.DurationSec
+			}
+			if c.Size == 0 && pr.TotalSize > 0 {
+				c.Size = pr.TotalSize
+			}
+			if pr.IsHLS || c.Kind == "hls" || looksLikeHLSURL(c.StreamURL) {
 				c.Kind = "hls"
 				c.FastStart = true
 			} else {
 				metaText := strings.TrimSpace(c.ReleaseName + " " + c.Title + " " + c.Filename)
-				c.FastStart = !looksIncompatibleForDirectPlay(metaText, c.StreamURL, ct)
+				c.FastStart = !looksIncompatibleForDirectPlay(metaText, c.StreamURL, pr.ContentType)
 			}
 			mu.Lock()
 			deduped[i] = c

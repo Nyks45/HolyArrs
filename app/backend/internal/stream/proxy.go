@@ -151,49 +151,71 @@ func (p *ProxyManager) LookupTarget(token string) (string, map[string]string, bo
 // Preflight checks that a remote stream URL (plus any master->variant->segment HLS chain)
 // returns playable non-HTML media using the stored request headers before starting a session.
 func (p *ProxyManager) Preflight(ctx context.Context, targetURL string, storedHeaders map[string]string) (contentType string, isHLS bool, err error) {
+	pr, err := p.PreflightDetailed(ctx, targetURL, storedHeaders)
+	return pr.ContentType, pr.IsHLS, err
+}
+
+// PreflightDetailed inspects remote stream headers, disguised container magic bytes,
+// HLS variant chains, and stream duration without downloading the full asset.
+func (p *ProxyManager) PreflightDetailed(ctx context.Context, targetURL string, storedHeaders map[string]string) (PreflightResult, error) {
+	var res PreflightResult
 	if p == nil {
-		return "", false, errors.New("stream proxy unavailable")
+		return res, errors.New("stream proxy unavailable")
 	}
 	cctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(cctx, http.MethodGet, targetURL, nil)
 	if err != nil {
-		return "", false, errors.New("invalid stream URL")
+		return res, errors.New("invalid stream URL")
 	}
 	var reqHdr http.Header
 	if !looksLikeHLSURL(targetURL) {
-		reqHdr = http.Header{"Range": []string{"bytes=0-1023"}}
+		reqHdr = http.Header{"Range": []string{"bytes=0-16383"}}
 	}
 	applyProxyHeaders(req, storedHeaders, reqHdr)
 
 	resp, err := p.hls.Do(req)
 	if err != nil {
-		return "", false, fmt.Errorf("source unreachable: %w", err)
+		return res, fmt.Errorf("source unreachable: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", false, fmt.Errorf("source link unavailable (HTTP %d)", resp.StatusCode)
+		return res, fmt.Errorf("source link unavailable (HTTP %d)", resp.StatusCode)
 	}
 	ct := strings.ToLower(strings.TrimSpace(resp.Header.Get("Content-Type")))
-	peek, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-	isPlaylist := strings.Contains(ct, "mpegurl") || bytes.Contains(peek, []byte("#EXTM3U"))
+	res.ContentType = ct
+	peek, _ := io.ReadAll(io.LimitReader(resp.Body, 16384))
+	headSample := peek[:min(512, len(peek))]
+	isPlaylist := strings.Contains(ct, "mpegurl") || bytes.Contains(headSample, []byte("#EXTM3U"))
 	if isPlaylist {
-		rest, _ := io.ReadAll(io.LimitReader(resp.Body, 65536))
+		const maxList = 1 << 20
+		rest, _ := io.ReadAll(io.LimitReader(resp.Body, maxList))
 		body := string(append(peek, rest...))
 		if !strings.Contains(body, "#EXTM3U") {
-			return ct, false, errors.New("source returned an invalid playlist")
+			return res, errors.New("source returned an invalid playlist")
 		}
-		if err := p.preflightHLSChain(cctx, resp.Request.URL, body, storedHeaders); err != nil {
-			return ct, false, err
+		durSec, err := p.preflightHLSChain(cctx, resp.Request.URL, body, len(rest) == maxList, storedHeaders)
+		if err != nil {
+			return res, err
 		}
-		return ct, true, nil
+		res.IsHLS = true
+		res.DurationSec = durSec
+		return res, nil
 	}
-	if looksDisallowedMediaBody(ct, peek) {
-		return ct, false, errors.New("source returned a web page instead of a playable stream")
+	if looksDisallowedMediaBody(ct, headSample) {
+		return res, errors.New("source returned a web page instead of a playable stream")
 	}
-	return ct, false, nil
+	ct = detectDisguisedContainer(ct, peek)
+	res.ContentType = ct
+	res.TotalSize = parseContentRangeTotal(resp.StatusCode, resp.Header.Get("Content-Range"), resp.Header.Get("Content-Length"))
+	if strings.Contains(ct, "matroska") || strings.Contains(ct, "webm") {
+		res.DurationSec = parseEBMLDuration(peek)
+	} else if len(peek) >= 8 && string(peek[4:8]) == "ftyp" {
+		res.DurationSec = parseMP4Duration(peek)
+	}
+	return res, nil
 }
 
 func looksDisallowedMediaBody(ct string, peek []byte) bool {
@@ -230,64 +252,68 @@ func resolveRelativeHLSURL(base *url.URL, raw string) string {
 	return abs.String()
 }
 
-func (p *ProxyManager) preflightHLSChain(ctx context.Context, baseURL *url.URL, playlist string, storedHeaders map[string]string) error {
+func (p *ProxyManager) preflightHLSChain(ctx context.Context, baseURL *url.URL, playlist string, truncated bool, storedHeaders map[string]string) (float64, error) {
 	mediaBody := playlist
 	mediaBase := baseURL
+	mediaTruncated := truncated
 	if strings.Contains(playlist, "#EXT-X-STREAM-INF") {
 		subLine := firstHLSDataLine(playlist)
 		if subLine == "" {
-			return errors.New("master playlist contains no variants")
+			return 0, errors.New("master playlist contains no variants")
 		}
 		subURL := resolveRelativeHLSURL(baseURL, subLine)
 		if subURL == "" {
-			return errors.New("invalid variant playlist URL")
+			return 0, errors.New("invalid variant playlist URL")
 		}
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, subURL, nil)
 		if err != nil {
-			return errors.New("invalid variant playlist URL")
+			return 0, errors.New("invalid variant playlist URL")
 		}
 		applyProxyHeaders(req, storedHeaders, nil)
 		resp, err := p.hls.Do(req)
 		if err != nil {
-			return fmt.Errorf("variant playlist unreachable: %w", err)
+			return 0, fmt.Errorf("variant playlist unreachable: %w", err)
 		}
 		ct := strings.ToLower(strings.TrimSpace(resp.Header.Get("Content-Type")))
-		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 65536))
+		const maxList = 1 << 20
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, maxList))
 		resp.Body.Close()
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 || !bytes.Contains(raw, []byte("#EXTM3U")) || looksDisallowedMediaBody(ct, raw[:min(256, len(raw))]) {
-			return errors.New("source variant returned a web page instead of a playable stream")
+			return 0, errors.New("source variant returned a web page instead of a playable stream")
 		}
 		mediaBody = string(raw)
 		mediaBase = resp.Request.URL
+		mediaTruncated = len(raw) == maxList
 	}
 
+	durSec := parseHLSPlaylistDuration(mediaBody, mediaTruncated)
 	segLine := firstHLSDataLine(mediaBody)
 	if segLine == "" {
-		return nil
+		return durSec, nil
 	}
 	segURL := resolveRelativeHLSURL(mediaBase, segLine)
 	if segURL == "" {
-		return nil
+		return durSec, nil
 	}
 	sreq, err := http.NewRequestWithContext(ctx, http.MethodGet, segURL, nil)
 	if err != nil {
-		return errors.New("invalid segment URL")
+		return 0, errors.New("invalid segment URL")
 	}
 	applyProxyHeaders(sreq, storedHeaders, http.Header{"Range": []string{"bytes=0-1023"}})
 	sresp, err := p.hls.Do(sreq)
 	if err != nil {
-		return fmt.Errorf("media segment unreachable: %w", err)
+		return 0, fmt.Errorf("media segment unreachable: %w", err)
 	}
 	defer sresp.Body.Close()
 	if sresp.StatusCode < 200 || sresp.StatusCode >= 300 {
-		return fmt.Errorf("media segment unavailable (HTTP %d)", sresp.StatusCode)
+		return 0, fmt.Errorf("media segment unavailable (HTTP %d)", sresp.StatusCode)
 	}
 	sct := strings.ToLower(strings.TrimSpace(sresp.Header.Get("Content-Type")))
 	speek, _ := io.ReadAll(io.LimitReader(sresp.Body, 1024))
 	if looksDisallowedMediaBody(sct, speek) {
-		return errors.New("source segment returned a web page instead of media")
+		return 0, errors.New("source segment returned a web page instead of media")
 	}
-	return nil
+	return durSec, nil
 }
 
 // ServeProxy streams the primary proxied URL (rewriting .m3u8 manifests automatically).
@@ -391,13 +417,35 @@ func (p *ProxyManager) proxyUpstream(w http.ResponseWriter, r *http.Request, tok
 	}
 
 	if isHLSChild && method == http.MethodGet && resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		peek := make([]byte, 2048)
+		peek := make([]byte, 8192)
 		n, rerr := io.ReadFull(resp.Body, peek)
 		if rerr != nil && !errors.Is(rerr, io.ErrUnexpectedEOF) && !errors.Is(rerr, io.EOF) {
 			webserver.Fail(w, http.StatusBadGateway, "upstream stream read failed")
 			return
 		}
 		peek = peek[:n]
+		if bytes.HasPrefix(bytes.TrimSpace(peek), []byte("#EXTM3U")) {
+			const maxManifest = 4 << 20
+			body := peek
+			if rerr == nil {
+				rest, rErr := io.ReadAll(io.LimitReader(resp.Body, int64(maxManifest-len(peek)+1)))
+				if rErr != nil {
+					webserver.Fail(w, http.StatusBadGateway, "failed to read HLS manifest")
+					return
+				}
+				body = append(body, rest...)
+			}
+			if len(body) > maxManifest {
+				webserver.Fail(w, http.StatusBadGateway, "HLS manifest exceeds limit")
+				return
+			}
+			rewritten := rewriteHLSManifest(string(body), resp.Request.URL, tok)
+			w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
+			w.Header().Set("Cache-Control", "no-store")
+			w.WriteHeader(resp.StatusCode)
+			_, _ = io.WriteString(w, rewritten)
+			return
+		}
 		if off := disguisedTSOffset(ct, peek); off >= 0 && (off > 0 || strings.HasPrefix(ct, "image/")) {
 			copyUpstreamHeaders(w.Header(), resp.Header)
 			w.Header().Set("Content-Type", "video/mp2t")

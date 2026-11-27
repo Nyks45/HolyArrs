@@ -359,6 +359,10 @@ export function saveWatchProgress(entry: WatchEntry, keepalive = false): Promise
 	return api.request<WatchEntry>('/stream/history', { method: 'PUT', body: entry, keepalive });
 }
 
+export function batchWatchHistory(req: { upserts?: WatchEntry[]; delete_keys?: string[] }): Promise<{ updated: WatchEntry[]; deleted: number }> {
+	return api.post<{ updated: WatchEntry[]; deleted: number }>('/stream/history/batch', req);
+}
+
 export function deleteWatchHistory(key: string): Promise<void> {
 	return api.del(`/stream/history/${encodeURIComponent(key)}`);
 }

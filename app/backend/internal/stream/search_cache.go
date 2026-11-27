@@ -36,13 +36,20 @@ func NewSearchCache() *SearchCache {
 
 // SearchCacheKey builds a normalized cache lookup key for a title/episode/mode query.
 func SearchCacheKey(kind, tmdb, imdb string, season, episode int, query, mode string) string {
+	k := strings.ToLower(strings.TrimSpace(kind))
+	t := strings.TrimSpace(tmdb)
+	m := strings.ToLower(strings.TrimSpace(mode))
+	ep := fmt.Sprintf("%d:%d", season, episode)
+	if t != "" {
+		return strings.Join([]string{k, "tmdb:" + t, ep, m}, "|")
+	}
 	return strings.Join([]string{
-		strings.ToLower(strings.TrimSpace(kind)),
-		strings.TrimSpace(tmdb),
+		k,
+		"",
 		strings.ToLower(strings.TrimSpace(imdb)),
-		fmt.Sprintf("%d:%d", season, episode),
+		ep,
 		strings.ToLower(strings.TrimSpace(query)),
-		strings.ToLower(strings.TrimSpace(mode)),
+		m,
 	}, "|")
 }
 

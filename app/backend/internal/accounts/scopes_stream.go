@@ -13,6 +13,7 @@ func init() {
 		"GET /api/v1/stream/history",
 		"GET /api/v1/stream/history/title/{kind}/{tmdb}",
 		"PUT /api/v1/stream/history",
+		"POST /api/v1/stream/history/batch",
 		"DELETE /api/v1/stream/history/{key}",
 		"POST /api/v1/stream/subtitles/search",
 		"POST /api/v1/stream/subtitles/fetch",

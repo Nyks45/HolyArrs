@@ -406,3 +406,30 @@ func (h *Handlers) applyPresets(w http.ResponseWriter, r *http.Request) {
 	h.invalidateSearchCache()
 	webserver.WriteJSON(w, http.StatusOK, res)
 }
+
+func (h *Handlers) batchHistory(w http.ResponseWriter, r *http.Request) {
+	if h.Mgr.History == nil {
+		webserver.Fail(w, http.StatusServiceUnavailable, "watch history is unavailable")
+		return
+	}
+	var in struct {
+		Upserts    []WatchEntry `json:"upserts"`
+		DeleteKeys []string     `json:"delete_keys"`
+	}
+	if !webserver.Decode(w, r, &in, "send {upserts, delete_keys}") {
+		return
+	}
+	if len(in.Upserts) == 0 && len(in.DeleteKeys) == 0 {
+		webserver.Fail(w, http.StatusBadRequest, "send {upserts, delete_keys}")
+		return
+	}
+	updated, err := h.Mgr.History.BatchUpdate(callerID(r), in.Upserts, in.DeleteKeys)
+	if err != nil {
+		webserver.Fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	webserver.WriteJSON(w, http.StatusOK, map[string]any{
+		"updated": updated,
+		"deleted": len(in.DeleteKeys),
+	})
+}

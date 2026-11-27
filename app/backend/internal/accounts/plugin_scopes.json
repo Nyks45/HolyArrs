@@ -658,6 +658,7 @@
   "POST /api/v1/stages/{name}/pause",
   "POST /api/v1/stages/{name}/restart",
   "POST /api/v1/stages/{name}/resume",
+  "POST /api/v1/stream/history/batch",
   "POST /api/v1/stream/search",
   "POST /api/v1/stream/start",
   "POST /api/v1/stream/subtitles/autosync",

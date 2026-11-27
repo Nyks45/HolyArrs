@@ -23,7 +23,7 @@ export function createExploreBanner(ctx: {
 	const bannerNorm = (n: string) => n.toLowerCase().replace(/\s*&\s*/g, ' & ');
 	/** The household's favourite genre: the most common among Library titles (asked for ones included). */
 	const favourite = $derived.by(() => {
-		if (ctx.type === 'music') return null;
+		if (ctx.type === 'music' || ctx.type === 'anime') return null;
 		const tally = new Map<string, { n: number; kind: 'movies' | 'shows'; id: number; name: string }>();
 		for (const t of ctx.titles) {
 			const k = t.kind === 'movie' ? 'movies' : t.kind === 'show' ? 'shows' : null;
@@ -123,7 +123,7 @@ export function createExploreBanner(ctx: {
 			() => {}
 		).finally(() => musicPicksFor === slug && (musicPicksPending = false));
 	});
-	const bannerOn = $derived(bannerLayout > 0 && !ctx.genreOn && ctx.type !== 'music' && !!favourite && bannerPicks.length >= 5);
+	const bannerOn = $derived(bannerLayout > 0 && !ctx.genreOn && ctx.type !== 'music' && ctx.type !== 'anime' && !!favourite && bannerPicks.length >= 5);
 
 	return {
 		get musicBannerHold() {

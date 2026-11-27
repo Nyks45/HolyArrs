@@ -13,11 +13,40 @@
 		listWatchHistory,
 		type WatchEntry
 	} from './stream-api.ts';
+	import { prefetchStreamSources } from './player-media.ts';
 
-	let { from = '/' }: { from?: string } = $props();
+	let { from = '/', kind = '' }: { from?: string; kind?: 'movie' | 'show' | '' } = $props();
 
 	let items = $state<WatchEntry[]>([]);
 	let loaded = $state(false);
+	let hoverPrefetchTimer: ReturnType<typeof setTimeout> | null = null;
+
+	const visibleItems = $derived(kind ? items.filter((e) => e.kind === kind) : items);
+
+	function clearHoverPrefetch() {
+		if (hoverPrefetchTimer) {
+			clearTimeout(hoverPrefetchTimer);
+			hoverPrefetchTimer = null;
+		}
+	}
+
+	function scheduleHoverPrefetch(entry: WatchEntry) {
+		const tmdb = Number(entry.tmdb) || 0;
+		if (!tmdb && !entry.imdb && !entry.title) return;
+		clearHoverPrefetch();
+		hoverPrefetchTimer = setTimeout(() => {
+			hoverPrefetchTimer = null;
+			prefetchStreamSources({
+				query: entry.title,
+				kind: entry.kind,
+				year: entry.year || 0,
+				imdb: entry.imdb ?? '',
+				tmdb,
+				season: entry.kind === 'show' ? (entry.season || 1) : 0,
+				episode: entry.kind === 'show' ? (entry.episode || 1) : 0
+			});
+		}, 350);
+	}
 
 	function watchHref(e: WatchEntry): string {
 		const base = `/watch/${e.kind}/${encodeURIComponent(e.tmdb)}`;
@@ -48,15 +77,20 @@
 			.catch(() => {
 				loaded = true;
 			});
+		return () => clearHoverPrefetch();
 	});
 </script>
 
-{#if loaded && items.length > 0}
+{#if loaded && visibleItems.length > 0}
 	<div class="cw-row" data-testid="continue-watching">
 		<Shelf title="Continue Watching" href={to('/watch/history')} item="var(--title-item, 270px)">
-			{#each items as entry (entry.key ?? `${entry.kind}:${entry.tmdb}`)}
+			{#each visibleItems as entry (entry.key ?? `${entry.kind}:${entry.tmdb}`)}
 				{@const art = entry.backdrop || entry.poster}
-				<article class="cw-card">
+				<article
+					class="cw-card"
+					onmouseenter={() => scheduleHoverPrefetch(entry)}
+					onmouseleave={clearHoverPrefetch}
+				>
 					<a class="cw-media" href={watchHref(entry)}>
 						{#if art}
 							<img src={sized(art, 'backdrop', 480)} alt="" loading="lazy" decoding="async" />

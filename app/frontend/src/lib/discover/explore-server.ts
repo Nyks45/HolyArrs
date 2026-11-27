@@ -83,7 +83,7 @@ export function serverRow(r: ServerRow): ExploreRow & { wide: boolean; type: str
 }
 
 function headParams(q: HeadQuery): URLSearchParams {
-	const p = new URLSearchParams({ type: q.type === 'music' ? 'all' : q.type });
+	const p = new URLSearchParams({ type: q.type === 'music' || q.type === 'anime' ? 'all' : q.type });
 	if (q.tz) p.set('tz', q.tz);
 	return p;
 }

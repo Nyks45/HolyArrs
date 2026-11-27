@@ -8,14 +8,33 @@
 
 	let shelves = $state<AddonCatalogShelf[]>([]);
 
-	const filterKind = $derived(type === 'movie' ? 'movie' : type === 'show' ? 'show' : '');
+	const filterKind = $derived(
+		type === 'movies' || type === 'movie'
+			? 'movie'
+			: type === 'shows' || type === 'show'
+				? 'show'
+				: type === 'anime'
+					? 'anime'
+					: ''
+	);
+
+	function isAnimeShelf(shelf: AddonCatalogShelf): boolean {
+		if (shelf.type.trim().toLowerCase() === 'anime') return true;
+		return /anime|kitsu|anilist|myanimelist/i.test(`${shelf.addon_id} ${shelf.addon_name} ${shelf.catalog_id} ${shelf.name}`);
+	}
 
 	$effect(() => {
+		if (type === 'music') {
+			shelves = [];
+			return;
+		}
 		const k = filterKind;
 		let alive = true;
 		listAddonCatalogs(k).then(
 			(res) => {
-				if (alive) shelves = res.shelves ?? [];
+				if (!alive) return;
+				const raw = res.shelves ?? [];
+				shelves = k === 'anime' ? raw.filter(isAnimeShelf) : raw.filter((s) => !isAnimeShelf(s));
 			},
 			() => {
 				if (alive) shelves = [];

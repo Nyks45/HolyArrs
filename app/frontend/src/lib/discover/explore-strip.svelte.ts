@@ -8,7 +8,7 @@ export function createExploreStrip(ctx: any) {
 	let strip = $state<(BrowseTile & { section: string })[]>([]);
 	let stripFor = '';
 	async function loadStrip(t: ExploreType) {
-		if (t === 'music' || stripFor === t) return;
+		if (t === 'music' || t === 'anime' || stripFor === t) return;
 		stripFor = t;
 		strip = [];
 		try {
@@ -23,7 +23,7 @@ export function createExploreStrip(ctx: any) {
 	}
 	$effect(() => {
 		const t = ctx.type;
-		if (!ctx.headLoaded || ctx.genreOn || t === 'music') return;
+		if (!ctx.headLoaded || ctx.genreOn || t === 'music' || t === 'anime') return;
 		const id = setTimeout(() => void loadStrip(t), 200);
 		return () => clearTimeout(id);
 	});

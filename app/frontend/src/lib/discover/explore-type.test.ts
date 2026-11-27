@@ -34,6 +34,7 @@ describe('parseType', () => {
 	it('reads known types and falls back to All', () => {
 		expect(parseType('movies')).toBe('movies');
 		expect(parseType('shows')).toBe('shows');
+		expect(parseType('anime')).toBe('anime');
 		expect(parseType(null)).toBe('all');
 		expect(parseType('films')).toBe('all');
 	});
@@ -42,13 +43,14 @@ describe('parseType', () => {
 		expect(parseType('music', false)).toBe('all');
 	});
 	it('maps types to card kinds', () => {
-		expect([typeKindOf('all'), typeKindOf('movies'), typeKindOf('shows'), typeKindOf('music')]).toEqual([null, 'movie', 'show', 'artist']);
+		expect([typeKindOf('all'), typeKindOf('movies'), typeKindOf('shows'), typeKindOf('anime'), typeKindOf('music')]).toEqual([null, 'movie', 'show', null, 'artist']);
 	});
 });
 
 describe('typeHref', () => {
-	it('leaves links alone for All', () => {
+	it('leaves links alone for All and Anime', () => {
 		expect(typeHref('/library', 'all')).toBe('/library');
+		expect(typeHref('/library', 'anime')).toBe('/library');
 		expect(typeHref(undefined, 'movies')).toBeUndefined();
 	});
 	it('sets the Library kind', () => {

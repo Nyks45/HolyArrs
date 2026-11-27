@@ -3,7 +3,7 @@
 import { type CardKind, type ExploreRow } from '#lib/ui/title-cards.ts';
 import { keepFull } from './explore-rows.ts';
 
-export type ExploreType = 'all' | 'movies' | 'shows' | 'music';
+export type ExploreType = 'all' | 'movies' | 'shows' | 'anime' | 'music';
 
 /** One card of Browse by genre (GET /explore/genre-row). */
 export interface GenreRowCard {
@@ -16,20 +16,20 @@ export interface GenreRowCard {
 	both?: boolean;
 }
 
-const typeKind: Record<Exclude<ExploreType, 'all'>, CardKind> = { movies: 'movie', shows: 'show', music: 'artist' };
+const typeKind: Record<Exclude<ExploreType, 'all' | 'anime'>, CardKind> = { movies: 'movie', shows: 'show', music: 'artist' };
 
 /** The shelves that hold one kind only, and the type they belong to. */
-const kindRows: Record<string, Exclude<ExploreType, 'all'>> = { movies: 'movies', shows: 'shows', music: 'music' };
+const kindRows: Record<string, Exclude<ExploreType, 'all' | 'anime'>> = { movies: 'movies', shows: 'shows', music: 'music' };
 
 /** Reads ?type=; anything unknown (or music while it is off) is All. */
 export function parseType(v: string | null | undefined, musicOn = true): ExploreType {
-	if (v === 'movies' || v === 'shows' || (v === 'music' && musicOn)) return v;
+	if (v === 'movies' || v === 'shows' || v === 'anime' || (v === 'music' && musicOn)) return v;
 	return 'all';
 }
 
-/** The card kind a type keeps, or null for All. */
+/** The card kind a type keeps, or null for All and Anime (mixed movies and shows). */
 export function typeKindOf(t: ExploreType): CardKind | null {
-	return t === 'all' ? null : typeKind[t];
+	return t === 'all' || t === 'anime' ? null : typeKind[t];
 }
 
 /** Keeps the cards of one type in every row, drops the kind shelves of other types and hides rows left empty. All keeps everything. */
@@ -51,7 +51,7 @@ export const GENRE_ROW_MAX = 16;
 
 /** GET /explore/genre-row for a tab. */
 export function genreRowPath(t: ExploreType): string {
-	return `/explore/genre-row?${new URLSearchParams({ type: t === 'music' ? 'all' : t }).toString()}`;
+	return `/explore/genre-row?${new URLSearchParams({ type: t === 'music' || t === 'anime' ? 'all' : t }).toString()}`;
 }
 
 /** Opens the same genre page as the Genres picker. */

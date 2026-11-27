@@ -30,7 +30,7 @@
 	import TitleLibrary from './TitleLibrary.svelte';
 	import TitleOwnedSheets from './TitleOwnedSheets.svelte';
 	import { SearchOutcomeLine, keptSeasons, completeSeasons, seasonsToAsk, QuickAsk, AddMovieDialog, AddShowDialog, AskShowDialog, AskMovieDialog, fourKReady } from '#lib/requests/index.ts';
-	import { seasonWords, SeasonFolds } from '#lib/shows/index.ts';
+	import { pickDefaultSeason, resolveShowResumeTarget, seasonWords, SeasonFolds, syncEpisodeWatchedState, syncSeasonWatchedState, toEpisodeProgressMap } from '#lib/shows/index.ts';
 	import { detailPath, fourKOffer, isDetailKind, loadDetails, remembered, type TitleDetails } from '#lib/metadata/index.ts';
 	import type { GateDefaults } from '#lib/mediafiles/index.ts';
 	import type { ShowSettings } from '#lib/shows/index.ts';
@@ -52,13 +52,7 @@
 	import type { MenuItem } from '#lib/ui/Menu.svelte';
 	import HideSheet from './HideSheet.svelte';
 	import CheckReleasesSheet from './CheckReleasesSheet.svelte';
-	import {
-		StreamSheet,
-		formatDuration,
-		getTitleWatchHistory,
-		prefetchStreamSources,
-		type WatchEntry
-	} from '#lib/stream/index.ts';
+	import { formatDuration, getTitleWatchHistory, prefetchStreamSources, type WatchEntry } from '#lib/stream/index.ts';
 	import { chosenToast } from '#lib/mediafiles/index.ts';
 	import type { Choice, ReleaseView } from '#lib/core/types.ts';
 	import { hiddenPill, type Hide } from './hidden.ts';
@@ -160,37 +154,24 @@
 	let askShow: ReturnType<typeof AskShowDialog> | undefined = $state();
 	// Cast and Similar are one row each; See all opens the whole list.
 	let allCast = $state(false);
-	let streamOpen = $state(false);
-	let streamSeason = $state(1);
-	let streamEpisode = $state(1);
 	let watchLatest = $state<WatchEntry | null>(null);
 	let watchEpisodes = $state<WatchEntry[]>([]);
-	const watchEpisodesByKey = $derived.by(() => {
-		const map: Record<string, { progress_pct: number; completed: boolean; position_sec: number }> = {};
-		for (const ep of watchEpisodes) {
-			map[`${ep.season ?? 0}:${ep.episode ?? 0}`] = {
-				progress_pct: ep.progress_pct ?? 0,
-				completed: !!ep.completed,
-				position_sec: ep.position_sec
-			};
-		}
-		return map;
-	});
+	const showExt = $derived((kind === 'movie' ? details?.movie?.ids : details?.show?.ids) as Record<string, string | undefined> | undefined);
+	const watchEpisodesByKey = $derived(toEpisodeProgressMap(watchEpisodes));
+	const watchMeta = $derived(details?.name ? { tmdb, title: details.name, year: details.year, imdb: details.imdb ?? showExt?.imdb, poster: details.poster, backdrop: details.backdrop } : null);
 	function watchHref(resume: boolean, s?: number, e?: number, drawer?: 'sources'): string {
 		const back = detailPath(kind === 'show' ? 'show' : 'movie', tmdb);
 		const extra = drawer ? `&drawer=${drawer}` : '';
 		if (kind === 'show') {
-			const ss = s ?? watchLatest?.season ?? seasons.find((x) => x.number > 0)?.number ?? 1;
-			const ee = e ?? watchLatest?.episode ?? 1;
+			const ss = s ?? resumeTarget?.season ?? seasons.find((x) => x.number > 0)?.number ?? 1;
+			const ee = e ?? resumeTarget?.episode ?? 1;
 			return to(`/watch/show/${encodeURIComponent(tmdb)}?s=${ss}&e=${ee}&resume=${resume ? '1' : '0'}&from=${encodeURIComponent(back)}${extra}`);
 		}
 		return to(`/watch/movie/${encodeURIComponent(tmdb)}?resume=${resume ? '1' : '0'}&from=${encodeURIComponent(back)}${extra}`);
 	}
-	function openStream(s = 1, e = 1) {
-		streamSeason = s;
-		streamEpisode = e;
-		streamOpen = true;
-	}
+	const applyHistory = (eps: WatchEntry[], lat: WatchEntry | null) => { watchEpisodes = eps; watchLatest = lat; };
+	const toggleEpisodeWatched = (s: number, e: number, epName: string, watched: boolean) => watchMeta && kind === 'show' ? syncEpisodeWatchedState(watchMeta, watchEpisodes, s, e, epName, watched, applyHistory) : undefined;
+	const markSeasonWatched = (s: number, eps: { number: number; name?: string }[], watched: boolean) => watchMeta && kind === 'show' ? syncSeasonWatchedState(watchMeta, watchEpisodes, s, eps, watched, applyHistory) : undefined;
 	$effect(() => {
 		const k = kind;
 		const id = tmdb;
@@ -273,10 +254,9 @@
 	});
 	$effect(() => {
 		if (!details?.name || (kind !== 'movie' && kind !== 'show')) return;
-		const ss = kind === 'show' ? (watchLatest?.season || seasons.find((s) => s.number > 0)?.number || 1) : 0;
-		const ee = kind === 'show' ? (watchLatest?.episode || 1) : 0;
-		const ext = (kind === 'movie' ? details.movie?.ids : details.show?.ids) as Record<string, string | undefined> | undefined;
-		const req = { query: details.name, kind: kind as 'movie' | 'show', year: details.year || 0, season: ss, episode: ee, imdb: details.imdb ?? ext?.imdb ?? '', tmdb: Number(tmdb) || 0, original_title: details.original_title, genres: details.genres, original_language: details.original_language, origin_country: details.origin_country };
+		const ss = kind === 'show' ? (resumeTarget?.season ?? seasons.find((s) => s.number > 0)?.number ?? 1) : 0;
+		const ee = kind === 'show' ? (resumeTarget?.episode ?? 1) : 0;
+		const req = { query: details.name, kind: kind as 'movie' | 'show', year: details.year || 0, season: ss, episode: ee, imdb: details.imdb ?? showExt?.imdb ?? '', tmdb: Number(tmdb) || 0, original_title: details.original_title, genres: details.genres, original_language: details.original_language, origin_country: details.origin_country };
 		const timer = setTimeout(() => prefetchStreamSources(req), 500);
 		return () => clearTimeout(timer);
 	});
@@ -375,6 +355,8 @@
 	// The details answer read by the rows (seasons for a show).
 	let info = $state<InfoDetails | null>(null);
 	const seasons = $derived((info?.tmdb === details?.tmdb ? info?.seasons : undefined) ?? details?.seasons ?? []);
+	const resumeTarget = $derived(kind === 'show' ? resolveShowResumeTarget(seasons, watchLatest, watchEpisodes) : null);
+	const defaultSeason = $derived(kind === 'show' ? pickDefaultSeason(seasons, watchLatest, watchEpisodes) : null);
 	const regular = $derived(seasons.filter((s) => s.number > 0).length);
 	const networkOf = (d: TitleDetails) => d.network ?? d.show?.network ?? '';
 	// The hero says what it is (year, length or seasons, genres, age rating, scores); the details under the story say only what the hero does not.
@@ -563,12 +545,25 @@
 						<ActionButton icon="wish" label={d.ask ? t('discover.titlePage.askForToo', { name: d.name }) : t('discover.titlePage.askFor', { name: d.name })} caption={d.ask ? t('discover.titlePage.requestToo') : t('discover.titlePage.request')} primary onclick={() => askShow?.open(d.show as LookupShow)} />
 					{/if}
 				{/if}
-				{#if d.kind === 'movie' || d.kind === 'show'}
+				{#if d.kind === 'show' && resumeTarget}
+					{@const seTag = `S${String(resumeTarget.season).padStart(2, '0')} E${String(resumeTarget.episode).padStart(2, '0')}`}
+					{#if resumeTarget.kind === 'resume'}
+						<ActionButton icon="play" primary label={`Resume ${d.name} ${seTag}`} caption={`Resume ${seTag} · ${formatDuration(resumeTarget.positionSec)}`} href={watchHref(true, resumeTarget.season, resumeTarget.episode)} data-testid="hero-resume" />
+						<ActionButton icon="source" pill label={`Pick stream source for ${d.name}`} caption="Sources" href={watchHref(false, resumeTarget.season, resumeTarget.episode, 'sources')} data-testid="hero-stream" />
+					{:else if resumeTarget.kind === 'next'}
+						<ActionButton icon="play" primary label={`Next Up ${d.name} ${seTag}`} caption={`Next Up · ${seTag}`} href={watchHref(false, resumeTarget.season, resumeTarget.episode)} data-testid="hero-next-up" />
+						<ActionButton icon="source" pill label={`Pick stream source for ${d.name}`} caption="Sources" href={watchHref(false, resumeTarget.season, resumeTarget.episode, 'sources')} data-testid="hero-stream" />
+					{:else}
+						<ActionButton icon="play" pill label={`Watch ${d.name} ${seTag}`} caption={`Watch ${seTag}`} href={watchHref(false, resumeTarget.season, resumeTarget.episode)} data-testid="hero-stream" />
+						<ActionButton icon="source" pill label={`Pick stream source for ${d.name}`} caption="Sources" href={watchHref(false, resumeTarget.season, resumeTarget.episode, 'sources')} data-testid="hero-sources" />
+					{/if}
+				{:else if d.kind === 'movie'}
 					{#if watchLatest && !watchLatest.completed && watchLatest.position_sec > 10}
-						<ActionButton icon="play" primary label={`Resume ${d.name}`} caption={d.kind === 'show' && watchLatest.season ? `Resume S${String(watchLatest.season).padStart(2, '0')} E${String(watchLatest.episode ?? 1).padStart(2, '0')} · ${formatDuration(watchLatest.position_sec)}` : `Resume · ${formatDuration(watchLatest.position_sec)}`} href={watchHref(true)} data-testid="hero-resume" />
-						<ActionButton icon="source" pill label={`Pick stream source for ${d.name}`} caption="Sources" href={watchHref(false, watchLatest?.season || (seasons.find((s) => s.number > 0)?.number ?? 1), watchLatest?.episode || 1, 'sources')} data-testid="hero-stream" />
+						<ActionButton icon="play" primary label={`Resume ${d.name}`} caption={`Resume · ${formatDuration(watchLatest.position_sec)}`} href={watchHref(true)} data-testid="hero-resume" />
+						<ActionButton icon="source" pill label={`Pick stream source for ${d.name}`} caption="Sources" href={watchHref(false, undefined, undefined, 'sources')} data-testid="hero-stream" />
 					{:else}
 						<ActionButton icon="play" pill label={`Watch ${d.name}`} caption="Watch" href={watchHref(false)} data-testid="hero-stream" />
+						<ActionButton icon="source" pill label={`Pick stream source for ${d.name}`} caption="Sources" href={watchHref(false, undefined, undefined, 'sources')} data-testid="hero-sources" />
 					{/if}
 				{/if}
 				{#if d.kind === 'show' || d.kind === 'movie'}<FollowButton titleId={owned?.id} tmdb={d.tmdb} kind={d.kind} />{/if}
@@ -646,7 +641,9 @@
 			</dl>
 		</div>
 		{@render trailers()}
-		{#if d.kind === 'show'}<SeasonFolds tmdb={d.tmdb} {seasons} fallback={d.backdrop} progress={watchEpisodesByKey} onstream={(s, e) => void goto(watchHref(true, s, e))} />{/if}
+		{#if d.kind === 'show'}
+			<SeasonFolds tmdb={d.tmdb} {seasons} fallback={d.backdrop} showMeta={{ name: d.name, year: d.year, imdb: d.imdb ?? showExt?.imdb ?? '', original_title: d.original_title, genres: d.genres, original_language: d.original_language, origin_country: d.origin_country }} {defaultSeason} activeTarget={resumeTarget} progress={watchEpisodesByKey} onstream={(s, e) => void goto(watchHref(true, s, e))} onstreamSources={(s, e) => void goto(watchHref(false, s, e, 'sources'))} onToggleWatched={toggleEpisodeWatched} onMarkSeasonWatched={markSeasonWatched} />
+		{/if}
 		{@render castRow()}
 		<PluginCards cards={pluginSections} testid="title-plugin-sections" />
 		<TitleRows kind={d.kind} tmdb={d.tmdb} bind:info band={false} quickAsk={QuickAsk} ownAsk={d.kind === 'movie' && d.ask?.mine ? d.ask.state : undefined} onasked={(a) => { if (details && !a.four_k) details = { ...details, ask: { id: a.id, state: a.state, state_label: a.state_label, mine: true, people: a.people.length } }; }} onadded={ownAdded} />
@@ -693,24 +690,6 @@
 
 		{/if}
 		{#if mayHide}<HideSheet bind:open={hideOpen} kind={d.kind} tmdb={d.tmdb} name={d.name} genres={d.genres} hides={d.hides ?? []} {people} onchange={hidesChanged} />{/if}
-		{#if d.kind === 'movie' || d.kind === 'show'}
-			{@const extIds = (d.kind === 'movie' ? d.movie?.ids : d.show?.ids) as Record<string, string | undefined> | undefined}
-			<StreamSheet
-				bind:open={streamOpen}
-				kind={d.kind}
-				title={d.name}
-				year={d.year}
-				tmdb={d.tmdb}
-				imdb={extIds?.imdb ?? ''}
-				originalTitle={d.original_title ?? ''}
-				genres={d.genres ?? []}
-				originalLanguage={d.original_language ?? ''}
-				originCountry={d.origin_country ?? []}
-				{seasons}
-				initialSeason={streamSeason}
-				initialEpisode={streamEpisode}
-			/>
-		{/if}
 		<Sheet bind:open={allCast} title={t('discover.titlePage.castAndCrew')} size="lg">
 			<ul class="all-grid people">
 				{#each d.cast as p, i (p.name + i)}

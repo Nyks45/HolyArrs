@@ -1,6 +1,7 @@
 // Dedicated Explore content category hubs (Anime, K-Drama, Turkish, C-Drama & J-Drama, etc.).
 import { discoverCard, type ExploreCard, type ExploreRow } from '#lib/ui/title-cards.ts';
 import { serverRow, type ServerRow } from './explore-server.ts';
+import type { ExploreType } from './explore-type.ts';
 import { searchAddress } from './search-address.ts';
 import { page } from '$app/state';
 import { goto } from '$app/navigation';
@@ -39,12 +40,15 @@ export function createExploreHub(ctx: {
 	gone: AbortController;
 	get heroAt(): number;
 	set heroAt(v: number);
+	get activeType(): ExploreType;
 	loadHead: () => Promise<void>;
 }) {
 	const here = () => searchAddress(page.url, page.shallow?.url, typeof location === 'undefined' ? undefined : location.href);
-	const hubId = $derived((here().searchParams.get('hub') ?? '').trim().toLowerCase());
+	const rawHubId = $derived((here().searchParams.get('hub') ?? '').trim().toLowerCase());
+	const hubId = $derived(ctx.activeType === 'anime' ? 'anime' : rawHubId);
 
 	let hubs = $state<ExploreHubInfo[]>(DEFAULT_HUBS);
+	const barHubs = $derived(hubs.filter((h) => h.id !== 'anime'));
 	let hubInfo = $state<ExploreHubInfo | null>(null);
 	let hubHero = $state<ExploreCard[]>([]);
 	let hubRows = $state<(ExploreRow & { wide: boolean; type: string })[]>([]);
@@ -118,6 +122,9 @@ export function createExploreHub(ctx: {
 	return {
 		get hubs() {
 			return hubs;
+		},
+		get barHubs() {
+			return barHubs;
 		},
 		get hubId() {
 			return hubId;

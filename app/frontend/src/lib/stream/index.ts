@@ -5,6 +5,7 @@ export { default as StreamingSettings } from './StreamingSettings.svelte';
 export { default as PluginsModeBar } from './PluginsModeBar.svelte';
 export { default as AddonCatalogShelves } from './AddonCatalogShelves.svelte';
 export * from './stream-api.ts';
+export * from './air-date.ts';
 export * from './streaming-config-api.ts';
 export * from './subtitle-style.ts';
 export * from './player-media.ts';

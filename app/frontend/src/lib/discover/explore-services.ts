@@ -82,7 +82,7 @@ export function readServices(region: string, raw: string | null): number[] | nul
 
 /** GET /explore/top for one chip. */
 export function topPath(q: TopQuery): string {
-	const p = new URLSearchParams({ type: q.type === 'music' ? 'all' : q.type, chip: String(q.chip), region: q.region });
+	const p = new URLSearchParams({ type: q.type === 'music' || q.type === 'anime' ? 'all' : q.type, chip: String(q.chip), region: q.region });
 	if (q.services.length) p.set('services', q.services.join('|'));
 	if (q.genre && (q.type === 'movies' || q.type === 'shows')) p.set('genre', String(q.genre));
 	return `/explore/top?${p.toString()}`;
@@ -90,7 +90,7 @@ export function topPath(q: TopQuery): string {
 
 /** GET /explore/service-top: every service at once. */
 export function serviceTopPath(t: ExploreType, region: string): string {
-	return `/explore/service-top?${new URLSearchParams({ type: t === 'music' ? 'all' : t, region }).toString()}`;
+	return `/explore/service-top?${new URLSearchParams({ type: t === 'music' || t === 'anime' ? 'all' : t, region }).toString()}`;
 }
 
 /** The services with a list, the person's own first (in their order), then the rest. */

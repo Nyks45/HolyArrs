@@ -141,6 +141,48 @@ func (s *HistoryStore) saveLocked() error {
 
 // Upsert saves or merges watch progress and preferences for userID.
 func (s *HistoryStore) Upsert(userID int64, in WatchEntry) (WatchEntry, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	merged, err := s.upsertEntryLocked(userID, in, time.Now().UTC())
+	if err != nil {
+		return WatchEntry{}, err
+	}
+	s.capUserEntriesLocked(userID, 2000)
+	if err := s.saveLocked(); err != nil {
+		return merged, err
+	}
+	return merged, nil
+}
+
+// BatchUpdate atomically applies episode/movie upserts and key deletions for userID in one save.
+func (s *HistoryStore) BatchUpdate(userID int64, upserts []WatchEntry, deleteKeys []string) ([]WatchEntry, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, dk := range deleteKeys {
+		trimmed := strings.TrimSpace(dk)
+		if trimmed != "" {
+			delete(s.entries, storeMapKey(userID, trimmed))
+		}
+	}
+	now := time.Now().UTC()
+	updated := make([]WatchEntry, 0, len(upserts))
+	for _, in := range upserts {
+		merged, err := s.upsertEntryLocked(userID, in, now)
+		if err != nil {
+			return updated, err
+		}
+		updated = append(updated, merged)
+	}
+	s.capUserEntriesLocked(userID, 2000)
+	if err := s.saveLocked(); err != nil {
+		return updated, err
+	}
+	return updated, nil
+}
+
+func (s *HistoryStore) upsertEntryLocked(userID int64, in WatchEntry, now time.Time) (WatchEntry, error) {
 	tmdb := strings.TrimSpace(in.TMDB)
 	if tmdb == "" {
 		return WatchEntry{}, errors.New("tmdb is required")
@@ -153,9 +195,6 @@ func (s *HistoryStore) Upsert(userID int64, in WatchEntry) (WatchEntry, error) {
 	if key == "" {
 		key = WatchKey(kind, tmdb, in.Season, in.Episode)
 	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	mk := storeMapKey(userID, key)
 	prev, hasPrev := s.entries[mk]
@@ -227,7 +266,7 @@ func (s *HistoryStore) Upsert(userID int64, in WatchEntry) (WatchEntry, error) {
 	if merged.PlaybackRate <= 0 {
 		merged.PlaybackRate = 1
 	}
-	if merged.DurationSec > 0 {
+	if merged.DurationSec > 0 && !merged.Completed {
 		pct := (merged.PositionSec / merged.DurationSec) * 100
 		if pct < 0 {
 			pct = 0
@@ -238,6 +277,17 @@ func (s *HistoryStore) Upsert(userID int64, in WatchEntry) (WatchEntry, error) {
 		if merged.DurationSec > 60 && (pct >= 92 || merged.DurationSec-merged.PositionSec <= 90) {
 			merged.Completed = true
 		}
+	} else if merged.Completed {
+		if merged.DurationSec > 0 && merged.PositionSec > 0 {
+			pct := (merged.PositionSec / merged.DurationSec) * 100
+			if pct > 100 {
+				pct = 100
+			}
+			merged.ProgressPct = pct
+		}
+		if merged.ProgressPct < 92 {
+			merged.ProgressPct = 100
+		}
 	} else {
 		if merged.ProgressPct < 0 {
 			merged.ProgressPct = 0
@@ -245,13 +295,9 @@ func (s *HistoryStore) Upsert(userID int64, in WatchEntry) (WatchEntry, error) {
 			merged.ProgressPct = 100
 		}
 	}
-	merged.UpdatedAt = time.Now().UTC()
+	merged.UpdatedAt = now
 
 	s.entries[mk] = merged
-	s.capUserEntriesLocked(userID, 500)
-	if err := s.saveLocked(); err != nil {
-		return merged, err
-	}
 	return merged, nil
 }
 

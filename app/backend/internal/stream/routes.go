@@ -33,6 +33,7 @@ func (h *Handlers) Routes(m *http.ServeMux) {
 	m.HandleFunc("GET /api/v1/stream/history", h.listHistory)
 	m.HandleFunc("GET /api/v1/stream/history/title/{kind}/{tmdb}", h.titleHistory)
 	m.HandleFunc("PUT /api/v1/stream/history", h.saveHistory)
+	m.HandleFunc("POST /api/v1/stream/history/batch", h.batchHistory)
 	m.HandleFunc("DELETE /api/v1/stream/history/{key}", h.deleteHistory)
 	m.HandleFunc("POST /api/v1/stream/subtitles/search", h.searchSubtitles)
 	m.HandleFunc("POST /api/v1/stream/subtitles/fetch", h.fetchSubtitle)

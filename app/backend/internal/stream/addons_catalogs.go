@@ -126,8 +126,29 @@ func (s *AddonStore) FetchSubtitle(ctx context.Context, id string) ([]byte, stri
 	return data, hint, item.lang, nil
 }
 
+// isAnimeCatalog reports whether a catalog exposes anime content (including Stremio "series" catalogs from anime addons).
+func isAnimeCatalog(addon StremioAddon, cat AddonCatalogDef) bool {
+	if strings.EqualFold(strings.TrimSpace(cat.Type), "anime") {
+		return true
+	}
+	haystack := strings.ToLower(addon.ID + " " + addon.Name + " " + cat.ID + " " + cat.Name)
+	for _, kw := range []string{"anime", "kitsu", "anilist", "myanimelist"} {
+		if strings.Contains(haystack, kw) {
+			return true
+		}
+	}
+	return false
+}
+
 // BrowseCatalogs returns metadata shelves exposed by enabled Stremio addons, fetching up to 6 shelves.
 func (s *AddonStore) BrowseCatalogs(ctx context.Context, kind string) []AddonCatalogShelf {
+	k := strings.ToLower(strings.TrimSpace(kind))
+	switch k {
+	case "movies":
+		k = "movie"
+	case "shows":
+		k = "show"
+	}
 	addons := s.List()
 	type catJob struct {
 		addon StremioAddon
@@ -139,12 +160,21 @@ func (s *AddonStore) BrowseCatalogs(ctx context.Context, kind string) []AddonCat
 			continue
 		}
 		for _, c := range a.Catalogs {
+			animeCat := isAnimeCatalog(a, c)
 			cKind := normalizeCatalogKind(c.Type)
-			if kind == "movie" && cKind != "movie" {
-				continue
-			}
-			if kind == "show" && cKind != "show" {
-				continue
+			switch k {
+			case "anime":
+				if !animeCat {
+					continue
+				}
+			case "movie", "show":
+				if animeCat || cKind != k {
+					continue
+				}
+			default:
+				if animeCat {
+					continue
+				}
 			}
 			jobs = append(jobs, catJob{addon: a, cat: c})
 			if len(jobs) >= 6 {

@@ -87,7 +87,7 @@ export function createExploreGenre(ctx: any) {
 		void goto(url, { shallow: true, reset: false });
 		scrollTo({ top: 0, behavior: 'instant' });
 	}
-	const genreOn = $derived(!!genre && ctx.type !== 'music');
+	const genreOn = $derived(!!genre && ctx.type !== 'music' && ctx.type !== 'anime');
 
 	// The Genres picker for Movies and TV: the Music tile look, each genre over the backdrop Search's Browse grid uses for it (read when the picker first opens).
 	let browseArt = $state<Record<string, Record<string, string>>>({});

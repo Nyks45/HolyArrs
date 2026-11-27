@@ -15,3 +15,21 @@ export { seasonWords } from './labels.ts';
 export { showProgress } from './labels.ts';
 export type { SheetEpisode } from './EpisodeSheet.svelte';
 export { chosenWhy } from './labels.ts';
+export {
+	classifyAirDate,
+	resolveShowResumeTarget,
+	pickDefaultSeason,
+	summarizeSeasonEpisodes,
+	episodeWatchKey,
+	buildWatchedEntry,
+	toEpisodeProgressMap,
+	applyWatchTrackingChange,
+	syncEpisodeWatchedState,
+	syncSeasonWatchedState,
+	type EpisodeReleaseStatus,
+	type EpisodeReleaseInfo,
+	type EpProgress,
+	type ShowResumeTarget,
+	type SeasonEpisodeSummary,
+	type ShowWatchMeta
+} from './episode-tracking.ts';

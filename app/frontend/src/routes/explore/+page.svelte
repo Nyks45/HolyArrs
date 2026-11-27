@@ -90,6 +90,7 @@
 			{ value: 'all', label: t('discover.explore.all'), icon: 'grid' },
 			{ value: 'movies', label: t('discover.explore.movies'), icon: 'film' },
 			{ value: 'shows', label: t('discover.explore.tvShows'), icon: 'tv' },
+			{ value: 'anime', label: 'Anime', icon: 'sparkle' },
 			{ value: 'music', label: t('discover.explore.music'), icon: 'music' }
 		] as { value: ExploreType; label: string; icon: IconName }[]).filter((o) => o.value !== 'music' || musicOn)
 	);
@@ -115,7 +116,7 @@
 		settleCancel?.();
 		back = null;
 		scrollTo({ top: 0, behavior: 'instant' });
-		void loadHead();
+		if (t !== 'music' && t !== 'anime') void loadHead();
 	}
 
 	// Back from a title page: the page's scroll and each row's sideways offset come back once the rows have loaded far enough (more tail pages load first when the spot was further down).
@@ -196,6 +197,7 @@
 		get gone() { return gone; },
 		get heroAt() { return heroAt; },
 		set heroAt(v) { heroAt = v; },
+		get activeType() { return type; },
 		loadHead,
 	});
 	// The picker spans from the left edge of the type pills to the Genres button's right edge.
@@ -284,7 +286,7 @@
 	let newFor = '';
 	$effect(() => {
 		const t = type;
-		if (!headLoaded || t === 'music' || newFor === t) return;
+		if (!headLoaded || t === 'music' || t === 'anime' || newFor === t) return;
 		newFor = t;
 		newServices = null;
 		api.get<NewServicesAnswer>(newServicesPath(t), gone.signal).then(
@@ -304,7 +306,7 @@
 	let genreCardsFor = '';
 	$effect(() => {
 		const t = type;
-		if (!headLoaded || t === 'music' || genreCardsFor === t) return;
+		if (!headLoaded || t === 'music' || t === 'anime' || genreCardsFor === t) return;
 		genreCardsFor = t;
 		genreCards = [];
 		api.get<{ genres: GenreRowCard[] | null }>(genreRowPath(t), gone.signal).then(
@@ -329,7 +331,7 @@
 	let poll: ReturnType<typeof setTimeout> | undefined;
 	/** Reads the head; while the server builds the pool it asks again every 5 s (at most 2 minutes). */
 	async function loadHead(tries = 0) {
-		if (type === 'music') return;
+		if (type === 'music' || type === 'anime') return;
 		const n = ++headAsk;
 		clearTimeout(poll);
 		const q = query();
@@ -374,7 +376,7 @@
 	}
 
 	async function loadTail() {
-		if (tailBusy || !tailMore || type === 'music') return;
+		if (tailBusy || !tailMore || type === 'music' || type === 'anime') return;
 		tailBusy = true;
 		const n = headAsk;
 		try {
@@ -454,7 +456,7 @@
 			const o = await ownedLibrary();
 			titles = o.titles;
 			// The genre banner reads Library genres; an answer without them borrows the full list.
-			if (o.light && type !== 'music' && !o.titles.some((t) => t.genres?.length)) titles = await libraryTitles();
+			if (o.light && type !== 'music' && type !== 'anime' && !o.titles.some((t) => t.genres?.length)) titles = await libraryTitles();
 		} catch {
 			/* Owned marks wait for the Library. */
 		}
@@ -479,6 +481,8 @@
 			} catch {
 				/* Nothing saved. */
 			}
+		} else if (current.searchParams.get('hub')?.toLowerCase() === 'anime') {
+			setType('anime');
 		}
 		void load();
 		void hubView.loadHubsList();
@@ -490,7 +494,7 @@
 			clearTimeout(poll);
 			stripView.stripShown.flush();
 			gone.abort();
-			if (headLoaded && !failed && type !== 'music' && hero.length > 0) kept = { key: JSON.stringify(query()), at: Date.now(), rows: $state.snapshot({ head, tail, hero, heroAt, tailPageNext, tailMore, headOrder }) };
+			if (headLoaded && !failed && type !== 'music' && type !== 'anime' && hero.length > 0) kept = { key: JSON.stringify(query()), at: Date.now(), rows: $state.snapshot({ head, tail, hero, heroAt, tailPageNext, tailMore, headOrder }) };
 		};
 	});
 </script>
@@ -561,7 +565,7 @@
 		{/if}
 	</div>
 	<MetadataNotice />
-	{#if type !== 'music'}<ExploreHubBar hubs={hubView.hubs} activeId={hubView.hubId} activeInfo={hubView.info} onpick={hubView.pickHub} />{/if}
+	{#if type !== 'music' && type !== 'anime'}<ExploreHubBar hubs={hubView.barHubs} activeId={hubView.hubId} activeInfo={hubView.info} onpick={hubView.pickHub} />{/if}
 	{#if bannerView.musicBannerHold}
 		<div class="music-banner hold" aria-hidden="true" data-testid="music-banner-hold">
 			<GenreBanner layout={2} name={t('discover.explore.yourName', { name: bannerView.musicBannerName || t('discover.explore.music') })} eyebrow={t('discover.explore.pickedFromYourLibrary')} line={t('discover.explore.albumsAndArtistsFrom')} href={to('/explore?type=music')} art={[]} square>
@@ -625,8 +629,7 @@
 			{:else if heroWait && !genreView.genreOn && !hubView.hubOn}
 				<div class="hero-wait" data-testid="hero-placeholder" aria-hidden="true"><Skeleton shape="block" /></div>
 			{/if}
-			{#if !genreView.genreOn && !hubView.hubOn}<ContinueWatchingShelf from={to('/explore')} />{/if}
-			{#if !genreView.genreOn && !hubView.hubOn}<AddonCatalogShelves {type} />{/if}
+			{#if !genreView.genreOn && !hubView.hubOn}<ContinueWatchingShelf from={to('/explore')} kind={type === 'movies' ? 'movie' : type === 'shows' ? 'show' : ''} />{/if}
 			{#if bannerView.bannerOn && bannerView.favourite && !hubView.hubOn}
 				<GenreBanner
 					layout={bannerView.bannerLayout === 2 ? 2 : 1}
@@ -715,6 +718,7 @@
 					</div>
 				{/if}
 			{/each}
+			{#if !genreView.genreOn && (!hubView.hubOn || type === 'anime')}<AddonCatalogShelves {type} />{/if}
 			{#if tailMore && !genreView.genreOn && !hubView.hubOn}<div class="sentinel" bind:this={sentinel} aria-hidden="true"></div>{/if}
 		{/if}
 		</PageLoader>

@@ -52,6 +52,16 @@ func TestSearchCacheHitExpiryAndInvalidate(t *testing.T) {
 	if _, ok := c.Get(k2); ok {
 		t.Fatal("expected InvalidateAll to clear cached entries")
 	}
+
+	// Hover prefetch (empty query/imdb, only tmdb) must match playback search (full query+imdb).
+	hoverKey := SearchCacheKey("show", "1396", "", 1, 1, "", "fast")
+	if hoverKey != k1 {
+		t.Fatalf("expected hover prefetch key %q to match full search key %q", hoverKey, k1)
+	}
+	fullModeKey := SearchCacheKey("show", "1396", "tt0903747", 1, 1, "Breaking Bad", "full")
+	if fullModeKey == k1 {
+		t.Fatalf("expected fast vs full mode keys to stay distinct: %q", fullModeKey)
+	}
 }
 
 func TestProviderHealthCooldownAndLatencyOrder(t *testing.T) {

@@ -3,6 +3,7 @@
 	import Icon from '#lib/ui/Icon.svelte';
 	import { dragScroll, wheelX } from '#lib/ui/drag-scroll.ts';
 	import { sized } from '#lib/core/tmdb-image.ts';
+	import { classifyAirDate } from './air-date.ts';
 	import type { WatchEntry } from './stream-api.ts';
 
 	interface SeasonEp {
@@ -139,15 +140,22 @@
 					<div class="wp-ep-rail" bind:this={railEl} use:dragScroll use:wheelX onscroll={measureRail}>
 						{#each shownEpisodes as ep (ep.number)}
 							{@const sv = progressMap[`${selectedSeason}:${ep.number}`]}
+							{@const rel = classifyAirDate(ep.air_day)}
 							<button
 								type="button"
 								class="wp-ep-card"
 								class:current={selectedSeason === currentSeason && ep.number === currentEpisode}
-								onclick={() => onPickEpisode(selectedSeason, ep.number)}
+								class:upcoming={!rel.isReleased}
+								disabled={!rel.isReleased}
+								title={!rel.isReleased ? `Not yet aired (${rel.badge})` : undefined}
+								onclick={() => { if (rel.isReleased) onPickEpisode(selectedSeason, ep.number); }}
 							>
 								<div class="wp-ep-thumb">
 									{#if ep.still}<img src={sized(ep.still, 'poster')} alt="" draggable="false" />{/if}
 									<span class="wp-ep-num">E{ep.number}</span>
+									{#if rel.badge}
+										<span class="wp-ep-rel {rel.status}">{rel.badge}</span>
+									{/if}
 									{#if sv?.completed}
 										<span class="wp-ep-done" title="Watched"><Icon name="check" size={11} /></span>
 									{/if}
@@ -157,9 +165,9 @@
 								</div>
 								<div class="wp-ep-meta">
 									<b>{ep.name || `Episode ${ep.number}`}</b>
-									{#if ep.runtime || sv}
-										<span class="wp-ep-sub">
-											{ep.runtime ? `${ep.runtime}m` : ''}{ep.runtime && sv ? ' · ' : ''}{sv ? (sv.completed ? 'Watched' : `${Math.round(sv.progress_pct ?? 0)}%`) : ''}
+									{#if ep.runtime || sv || !rel.isReleased}
+										<span class="wp-ep-sub" class:soon={!rel.isReleased}>
+											{!rel.isReleased ? rel.badge : `${ep.runtime ? `${ep.runtime}m` : ''}${ep.runtime && sv ? ' · ' : ''}${sv ? (sv.completed ? 'Watched' : `${Math.round(sv.progress_pct ?? 0)}%`) : ''}`}
 										</span>
 									{/if}
 									{#if ep.overview}<p>{ep.overview}</p>{/if}
@@ -214,17 +222,22 @@
 	.wp-rail-arrow.prev { left: 4px; }
 	.wp-rail-arrow.next { right: 4px; }
 	.wp-ep-card { flex: none; width: 224px; scroll-snap-align: start; display: flex; flex-direction: column; gap: 8px; padding: 8px; border: 1px solid rgb(255 255 255 / 10%); border-radius: 12px; background: rgb(255 255 255 / 4%); color: #fff; text-align: left; cursor: pointer; transition: border-color 140ms ease, background 140ms ease, transform 140ms ease; }
-	.wp-ep-card:hover { background: rgb(255 255 255 / 9%); border-color: rgb(255 255 255 / 26%); transform: translateY(-2px); }
+	.wp-ep-card:hover:not(:disabled) { background: rgb(255 255 255 / 9%); border-color: rgb(255 255 255 / 26%); transform: translateY(-2px); }
+	.wp-ep-card.upcoming { opacity: 0.6; cursor: not-allowed; }
 	.wp-ep-card.current { border-color: #e50914; background: rgb(229 9 20 / 16%); }
 	.wp-ep-thumb { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 8px; overflow: hidden; background: rgb(255 255 255 / 10%); }
 	.wp-ep-thumb img { width: 100%; height: 100%; object-fit: cover; user-select: none; -webkit-user-drag: none; }
 	.wp-ep-num { position: absolute; left: 7px; top: 7px; padding: 2px 6px; border-radius: 5px; background: rgb(0 0 0 / 72%); font-size: 11px; font-weight: 700; }
+	.wp-ep-rel { position: absolute; left: 7px; bottom: 7px; padding: 2px 6px; border-radius: 5px; background: rgb(0 0 0 / 78%); color: #fff; font-size: 10.5px; font-weight: 700; }
+	.wp-ep-rel.today, .wp-ep-rel.aired { background: rgb(22 163 74 / 88%); }
+	.wp-ep-rel.upcoming { background: rgb(59 130 246 / 88%); }
 	.wp-ep-done { position: absolute; right: 7px; top: 7px; width: 20px; height: 20px; border-radius: 50%; background: rgb(34 197 94 / 92%); color: #fff; display: grid; place-items: center; }
 	.wp-ep-prog { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgb(255 255 255 / 26%); }
 	.wp-ep-prog i { display: block; height: 100%; background: #e50914; }
 	.wp-ep-meta { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 	.wp-ep-meta b { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.wp-ep-sub { color: #86efac; font-size: 11px; font-weight: 600; }
+	.wp-ep-sub.soon { color: #93c5fd; }
 	.wp-ep-meta p { margin: 0; color: rgb(255 255 255 / 64%); font-size: 11.5px; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 	.wp-muted { margin: 0; color: rgb(255 255 255 / 66%); font-size: 13px; }
 </style>

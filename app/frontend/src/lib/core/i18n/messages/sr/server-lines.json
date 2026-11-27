@@ -243,6 +243,7 @@
 	"server.discover.too-many-explore-requests-try-again": "превише захтева за Истражи; покушај поново за минут",
 	"server.discover.too-many-lookups-try-again-in": "превише претрага; покушај поново за минут",
 	"server.discover.type-must-be-all-movies-or": "type мора бити all, movies или shows",
+	"server.discover.type-must-be-all-movies-shows": "type мора бити all, movies, shows или anime",
 	"server.discover.type-must-be-all-movies-or-2": "type мора бити all, movies или shows а region код земље",
 	"server.downloads.a-tracker-is-an-http-https": "трекер је http, https или udp адреса на интернету (локалним је потребан приступ локалној мрежи Преузимача): {u}",
 	"server.downloads.add-500-torrents-at-most-at": "додај највише 500 торената одједном",

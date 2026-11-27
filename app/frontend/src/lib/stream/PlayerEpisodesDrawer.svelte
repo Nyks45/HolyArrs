@@ -192,7 +192,9 @@
 		background: rgb(14 14 20 / 95%); border-top: 1px solid rgb(255 255 255 / 14%);
 		border-radius: 18px 18px 0 0; backdrop-filter: blur(24px);
 		display: flex; flex-direction: column; box-shadow: 0 -16px 48px rgb(0 0 0 / 65%);
+		animation: wp-tray-in 170ms cubic-bezier(0.22, 1, 0.36, 1);
 	}
+	@keyframes wp-tray-in { from { opacity: 0; transform: translateY(14px); } }
 	.wp-tray-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 20px; border-bottom: 1px solid rgb(255 255 255 / 10%); }
 	.wp-tray-left { display: flex; align-items: center; gap: 8px; flex: 1 1 220px; min-width: 0; overflow-x: auto; scrollbar-width: thin; scrollbar-color: rgb(255 255 255 / 22%) transparent; padding-bottom: 2px; }
 	.wp-seasons { display: flex; gap: 6px; }

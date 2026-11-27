@@ -56,7 +56,19 @@ export function pickTrailer(videos: Video[] | null | undefined, lang = 'en'): Vi
 
 // Uses the no-cookie host.
 export function embedUrl(key: string, origin?: string, repeat = false): string {
-	const q = new URLSearchParams({ autoplay: '1', mute: '1', controls: '0', playsinline: '1', loop: '1', modestbranding: '1', rel: '0', enablejsapi: '1' });
+	const q = new URLSearchParams({
+		autoplay: '1',
+		mute: '1',
+		controls: '0',
+		playsinline: '1',
+		loop: '1',
+		modestbranding: '1',
+		rel: '0',
+		iv_load_policy: '3',
+		fs: '0',
+		disablekb: '1',
+		enablejsapi: '1'
+	});
 	if (origin) q.set('origin', origin);
 	// The embed only repeats a single video when playlist names it.
 	if (repeat) q.set('playlist', key);

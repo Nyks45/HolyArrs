@@ -243,6 +243,7 @@
 	"server.discover.too-many-explore-requests-try-again": "trop de requêtes Explorer ; réessayez dans une minute",
 	"server.discover.too-many-lookups-try-again-in": "trop de recherches ; réessayez dans une minute",
 	"server.discover.type-must-be-all-movies-or": "type doit valoir all, movies ou shows",
+	"server.discover.type-must-be-all-movies-shows": "type doit valoir all, movies, shows ou anime",
 	"server.discover.type-must-be-all-movies-or-2": "type doit valoir all, movies ou shows et region un code de pays",
 	"server.downloads.a-tracker-is-an-http-https": "un tracker est une adresse http, https ou udp sur Internet (les adresses locales demandent l'accès au réseau local du client de téléchargement) : {u}",
 	"server.downloads.add-500-torrents-at-most-at": "ajoutez 500 torrents au plus à la fois",

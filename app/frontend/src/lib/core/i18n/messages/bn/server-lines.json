@@ -243,6 +243,7 @@
 	"server.discover.too-many-explore-requests-try-again": "অনেক এক্সপ্লোর রিকোয়েস্ট; এক মিনিট পরে আবার চেষ্টা করুন",
 	"server.discover.too-many-lookups-try-again-in": "অনেক লুকআপ; এক মিনিট পরে আবার চেষ্টা করুন",
 	"server.discover.type-must-be-all-movies-or": "type হতে হবে all, movies বা shows",
+	"server.discover.type-must-be-all-movies-shows": "type হতে হবে all, movies, shows বা anime",
 	"server.discover.type-must-be-all-movies-or-2": "type হতে হবে all, movies বা shows এবং region একটি দেশের কোড",
 	"server.downloads.a-tracker-is-an-http-https": "একটি ট্র্যাকার ইন্টারনেটের একটি http, https বা udp ঠিকানা (লোকালগুলোর জন্য ডাউনলোডারের লোকাল নেটওয়ার্ক অ্যাক্সেস লাগে): {u}",
 	"server.downloads.add-500-torrents-at-most-at": "একবারে সর্বোচ্চ ৫০০টি টরেন্ট যোগ করুন",

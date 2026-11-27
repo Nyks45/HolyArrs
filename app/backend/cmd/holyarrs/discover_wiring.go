@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"net/http"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/HolyArrs/holyarrs/app/backend/internal/core/database"
@@ -23,6 +25,7 @@ import (
 // store, provider and rating lookups (New).
 func (a *handlers) wireExplore() {
 	e := &a.explore
+	a.viewSignals = discover.NewViewSignalStore(a.s.ConfigDir)
 	e.Cards.Store = func() *database.Store { return a.s.Store }
 	e.Cards.Metadata = func() metadata.Provider { return a.s.Metadata }
 	e.Store = e.Cards.Store
@@ -31,6 +34,80 @@ func (a *handlers) wireExplore() {
 	e.LookupRating = a.lookupRating
 	e.QueueCardArt = e.Cards.QueuePool
 	e.LookupsOff = func() bool { return a.s.MetadataModes != nil && a.s.MetadataModes.Current() == metadata.ModeOff }
+	e.ViewSignals = a.viewSignals
+	if a.s.Streamer != nil && a.s.Streamer.History != nil {
+		hist := a.s.Streamer.History
+		e.WatchSignals = func(userID int64) []discover.WatchSignal {
+			items, _ := hist.List(userID, 200)
+			if len(items) == 0 {
+				return nil
+			}
+			type agg struct {
+				sig discover.WatchSignal
+				eps map[[2]int]bool
+			}
+			by := map[string]*agg{}
+			for _, it := range items {
+				kind := "movie"
+				if it.Kind == "show" {
+					kind = "show"
+				}
+				tmdb := strings.TrimSpace(it.TMDB)
+				if tmdb == "" {
+					continue
+				}
+				key := kind + ":" + tmdb
+				cur, ok := by[key]
+				if !ok {
+					cur = &agg{
+						sig: discover.WatchSignal{
+							TMDBID:    tmdb,
+							Kind:      kind,
+							Title:     it.Title,
+							Year:      it.Year,
+							Completed: it.Completed,
+							UpdatedAt: it.UpdatedAt,
+						},
+						eps: map[[2]int]bool{},
+					}
+					by[key] = cur
+				} else {
+					if it.UpdatedAt.After(cur.sig.UpdatedAt) {
+						cur.sig.UpdatedAt = it.UpdatedAt
+					}
+					if cur.sig.Title == "" && it.Title != "" {
+						cur.sig.Title = it.Title
+					}
+					if cur.sig.Year == 0 && it.Year > 0 {
+						cur.sig.Year = it.Year
+					}
+					if it.Completed {
+						cur.sig.Completed = true
+					}
+				}
+				if kind == "show" && it.Episode > 0 {
+					cur.eps[[2]int{it.Season, it.Episode}] = true
+				}
+			}
+			out := make([]discover.WatchSignal, 0, len(by))
+			for _, cur := range by {
+				cur.sig.Episodes = len(cur.eps)
+				out = append(out, cur.sig)
+			}
+			sort.Slice(out, func(i, j int) bool {
+				if !out[i].UpdatedAt.Equal(out[j].UpdatedAt) {
+					return out[i].UpdatedAt.After(out[j].UpdatedAt)
+				}
+				return out[i].Kind+":"+out[i].TMDBID < out[j].Kind+":"+out[j].TMDBID
+			})
+			return out
+		}
+		hist.OnWatchTitle = func(userID int64, _, _ string) {
+			if userID > 0 && a.s.Store != nil {
+				e.MarkMemberStale(context.Background(), userID, e.Now())
+			}
+		}
+	}
 }
 
 // StartExplore starts the Explore pool job (discover.Explore) and the
@@ -56,7 +133,7 @@ func (a *handlers) StartExplore(ctx context.Context) {
 func (a *handlers) newDiscover() *discover.Handlers {
 	cards := &a.explore.Cards
 	return &discover.Handlers{Deps: discover.Deps{Store: a.s.Store, Metadata: a.s.Metadata, Secrets: a.s.Secrets, TraktBase: a.s.TraktBase, Modes: a.s.MetadataModes,
-		Cache: &a.discover, Explore: &a.explore, KidMax: a.kidMax, UserID: func(r *http.Request) int64 { return a.person(r).UserID }, Actor: actor,
+		Cache: &a.discover, Explore: &a.explore, ViewSignals: a.viewSignals, KidMax: a.kidMax, UserID: func(r *http.Request) int64 { return a.person(r).UserID }, Actor: actor,
 		PartOn: a.partIsOn, Parts: a.s.Parts, TitleAllowed: a.titleAllowed, LibraryRating: a.libraryRating, KidItems: a.kidItems,
 		CardFresh: func(ctx context.Context, it metadata.DiscoverItem, titleID int64) (*engine.Fresh, error) {
 			return discover.CardFresh(ctx, a.s.Store, a.explore.Now(), it, titleID)

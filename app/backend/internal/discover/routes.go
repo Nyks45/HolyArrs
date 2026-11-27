@@ -28,6 +28,8 @@ type Deps struct {
 	Cache *Cache
 	// Explore is the pool job with its lists and pages.
 	Explore *Explore
+	// ViewSignals tracks recent title-page opens per member.
+	ViewSignals *ViewSignalStore
 	// KidMax is the signed-in person's age-rating limit ("" for none).
 	KidMax func(*http.Request) string
 	UserID func(*http.Request) int64
@@ -131,6 +133,8 @@ func (h *Handlers) Routes(m *http.ServeMux) {
 	m.HandleFunc("GET /api/v1/explore/head", h.exploreHead)
 	m.HandleFunc("GET /api/v1/explore/tail", h.exploreTail)
 	m.HandleFunc("POST /api/v1/explore/counts", h.exploreCounts)
+	m.HandleFunc("POST /api/v1/explore/opened", h.exploreOpened)
+	m.HandleFunc("GET /api/v1/explore/subcategories", h.exploreSubcategories)
 	m.HandleFunc("GET /api/v1/explore/row-stats", h.exploreRowStats)
 	m.HandleFunc("GET /api/v1/explore/new", h.exploreNew)
 	m.HandleFunc("GET /api/v1/explore/new/services", h.exploreNewServices)

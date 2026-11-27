@@ -11,6 +11,7 @@
 	import { clearOfArrows, flipTransform, growPlacement, GROW_MS, GROW_SCALE, GROW_WIDTH, rowArrows, SHRINK_MS, TRAILER_AFTER, type Growth, type Rect } from './grow.ts';
 	import { onDestroy, onMount, type Snippet } from 'svelte';
 	import { api, message } from '../core/api.ts';
+	import { to } from '../core/paths.ts';
 	import { toasts } from '../core/toasts.svelte.ts';
 	import { proxied, sized } from '../core/tmdb-image.ts';
 	import { minimalLook } from '../core/look.svelte.ts';
@@ -293,6 +294,11 @@
 	</a>
 	<div class="panel">
 		<div class="buttons">
+			{#if (kind === 'movie' || kind === 'show') && tmdb}
+				<a class="play-btn" href={to(`/watch/${kind}/${encodeURIComponent(tmdb)}`)} aria-label="Watch {title}" title="Watch">
+					<Icon name="play" size={16} />
+				</a>
+			{/if}
 			{#if action}{@render action()}{/if}
 			{#if href && stateIcon && owned}<IconButton class="state" icon={stateIcon} label={owned.label} variant="glass" size="lg" {href} />
 			{:else if href && !followTarget}<IconButton class="state" icon="arrow" label={t('ui.growCard.goTo', { title })} variant="glass" size="lg" {href} />{/if}
@@ -348,6 +354,9 @@
 	.shown .panel { animation: panel-in var(--dur-fast) var(--ease-out) 120ms both; }
 	@keyframes panel-in { to { opacity: 1; transform: none; } }
 	.buttons { display: flex; align-items: center; gap: 8px; min-width: 0; }
+	.play-btn { flex: none; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; background: #fff; color: #111; text-decoration: none; box-shadow: 0 4px 12px rgb(0 0 0 / 0.35); transition: transform var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out); }
+	.play-btn:hover { background: #e8e8e8; transform: scale(1.06); }
+	.play-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 	.buttons :global(.ui-ibtn.glass) { background: var(--text); color: var(--surface-1); box-shadow: none; }
 	.buttons :global(.ui-ibtn.glass:hover) { background: color-mix(in srgb, var(--text) 85%, var(--surface-1)); }
 	.more { flex: none; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; color: var(--text); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--text) 40%, transparent); transition: box-shadow var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out); }
@@ -356,7 +365,7 @@
 	.more.bell.on { background: var(--text); color: var(--bg); box-shadow: none; }
 	.more.info { margin-left: auto; }
 	/* Only one state button shows even if the action slot adds its own. */
-	.buttons :global(.state:not(:first-child)) { display: none; }
+	.buttons :global(.state ~ .state) { display: none; }
 	.buttons :global(.ui-ibtn) { width: 36px; height: 36px; flex: none; }
 	.buttons :global(.ui-ibtn:focus-visible) { outline: none; box-shadow: var(--focus-ring); }
 	.title { margin: 2px 0 -4px; font: var(--t-headline); letter-spacing: -0.01em; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

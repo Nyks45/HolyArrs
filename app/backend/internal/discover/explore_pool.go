@@ -90,6 +90,9 @@ type Explore struct {
 	// LookupsOff says the owner turned lookups off (nil: never), so lists
 	// come only from what is kept.
 	LookupsOff func() bool
+	// WatchSignals and ViewSignals enrich member taste beyond the Library.
+	WatchSignals func(userID int64) []WatchSignal
+	ViewSignals  *ViewSignalStore
 
 	// hold is the wait while the metadata server is not answering.
 	hold serverHold

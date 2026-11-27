@@ -243,6 +243,7 @@
 	"server.discover.too-many-explore-requests-try-again": "एक्सप्लोर की बहुत सारी रिक्वेस्ट हो चुकी हैं; एक मिनट में फिर कोशिश करें",
 	"server.discover.too-many-lookups-try-again-in": "बहुत सारी खोज हो चुकी हैं; एक मिनट में फिर कोशिश करें",
 	"server.discover.type-must-be-all-movies-or": "type का मान all, movies या shows होना चाहिए",
+	"server.discover.type-must-be-all-movies-shows": "type का मान all, movies, shows या anime होना चाहिए",
 	"server.discover.type-must-be-all-movies-or-2": "type का मान all, movies या shows और region देश का कोड होना चाहिए",
 	"server.downloads.a-tracker-is-an-http-https": "ट्रैकर इंटरनेट का http, https या udp पता होता है (लोकल पते के लिए डाउनलोडर की लोकल नेटवर्क पहुंच चाहिए): {u}",
 	"server.downloads.add-500-torrents-at-most-at": "एक बार में ज़्यादा से ज़्यादा 500 टोरेंट जोड़ें",

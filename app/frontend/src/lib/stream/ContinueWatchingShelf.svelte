@@ -99,6 +99,13 @@
 							<span class="cw-ph"><Icon name={entry.kind === 'show' ? 'tv' : 'film'} size={28} /></span>
 						{/if}
 						<span class="cw-scrim"></span>
+						<span class="cw-kind-pill">
+							{#if entry.kind === 'show' && entry.season}
+								S{String(entry.season).padStart(2, '0')} · E{String(entry.episode ?? 1).padStart(2, '0')}
+							{:else}
+								Resume
+							{/if}
+						</span>
 						<span class="cw-play-badge" aria-hidden="true">
 							<Icon name="play" size={18} />
 						</span>
@@ -166,11 +173,24 @@
 	.cw-media {
 		position: relative; display: block; aspect-ratio: 16 / 9; border-radius: 12px;
 		overflow: hidden; background: var(--surface-2); color: var(--text-muted);
+		border: 1px solid var(--line);
+		transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+	}
+	.cw-card:hover .cw-media {
+		border-color: rgb(255 255 255 / 24%);
+		box-shadow: 0 10px 26px rgb(0 0 0 / 38%);
 	}
 	.cw-media img { width: 100%; height: 100%; object-fit: cover; transition: transform var(--dur) var(--ease-out); }
 	.cw-card:hover .cw-media img { transform: scale(1.03); }
 	.cw-ph { position: absolute; inset: 0; display: grid; place-items: center; }
-	.cw-scrim { position: absolute; inset: 0; background: linear-gradient(to top, rgb(0 0 0 / 68%) 0%, transparent 45%); }
+	.cw-scrim { position: absolute; inset: 0; background: linear-gradient(to top, rgb(0 0 0 / 72%) 0%, transparent 50%); }
+	.cw-kind-pill {
+		position: absolute; top: 8px; left: 8px; z-index: 2;
+		padding: 3px 8px; border-radius: 999px;
+		background: rgb(14 14 18 / 72%); border: 1px solid rgb(255 255 255 / 16%);
+		color: #fff; font: 600 11px/1.2 var(--font-ui); letter-spacing: 0.02em;
+		backdrop-filter: blur(8px); font-variant-numeric: tabular-nums;
+	}
 	.cw-play-badge {
 		position: absolute; left: 10px; bottom: 12px; display: inline-grid; place-items: center;
 		width: 34px; height: 34px; border-radius: 999px; background: rgb(255 255 255 / 92%); color: #111;

@@ -26,7 +26,7 @@
 	import { artGone, lightOnDark } from './art-check.ts';
 	import { arrivedHead, attention, setupBlocker, tilesSettled, welcomeRows, downloadMoved, downloadingNow, fallbackRows, homeDownloadsURL, homeStrip, n, type HomeAnswer, type HomeCard, type HomeRow } from './home.ts';
 	import { MetadataNotice, checkMetadata, detailPath, remember } from '#lib/metadata/index.ts';
-	import { headPath, newPath, ymd, type HeadAnswer, type NewAnswer } from '#lib/discover/index.ts';
+	import { headPath, HomeExploreSection, newPath, ymd, type HeadAnswer, type NewAnswer } from '#lib/discover/index.ts';
 	import { cardTmdb, type ExploreCard, type ExploreRow } from '#lib/ui/title-cards.ts';
 	import { homeFacts, homeGreeting, homeNews } from './home-line.ts';
 	import type { Health, HealthChecks } from '#lib/health/index.ts';
@@ -469,23 +469,12 @@
 		{/snippet}
 
 		<PageLoader loading={!loaded} label={t('home.loadingHome')} onretry={retry}>
-		<div class="hub-jumps" aria-label="Categories">
-			{#each [
-				{ id: 'anime', name: 'Anime' },
-				{ id: 'kdrama', name: 'K-Drama' },
-				{ id: 'turkish', name: 'Turkish' },
-				{ id: 'asian-drama', name: 'C-Drama & J-Drama' },
-				{ id: 'animation', name: 'Cartoons' },
-				{ id: 'documentary', name: 'Documentaries' }
-			] as cat (cat.id)}
-				<a class="hub-jump" class:spotlight={cat.id === 'anime'} href={to(`/explore?hub=${cat.id}`)}>{cat.name}</a>
-			{/each}
-		</div>
 		<ContinueWatchingShelf from={to('/')} />
 		{#if joinedOn}<JoinedWelcome name={profile.displayName || session.s.name} kinds={joinedKinds} />{/if}
 		{#if welcomeOn && (owner || !joinedOn)}{@render welcomeCard()}{/if}
 		<HomeOverview {overview} {disk} {admin} {settled} {attentionView} {uncheckedParts} {retrying} {retry} {approver} {kid} {uncheckedAsks} {downloading} {mineOpen} {mineDeclined} {fetchingAll} {home} {uncheckedDl} {now} {uncheckedHealth} {health} {picTile} {tileArt} />
 		<PluginCards cards={pluginCards} testid="home-plugin-cards" />
+		<HomeExploreSection welcome={welcomeOn} />
 		{#if welcomeOn}{#each picks as r (r.id)}{@render pickRow(r)}{/each}{/if}
 		{#each rows as row (row)}
 			{#if row === 'arrived'}
@@ -677,14 +666,6 @@
 	.prompt p { color: var(--text-muted); max-width: 56ch; margin-top: 4px; }
 
 	.welcome-acts { display: flex; flex-wrap: wrap; gap: 8px; }
-	.hub-jumps { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
-	.hub-jump {
-		display: inline-flex; align-items: center; min-height: 32px; padding: 0 13px; border-radius: 999px;
-		border: 1px solid var(--line); background: var(--surface-1); color: var(--text-muted);
-		font: 600 12.5px/1 var(--font-ui); text-decoration: none; transition: color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
-	}
-	.hub-jump:hover { color: var(--text); border-color: var(--text-faint); }
-	.hub-jump.spotlight { color: var(--text); border-color: color-mix(in srgb, #f43f5e 45%, var(--line)); background: color-mix(in srgb, #f43f5e 10%, var(--surface-1)); }
 
 
 	/* High Contrast (forced colors) drops shadows and fills: tiles, the steps box and the ticks get a system border, focus gets a system outline, and the small coloured marks (dots, pips, the foot line, the count) keep their colours. */

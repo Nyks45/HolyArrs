@@ -24,6 +24,7 @@ type ExploreRowView struct {
 	// Subtitle is a small line under the title; TitleLayer says where the
 	// title came from (fixed, plain or a template layer), for measuring.
 	Subtitle   string     `json:"subtitle,omitempty"`
+	Category   string     `json:"category,omitempty"`
 	TitleLayer string     `json:"title_layer,omitempty"`
 	Wide       bool       `json:"wide,omitempty"`
 	Items      []ItemView `json:"items"`
@@ -142,7 +143,7 @@ func (h *Handlers) ExploreViews(ctx context.Context, r *http.Request, rows []eng
 			// A {count} title must state the count the row shows.
 			row.Title, row.Subtitle, row.Layer = row.Plain, "", engine.LayerPlain
 		}
-		out = append(out, ExploreRowView{ID: row.ID, Type: row.Type, Title: row.Title, Subtitle: row.Subtitle, TitleLayer: row.Layer, Wide: row.Wide, Items: joined})
+		out = append(out, ExploreRowView{ID: row.ID, Type: row.Type, Title: row.Title, Subtitle: row.Subtitle, Category: row.Category, TitleLayer: row.Layer, Wide: row.Wide, Items: joined})
 	}
 	return out, nil
 }
@@ -216,7 +217,7 @@ func (h *Handlers) exploreHead(w http.ResponseWriter, r *http.Request) {
 	for _, row := range pg.Head {
 		if row.Type == engine.TypeTopServices {
 			// The page fills this row itself (GET /explore/service-top).
-			head = append(head, ExploreRowView{ID: row.ID, Type: row.Type, Title: row.Title, Subtitle: row.Subtitle, TitleLayer: row.Layer, Items: []ItemView{}})
+			head = append(head, ExploreRowView{ID: row.ID, Type: row.Type, Title: row.Title, Subtitle: row.Subtitle, Category: row.Category, TitleLayer: row.Layer, Items: []ItemView{}})
 			continue
 		}
 		views, err := h.ExploreViews(r.Context(), r, []engine.Row{row})

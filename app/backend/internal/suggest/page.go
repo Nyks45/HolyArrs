@@ -27,9 +27,9 @@ const SpreadWindow = 4
 // one row's id, and a slot without data is skipped. Explore shows new things
 // only, so Just arrived, Your asks and Coming soon stay on Home.
 var headOrders = map[string][]string{
-	"all":    {TypeTopServices, TypeTopPicks, TypeTrending, TypeBecauseHave, TypeBest, TypeBecauseAsked, TypeHousehold},
-	"movies": {TypeTopServices, TypeTopPicks, TypeCollection, TypeTrending, TypeBecauseHave, TypeBest, TypeCinemas, TypeHousehold},
-	"shows":  {TypeTopServices, TypeTopPicks, TypeNewSeasons, TypeTrending, TypeBecauseHave, TypeReturning, TypeHousehold},
+	"all":    {TypeTopServices, TypeTopPicks, TypeBecauseWatched, TypeTrending, TypeBecauseHave, TypeBest, TypeBecauseAsked, TypeHousehold, TypeSubcategory, TypeBecauseOpened},
+	"movies": {TypeTopServices, TypeTopPicks, TypeBecauseWatched, TypeCollection, TypeTrending, TypeBecauseHave, TypeBest, TypeCinemas, TypeHousehold, TypeSubcategory, TypeBecauseOpened},
+	"shows":  {TypeTopServices, TypeTopPicks, TypeBecauseWatched, TypeNewSeasons, TypeTrending, TypeBecauseHave, TypeReturning, TypeHousehold, TypeSubcategory, TypeBecauseOpened},
 }
 
 // coldOrder is the head before there is any taste (under 3 seeds): the
@@ -111,7 +111,7 @@ func AssembleTabAt(p Pool, svcTop []Item, member int64, m Moment) Page {
 	var picks []Row
 	for _, slot := range HeadOrder(p.Switch, p.Kid, p.Seeds) {
 		if r, ok := by[slot]; ok {
-			if slot != TypeTopPicks || p.Seeds >= 3 {
+			if slot != TypeTopPicks || p.Seeds >= 1 {
 				picks = append(picks, r)
 			}
 			delete(by, slot)
@@ -221,7 +221,7 @@ func HeadOrder(sw string, kid bool, seeds int) []string {
 	switch {
 	case kid:
 		return kidOrder
-	case seeds < 3:
+	case seeds == 0:
 		// The tab's own rows still show after the charts.
 		order := append([]string{}, coldOrder[:3]...)
 		switch sw {

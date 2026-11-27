@@ -243,6 +243,7 @@
 	"server.discover.too-many-explore-requests-try-again": "te veel aanvragen voor Ontdekken; probeer het over een minuut opnieuw",
 	"server.discover.too-many-lookups-try-again-in": "te veel opzoekingen; probeer het over een minuut opnieuw",
 	"server.discover.type-must-be-all-movies-or": "type moet all, movies of shows zijn",
+	"server.discover.type-must-be-all-movies-shows": "type moet all, movies, shows of anime zijn",
 	"server.discover.type-must-be-all-movies-or-2": "type moet all, movies of shows zijn en region een landcode",
 	"server.downloads.a-tracker-is-an-http-https": "een tracker is een http-, https- of udp-adres op internet (lokale vragen toegang tot het lokale netwerk voor de Downloader): {u}",
 	"server.downloads.add-500-torrents-at-most-at": "voeg hoogstens 500 torrents tegelijk toe",

@@ -76,15 +76,26 @@
 {/if}
 
 <style>
+	.addon-shelf { margin-top: 4px; }
 	.addon-card {
-		display: flex; flex-direction: column; gap: 6px; width: 146px; flex: none; text-decoration: none; color: var(--text);
+		display: flex; flex-direction: column; gap: 6px; width: 152px; flex: none; text-decoration: none; color: var(--text);
+		transition: transform var(--dur-fast) var(--ease-out);
 	}
+	.addon-card:hover { transform: translateY(-2px); }
 	.poster-wrap {
-		width: 146px; aspect-ratio: 2 / 3; border-radius: 10px; overflow: hidden; background: var(--surface-2); border: 1px solid var(--border);
+		width: 152px; aspect-ratio: 2 / 3; border-radius: var(--r-card, 10px); overflow: hidden;
+		background: var(--surface-2); border: 1px solid var(--line);
+		box-shadow: 0 4px 16px rgb(0 0 0 / 0.25);
+		transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
 	}
-	.poster-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
-	.poster-fallback { height: 100%; display: grid; place-items: center; padding: 10px; text-align: center; font-size: 12px; color: var(--muted); }
+	.addon-card:hover .poster-wrap {
+		border-color: rgb(255 255 255 / 24%);
+		box-shadow: 0 8px 24px rgb(0 0 0 / 0.42);
+	}
+	.poster-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.25s var(--ease-out); }
+	.addon-card:hover .poster-wrap img { transform: scale(1.03); }
+	.poster-fallback { height: 100%; display: grid; place-items: center; padding: 10px; text-align: center; font-size: 12px; color: var(--text-muted); }
 	.meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 	.meta strong { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-	.meta span { font-size: 11.5px; color: var(--muted); }
+	.meta span { font-size: 11.5px; color: var(--text-muted); }
 </style>

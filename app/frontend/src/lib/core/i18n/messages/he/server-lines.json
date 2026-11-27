@@ -243,6 +243,7 @@
 	"server.discover.too-many-explore-requests-try-again": "יותר מדי בקשות גילוי; נסה שוב בעוד דקה",
 	"server.discover.too-many-lookups-try-again-in": "יותר מדי חיפושים; נסה שוב בעוד דקה",
 	"server.discover.type-must-be-all-movies-or": "type חייב להיות all, movies או shows",
+	"server.discover.type-must-be-all-movies-shows": "type חייב להיות all, movies, shows או anime",
 	"server.discover.type-must-be-all-movies-or-2": "type חייב להיות all, movies או shows ו־region קוד מדינה",
 	"server.downloads.a-tracker-is-an-http-https": "טראקר הוא כתובת http, https או udp באינטרנט (כתובות מקומיות דורשות גישה לרשת המקומית של המוריד): {u}",
 	"server.downloads.add-500-torrents-at-most-at": "הוסף עד 500 טורנטים בבת אחת",

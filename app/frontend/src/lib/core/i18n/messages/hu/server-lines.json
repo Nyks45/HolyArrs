@@ -243,6 +243,7 @@
 	"server.discover.too-many-explore-requests-try-again": "túl sok Felfedezés-kérés; próbálja újra egy perc múlva",
 	"server.discover.too-many-lookups-try-again-in": "túl sok keresés; próbálja újra egy perc múlva",
 	"server.discover.type-must-be-all-movies-or": "a típus all, movies vagy shows lehet",
+	"server.discover.type-must-be-all-movies-shows": "a típus all, movies, shows vagy anime lehet",
 	"server.discover.type-must-be-all-movies-or-2": "a típus all, movies vagy shows, a régió pedig országkód legyen",
 	"server.downloads.a-tracker-is-an-http-https": "a tracker az interneten lévő http-, https- vagy udp-cím (a helyiekhez a Letöltő helyi hálózati hozzáférése kell): {u}",
 	"server.downloads.add-500-torrents-at-most-at": "egyszerre legfeljebb 500 torrent adható hozzá",

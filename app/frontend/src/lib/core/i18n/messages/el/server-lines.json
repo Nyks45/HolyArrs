@@ -243,6 +243,7 @@
 	"server.discover.too-many-explore-requests-try-again": "πάρα πολλά αιτήματα Εξερεύνησης· δοκιμάστε ξανά σε ένα λεπτό",
 	"server.discover.too-many-lookups-try-again-in": "πάρα πολλές αναζητήσεις· δοκιμάστε ξανά σε ένα λεπτό",
 	"server.discover.type-must-be-all-movies-or": "το type πρέπει να είναι all, movies ή shows",
+	"server.discover.type-must-be-all-movies-shows": "το type πρέπει να είναι all, movies, shows ή anime",
 	"server.discover.type-must-be-all-movies-or-2": "το type πρέπει να είναι all, movies ή shows και το region κωδικός χώρας",
 	"server.downloads.a-tracker-is-an-http-https": "ένας tracker είναι διεύθυνση http, https ή udp στο διαδίκτυο (οι τοπικές χρειάζονται πρόσβαση του Προγράμματος λήψης στο τοπικό δίκτυο): {u}",
 	"server.downloads.add-500-torrents-at-most-at": "προσθέστε το πολύ 500 torrents ταυτόχρονα",

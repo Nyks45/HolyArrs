@@ -70,6 +70,8 @@ type HistoryStore struct {
 	mu      sync.Mutex
 	path    string
 	entries map[string]WatchEntry // keyed by fmt.Sprintf("%d:%s", userID, entryKey)
+	// OnWatchTitle fires outside mu when a key is newly watched or completes.
+	OnWatchTitle func(userID int64, kind, tmdb string)
 }
 
 // NewHistoryStore initializes a HistoryStore in configDir and loads any existing entries.
@@ -142,15 +144,20 @@ func (s *HistoryStore) saveLocked() error {
 // Upsert saves or merges watch progress and preferences for userID.
 func (s *HistoryStore) Upsert(userID int64, in WatchEntry) (WatchEntry, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	merged, err := s.upsertEntryLocked(userID, in, time.Now().UTC())
+	merged, notify, err := s.upsertEntryLocked(userID, in, time.Now().UTC())
 	if err != nil {
+		s.mu.Unlock()
 		return WatchEntry{}, err
 	}
 	s.capUserEntriesLocked(userID, 2000)
-	if err := s.saveLocked(); err != nil {
-		return merged, err
+	saveErr := s.saveLocked()
+	cb := s.OnWatchTitle
+	s.mu.Unlock()
+	if saveErr != nil {
+		return merged, saveErr
+	}
+	if cb != nil && notify {
+		cb(userID, merged.Kind, merged.TMDB)
 	}
 	return merged, nil
 }
@@ -158,8 +165,6 @@ func (s *HistoryStore) Upsert(userID int64, in WatchEntry) (WatchEntry, error) {
 // BatchUpdate atomically applies episode/movie upserts and key deletions for userID in one save.
 func (s *HistoryStore) BatchUpdate(userID int64, upserts []WatchEntry, deleteKeys []string) ([]WatchEntry, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	for _, dk := range deleteKeys {
 		trimmed := strings.TrimSpace(dk)
 		if trimmed != "" {
@@ -168,24 +173,42 @@ func (s *HistoryStore) BatchUpdate(userID int64, upserts []WatchEntry, deleteKey
 	}
 	now := time.Now().UTC()
 	updated := make([]WatchEntry, 0, len(upserts))
+	var notified [][2]string
+	seenNotify := map[string]bool{}
 	for _, in := range upserts {
-		merged, err := s.upsertEntryLocked(userID, in, now)
+		merged, notify, err := s.upsertEntryLocked(userID, in, now)
 		if err != nil {
+			s.mu.Unlock()
 			return updated, err
 		}
 		updated = append(updated, merged)
+		if notify {
+			tk := merged.Kind + ":" + merged.TMDB
+			if !seenNotify[tk] {
+				seenNotify[tk] = true
+				notified = append(notified, [2]string{merged.Kind, merged.TMDB})
+			}
+		}
 	}
 	s.capUserEntriesLocked(userID, 2000)
-	if err := s.saveLocked(); err != nil {
-		return updated, err
+	saveErr := s.saveLocked()
+	cb := s.OnWatchTitle
+	s.mu.Unlock()
+	if saveErr != nil {
+		return updated, saveErr
+	}
+	if cb != nil {
+		for _, pair := range notified {
+			cb(userID, pair[0], pair[1])
+		}
 	}
 	return updated, nil
 }
 
-func (s *HistoryStore) upsertEntryLocked(userID int64, in WatchEntry, now time.Time) (WatchEntry, error) {
+func (s *HistoryStore) upsertEntryLocked(userID int64, in WatchEntry, now time.Time) (WatchEntry, bool, error) {
 	tmdb := strings.TrimSpace(in.TMDB)
 	if tmdb == "" {
-		return WatchEntry{}, errors.New("tmdb is required")
+		return WatchEntry{}, false, errors.New("tmdb is required")
 	}
 	kind := in.Kind
 	if kind != "show" {
@@ -297,8 +320,9 @@ func (s *HistoryStore) upsertEntryLocked(userID int64, in WatchEntry, now time.T
 	}
 	merged.UpdatedAt = now
 
+	notify := !hasPrev || (!prev.Completed && merged.Completed)
 	s.entries[mk] = merged
-	return merged, nil
+	return merged, notify, nil
 }
 
 func (s *HistoryStore) capUserEntriesLocked(userID int64, maxCount int) {

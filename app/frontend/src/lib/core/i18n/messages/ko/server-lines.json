@@ -243,6 +243,7 @@
 	"server.discover.too-many-explore-requests-try-again": "둘러보기 요청이 너무 많습니다. 1분 후에 다시 시도하세요",
 	"server.discover.too-many-lookups-try-again-in": "조회가 너무 많습니다. 1분 후에 다시 시도하세요",
 	"server.discover.type-must-be-all-movies-or": "type은 all, movies, shows 중 하나여야 합니다",
+	"server.discover.type-must-be-all-movies-shows": "type은 all, movies, shows, anime 중 하나여야 합니다",
 	"server.discover.type-must-be-all-movies-or-2": "type은 all, movies, shows 중 하나이고 region은 국가 코드여야 합니다",
 	"server.downloads.a-tracker-is-an-http-https": "트래커는 인터넷의 http, https 또는 udp 주소입니다 (로컬 주소는 다운로더의 로컬 네트워크 접근이 필요합니다): {u}",
 	"server.downloads.add-500-torrents-at-most-at": "한 번에 토렌트를 최대 500개까지 추가할 수 있습니다",

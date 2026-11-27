@@ -243,6 +243,7 @@
 	"server.discover.too-many-explore-requests-try-again": "of margar Kanna-beiðnir; reyndu aftur eftir mínútu",
 	"server.discover.too-many-lookups-try-again-in": "of margar uppflettingar; reyndu aftur eftir mínútu",
 	"server.discover.type-must-be-all-movies-or": "type verður að vera all, movies eða shows",
+	"server.discover.type-must-be-all-movies-shows": "type verður að vera all, movies, shows eða anime",
 	"server.discover.type-must-be-all-movies-or-2": "type verður að vera all, movies eða shows og region landskóði",
 	"server.downloads.a-tracker-is-an-http-https": "tracker er http-, https- eða udp-vistfang á internetinu (staðbundin krefjast aðgangs niðurhalarans að staðarneti): {u}",
 	"server.downloads.add-500-torrents-at-most-at": "bættu við í mesta lagi 500 torrentum í einu",

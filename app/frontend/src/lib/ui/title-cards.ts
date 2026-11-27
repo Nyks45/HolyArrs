@@ -37,6 +37,7 @@ export interface ExploreRow {
 	id: string;
 	title: string;
 	subtitle?: string;
+	category?: string;
 	href?: string;
 	cards: ExploreCard[];
 	keep?: boolean;

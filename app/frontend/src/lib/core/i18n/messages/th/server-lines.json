@@ -243,6 +243,7 @@
 	"server.discover.too-many-explore-requests-try-again": "คำขอสำรวจมากเกินไป ลองอีกครั้งในอีกหนึ่งนาที",
 	"server.discover.too-many-lookups-try-again-in": "ค้นหามากเกินไป ลองอีกครั้งในอีกหนึ่งนาที",
 	"server.discover.type-must-be-all-movies-or": "type ต้องเป็น all, movies หรือ shows",
+	"server.discover.type-must-be-all-movies-shows": "type ต้องเป็น all, movies, shows หรือ anime",
 	"server.discover.type-must-be-all-movies-or-2": "type ต้องเป็น all, movies หรือ shows และ region เป็นรหัสประเทศ",
 	"server.downloads.a-tracker-is-an-http-https": "แทร็กเกอร์คือที่อยู่ http, https หรือ udp บนอินเทอร์เน็ต (ที่อยู่ภายในต้องใช้สิทธิ์เครือข่ายภายในของตัวดาวน์โหลด): {u}",
 	"server.downloads.add-500-torrents-at-most-at": "เพิ่มทอร์เรนต์ได้สูงสุด 500 รายการต่อครั้ง",

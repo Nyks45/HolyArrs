@@ -436,9 +436,9 @@ func (h *Handlers) searchBrowseSection(w http.ResponseWriter, r *http.Request) {
 // a Browse category's titles for the tab, most popular first.
 func (h *Handlers) searchBrowseCategory(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	sw, ok := ExploreSwitch(q.Get("type"))
+	sw, ok := categoryExploreSwitch(q.Get("type"))
 	if !ok {
-		webserver.Fail(w, http.StatusBadRequest, "type must be all, movies or shows")
+		webserver.Fail(w, http.StatusBadRequest, "type must be all, movies, shows or anime")
 		return
 	}
 	kid := h.KidMax(r) != ""

@@ -5,6 +5,7 @@
   "seed": "s",
   "seed_weight": 1.5,
   "genre": "s",
+  "category": "s",
   "items": [
     {
       "tmdb_id": "s",

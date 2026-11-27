@@ -243,6 +243,7 @@
 	"server.discover.too-many-explore-requests-try-again": "“探索”请求太多；请一分钟后再试",
 	"server.discover.too-many-lookups-try-again-in": "查询太多；请一分钟后再试",
 	"server.discover.type-must-be-all-movies-or": "type 必须是 all、movies 或 shows",
+	"server.discover.type-must-be-all-movies-shows": "type 必须是 all、movies、shows 或 anime",
 	"server.discover.type-must-be-all-movies-or-2": "type 必须是 all、movies 或 shows，region 必须是国家代码",
 	"server.downloads.a-tracker-is-an-http-https": "tracker 必须是互联网上的 http、https 或 udp 地址（本地地址需要下载器有本地网络访问权限）：{u}",
 	"server.downloads.add-500-torrents-at-most-at": "一次最多添加 500 个种子",

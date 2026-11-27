@@ -639,6 +639,8 @@ var routeOwners = map[string]Owner{
 	"GET /api/v1/explore/browse/section":                   Media,
 	"GET /api/v1/explore/browse/category":                  Media,
 	"POST /api/v1/explore/counts":                          Media,
+	"POST /api/v1/explore/opened":                          Media,
+	"GET /api/v1/explore/subcategories":                    Media,
 	"GET /api/v1/explore/strip":                            Media,
 	"POST /api/v1/explore/strip/counts":                    Media,
 	"DELETE /api/v1/explore/strip/counts":                  Media,

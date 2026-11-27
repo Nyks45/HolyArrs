@@ -243,6 +243,7 @@
 	"server.discover.too-many-explore-requests-try-again": "твърде много заявки към „Разгледай“; опитайте пак след минута",
 	"server.discover.too-many-lookups-try-again-in": "твърде много търсения; опитайте пак след минута",
 	"server.discover.type-must-be-all-movies-or": "type трябва да е all, movies или shows",
+	"server.discover.type-must-be-all-movies-shows": "type трябва да е all, movies, shows или anime",
 	"server.discover.type-must-be-all-movies-or-2": "type трябва да е all, movies или shows, а region код на държава",
 	"server.downloads.a-tracker-is-an-http-https": "тракерът е http, https или udp адрес в интернет (локалните изискват достъп до локалната мрежа на програмата за изтегляне): {u}",
 	"server.downloads.add-500-torrents-at-most-at": "добавяйте най-много 500 торента наведнъж",

@@ -243,6 +243,7 @@
 	"server.discover.too-many-explore-requests-try-again": "забагато запитів до Огляду; спробуй за хвилину",
 	"server.discover.too-many-lookups-try-again-in": "забагато пошуків; спробуй за хвилину",
 	"server.discover.type-must-be-all-movies-or": "type має бути all, movies або shows",
+	"server.discover.type-must-be-all-movies-shows": "type має бути all, movies, shows або anime",
 	"server.discover.type-must-be-all-movies-or-2": "type має бути all, movies або shows, а region — кодом країни",
 	"server.downloads.a-tracker-is-an-http-https": "трекер — це адреса http, https або udp в інтернеті (для локальних потрібен доступ завантажувача до локальної мережі): {u}",
 	"server.downloads.add-500-torrents-at-most-at": "додавай щонайбільше 500 торентів за раз",

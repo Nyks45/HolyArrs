@@ -471,7 +471,7 @@
 
 <svelte:window onmessage={onMessage} />
 
-<div class="ui-trailer" class:shown class:quick={repeat} bind:this={box}>
+<div class="ui-trailer" class:shown class:quick={repeat} class:embed-paused={paused && src?.kind === 'embed'} bind:this={box}>
 	{#key `${at}:${run}`}
 		{#if src?.kind === 'direct'}
 			<video
@@ -565,10 +565,11 @@
 	.dbg { position: fixed; left: 8px; bottom: 8px; z-index: 99999; max-width: 520px; margin: 0; padding: 8px 10px; font: 12px/1.35 ui-monospace, monospace; color: #9f9; background: rgb(0 0 0 / 85%); border-radius: 8px; white-space: pre-wrap; pointer-events: none; }
 	.ui-trailer { position: absolute; inset: 0; overflow: hidden; opacity: 0; transition: opacity var(--dur-slow) var(--ease-out); pointer-events: none; container-type: size; }
 	.ui-trailer.shown { opacity: 1; }
+	.ui-trailer.embed-paused { opacity: 0; }
 	.ui-trailer.quick { transition-duration: var(--dur-fast); }
 	video, iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; object-fit: cover; }
-	/* Scales the 16:9 embed so it covers the box like the video does. */
-	iframe { left: 50%; top: 50%; width: max(100%, 177.78cqh); height: max(100%, 56.25cqw); translate: -50% -50%; }
+	/* Overscan 16:9 embeds to crop top title and bottom-right chrome outside the box. */
+	iframe { left: 50%; top: 50%; width: max(124%, 220cqh); height: max(124%, 70cqw); translate: -50% -50%; }
 	/* The sound video sits hidden above the picture until it takes over. */
 	video.up { opacity: 0; z-index: 1; }
 	video.up.swapped { opacity: 1; }

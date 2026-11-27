@@ -243,6 +243,7 @@
 	"server.discover.too-many-explore-requests-try-again": "prea multe cereri Explorează; încearcă din nou într-un minut",
 	"server.discover.too-many-lookups-try-again-in": "prea multe căutări; încearcă din nou într-un minut",
 	"server.discover.type-must-be-all-movies-or": "type trebuie să fie all, movies sau shows",
+	"server.discover.type-must-be-all-movies-shows": "type trebuie să fie all, movies, shows sau anime",
 	"server.discover.type-must-be-all-movies-or-2": "type trebuie să fie all, movies sau shows, iar region un cod de țară",
 	"server.downloads.a-tracker-is-an-http-https": "un tracker e o adresă http, https sau udp de pe internet (cele locale cer accesul la rețeaua locală al Programului de descărcare): {u}",
 	"server.downloads.add-500-torrents-at-most-at": "adaugă cel mult 500 de torrente odată",

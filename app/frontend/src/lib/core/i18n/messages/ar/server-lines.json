@@ -243,6 +243,7 @@
 	"server.discover.too-many-explore-requests-try-again": "طلبات استكشاف كثيرة؛ حاول مرة أخرى بعد دقيقة",
 	"server.discover.too-many-lookups-try-again-in": "عمليات بحث كثيرة؛ حاول مرة أخرى بعد دقيقة",
 	"server.discover.type-must-be-all-movies-or": "يجب أن يكون type هو all أو movies أو shows",
+	"server.discover.type-must-be-all-movies-shows": "يجب أن يكون type هو all أو movies أو shows أو anime",
 	"server.discover.type-must-be-all-movies-or-2": "يجب أن يكون type هو all أو movies أو shows وregion رمز بلد",
 	"server.downloads.a-tracker-is-an-http-https": "المتتبع عنوان http أو https أو udp على الإنترنت (المحلية منها تحتاج إلى وصول برنامج التنزيل إلى الشبكة المحلية): {u}",
 	"server.downloads.add-500-torrents-at-most-at": "أضف 500 تورنت كحد أقصى دفعة واحدة",

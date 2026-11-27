@@ -14,7 +14,6 @@
 	import { cardAction, followsByTmdb, cardTmdb, discoverCard, matchOwned, ownedIndex, ownedMark, ownedTitle, cardIdentity, type ExploreCard, type ExploreRow } from '#lib/ui/title-cards.ts';
 	import { contextLine } from '#lib/ui/grow-lines.ts';
 	import { audienceOf } from '#lib/ui/title-status.ts';
-	import Popover from '#lib/ui/Popover.svelte';
 	import Shelf from '#lib/ui/Shelf.svelte';
 	import PosterCard from '#lib/ui/PosterCard.svelte';
 	import WideCard from '#lib/ui/WideCard.svelte';
@@ -23,16 +22,14 @@
 	import { SkCard, SkRail } from '#lib/ui/sk/index.ts';
 	import PageLoader from '#lib/ui/PageLoader.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
-	import SegmentedControl from '#lib/ui/SegmentedControl.svelte';
 	import type { IconName } from '#lib/ui/Icon.svelte';
 	import { EAGER_ROWS, stableRows } from '#lib/ui/row-window.ts';
-	import Icon from '#lib/ui/Icon.svelte';
 	import { artistSheets } from '#lib/requests/index.ts';
 	import { libraryTitles, ownedLibrary, partOff, partOn } from '#lib/mediafiles/index.ts';
-	import { anchorDelta, canReturn, putOffsets, readAnchor, readOffsets, type ExploreReturn, headPath, serverRow, tailPath, type HeadAnswer, type TailAnswer, markTransitions, dedupeTop, filterRows, parseType, searchAddress, typeHref, enoughCards, genreRowPath, genreCardHref, genreRowAfter, GENRE_ROW_MAX, ROW_MIN, type GenreRowCard, type ExploreType, TopServicesRow, ExploreHero, ExploreHubBar, createExploreHub, heroFallback, CategoryStrip, GenreBanner, leaveOut, newHref, newServicesPath, type NewServicesAnswer, whyShown } from '#lib/discover/index.ts';
-	import { detailPath, remember, MetadataNotice } from '#lib/metadata/index.ts';
+	import { anchorDelta, canReturn, putOffsets, readAnchor, readOffsets, type ExploreReturn, headPath, serverRow, tailPath, type HeadAnswer, type TailAnswer, markTransitions, dedupeTop, filterRows, parseType, searchAddress, typeHref, enoughCards, genreRowPath, genreCardHref, genreRowAfter, GENRE_ROW_MAX, ROW_MIN, type GenreRowCard, type ExploreType, TopServicesRow, ExploreHero, ExploreFilterBar, SubcategorySheet, ExploreSubcategoryView, fetchSubcategories, type CategorySummary, createExploreHub, heroFallback, CategoryStrip, GenreBanner, leaveOut, newHref, newServicesPath, type NewServicesAnswer, whyShown } from '#lib/discover/index.ts';
+	import { detailPath, remember } from '#lib/metadata/index.ts';
 	import { QuickAsk } from '#lib/requests/index.ts';
-	import { MusicTrendingRows, musicCardHref, MusicGenreTiles } from '#lib/music/index.ts';
+	import { MusicTrendingRows, musicCardHref } from '#lib/music/index.ts';
 	import { onMount, tick } from 'svelte';
 	import { page } from '$app/state';
 	import { goto, snapshot } from '$app/navigation';
@@ -41,7 +38,7 @@
 	import { session } from '#lib/core/session.svelte.ts';
 	import type { Ask, TitleView } from '#lib/core/types.ts';
 	import { onTheaterExit } from '#lib/core/trailer/theater.svelte.ts';
-	import { ContinueWatchingShelf, AddonCatalogShelves } from '#lib/stream/index.ts';
+	import { ContinueWatchingShelf, AddonCatalogShelves, prefetchStreamSources } from '#lib/stream/index.ts';
 
 	let loaded = $state(false);
 	let failed = $state(false);
@@ -85,6 +82,10 @@
 	// Back can restore a shallow address with the tab or genre picked after Explore opened.
 	const here = () => searchAddress(page.url, page.shallow?.url, typeof location === 'undefined' ? undefined : location.href);
 	let type = $state<ExploreType>(parseType(here().searchParams.get('type')));
+	const catId = $derived((here().searchParams.get('cat') ?? '').trim().toLowerCase());
+	let subcategories = $state<CategorySummary[]>([]);
+	let sheetCategories = $state<CategorySummary[]>([]);
+	let subcatSheetOpen = $state(false);
 	const typeOptions = $derived(
 		([
 			{ value: 'all', label: t('discover.explore.all'), icon: 'grid' },
@@ -111,12 +112,28 @@
 		else url.searchParams.set('type', t);
 		url.searchParams.delete('genre');
 		url.searchParams.delete('hub');
+		if (t === 'anime' || t === 'music') url.searchParams.delete('cat');
 		void goto(url, { replace: true, shallow: true, reset: false });
 		// A new tab starts at its top, never at the last tab's scroll.
 		settleCancel?.();
 		back = null;
 		scrollTo({ top: 0, behavior: 'instant' });
 		if (t !== 'music' && t !== 'anime') void loadHead();
+	}
+
+	function pickCat(id: string | null) {
+		const url = new URL(here().href);
+		if (id) url.searchParams.set('cat', id);
+		else url.searchParams.delete('cat');
+		url.searchParams.delete('genre');
+		url.searchParams.delete('hub');
+		if (type === 'music') {
+			type = 'all';
+			url.searchParams.delete('type');
+		}
+		void goto(url, { replace: false, shallow: true, reset: false });
+		scrollTo({ top: 0, behavior: 'instant' });
+		if (!id && !headLoaded && type !== 'anime') void loadHead();
 	}
 
 	// Back from a title page: the page's scroll and each row's sideways offset come back once the rows have loaded far enough (more tail pages load first when the spot was further down).
@@ -223,55 +240,25 @@
 	});
 
 	// The category strip under the hero: the household's top Browse categories, from the Browse answers the server keeps warm. Hidden until they are ready (no ghosts).
-	const stripViewCtx = {
-		get head() {
-			return head;
-		},
-		get viewerZone() {
-			return viewerZone;
-		},
-		get gone() {
-			return gone;
-		},
-		get type() {
-			return type;
-		},
-		get headLoaded() {
-			return headLoaded;
-		},
-		get genreOn() {
-			return genreView.genreOn;
-		},
-	};
-	const stripView = createExploreStrip(stripViewCtx);
-	const bannerViewCtx = {
-		get type() {
-			return type;
-		},
-		get titles() {
-			return titles;
-		},
-		get headLoaded() {
-			return headLoaded;
-		},
-		get gone() {
-			return gone;
-		},
+	const stripView = createExploreStrip({
+		get head() { return head; },
+		get viewerZone() { return viewerZone; },
+		get gone() { return gone; },
+		get type() { return type; },
+		get headLoaded() { return headLoaded; },
+		get genreOn() { return genreView.genreOn; }
+	});
+	const bannerView = createExploreBanner({
+		get type() { return type; },
+		get titles() { return titles; },
+		get headLoaded() { return headLoaded; },
+		get gone() { return gone; },
 		live,
-		get owned() {
-			return owned;
-		},
-		get who() {
-			return who;
-		},
-		get musicGenres() {
-			return genreView.musicGenres;
-		},
-		get genreOn() {
-			return genreView.genreOn;
-		},
-	};
-	const bannerView = createExploreBanner(bannerViewCtx);
+		get owned() { return owned; },
+		get who() { return who; },
+		get musicGenres() { return genreView.musicGenres; },
+		get genreOn() { return genreView.genreOn; }
+	});
 	// Hero badges: why the featured title shows (New season, Picked for you).
 	let heroGenres = $state<Record<string, string[]>>({});
 	let taste = $state<string[]>([]);
@@ -474,7 +461,7 @@
 	const gone = new AbortController();
 	onMount(() => {
 		const current = here();
-		if (!current.searchParams.has('type') && !current.searchParams.has('genre') && !current.searchParams.has('hub')) {
+		if (!current.searchParams.has('type') && !current.searchParams.has('genre') && !current.searchParams.has('hub') && !current.searchParams.has('cat')) {
 			try {
 				const saved = parseType(localStorage.getItem(TYPE_KEY), musicKept);
 				if (saved !== 'all') setType(saved);
@@ -497,6 +484,30 @@
 			if (headLoaded && !failed && type !== 'music' && type !== 'anime' && hero.length > 0) kept = { key: JSON.stringify(query()), at: Date.now(), rows: $state.snapshot({ head, tail, hero, heroAt, tailPageNext, tailMore, headOrder }) };
 		};
 	});
+	$effect(() => {
+		const t = type;
+		const g = genreView.genre?.name ?? '';
+		if (t === 'music') {
+			subcategories = [];
+			return;
+		}
+		const ac = new AbortController();
+		void fetchSubcategories(t, g, '', ac.signal).then(
+			(list) => {
+				subcategories = list;
+			},
+			() => { subcategories = []; }
+		);
+		return () => ac.abort();
+	});
+
+	function openSubcatSheet() {
+		subcatSheetOpen = true;
+		void fetchSubcategories(type === 'music' ? 'all' : type, '', '', gone.signal).then(
+			(list) => { sheetCategories = list; },
+			() => { sheetCategories = subcategories; }
+		);
+	}
 </script>
 
 <svelte:head><title>{t('discover.explore.exploreHolyArrs')}</title></svelte:head>
@@ -538,34 +549,30 @@
 <div class="explore" onclick={opened}>
 	<!-- The sidebar and the pills say where you are; the page opens straight on its pills and hero. -->
 	<h1 class="sr-only">{t('discover.explore.explore')}</h1>
-	<div class="types-mark" bind:this={typesMark} aria-hidden="true"></div>
-	<div class="types" class:stuck={typesStuck} data-pin-pills bind:this={typesBox} onpointerdowncapture={measurePick} onkeydowncapture={measurePick}>
-		<SegmentedControl options={typeOptions} value={type} label={t('discover.explore.show')} testid="explore-type" announce={(l) => t('discover.explore.showing', { label: l })} onchange={setType} />
-		{#if type === 'music' && genreView.musicGenres.length}
-			<!-- Music: the same Genres button; a genre opens its page. -->
-			<div class="genre-pick" data-testid="genre-picker">
-				<Popover label={t('discover.explore.genres')} text={t('discover.explore.genres')} variant="button" align="end" width={pickW}>
-					{#snippet children(close)}
-						<div class="genre-tiles" role="group" aria-label={t('discover.explore.genres')}>
-							<MusicGenreTiles genres={genreView.musicGenres} allHref={to('/search?kind=music')} compact all={false} onopen={close} />
-						</div>
-					{/snippet}
-				</Popover>
-			</div>
-		{:else if genreView.genres.length}
-			<div class="genre-pick" data-testid="genre-picker">
-				<Popover label={t('discover.explore.genres')} text={genreView.genre ? genreView.genre.name : t('discover.explore.genresWord')} variant="button" align="end" width={pickW} onopen={() => void genreView.loadBrowseArt(type)}>
-					{#snippet children(close)}
-						<div class="genre-tiles" role="group" aria-label={t('discover.explore.genres')}>
-							<MusicGenreTiles genres={genreView.genreTiles} allHref="" compact all={false} selected={genreView.genre ? String(genreView.genre.id) : ''} onpick={(k) => genreView.pickGenre(k === null ? null : Number(k), close)} />
-						</div>
-					{/snippet}
-				</Popover>
-			</div>
-		{/if}
-	</div>
-	<MetadataNotice />
-	{#if type !== 'music' && type !== 'anime'}<ExploreHubBar hubs={hubView.barHubs} activeId={hubView.hubId} activeInfo={hubView.info} onpick={hubView.pickHub} />{/if}
+	<ExploreFilterBar
+		{type}
+		{typeOptions}
+		onTypeChange={setType}
+		musicGenres={genreView.musicGenres}
+		genres={genreView.genres}
+		genreTiles={genreView.genreTiles}
+		activeGenre={genreView.genre}
+		{pickW}
+		loadBrowseArt={genreView.loadBrowseArt}
+		onPickGenre={genreView.pickGenre}
+		hubs={hubView.barHubs}
+		activeHubId={hubView.hubId}
+		activeHubInfo={hubView.info}
+		onPickHub={hubView.pickHub}
+		{subcategories}
+		activeCatId={catId}
+		onPickCat={pickCat}
+		onOpenAllCats={openSubcatSheet}
+		{typesStuck}
+		bind:typesMark
+		bind:typesBox
+		onMeasurePick={measurePick}
+	/>
 	{#if bannerView.musicBannerHold}
 		<div class="music-banner hold" aria-hidden="true" data-testid="music-banner-hold">
 			<GenreBanner layout={2} name={t('discover.explore.yourName', { name: bannerView.musicBannerName || t('discover.explore.music') })} eyebrow={t('discover.explore.pickedFromYourLibrary')} line={t('discover.explore.albumsAndArtistsFrom')} href={to('/explore?type=music')} art={[]} square>
@@ -592,6 +599,20 @@
 
 	{#if type === 'music'}
 		<!-- Music: the music rows above only. -->
+	{:else if catId}
+		<ExploreSubcategoryView
+			{catId}
+			{type}
+			categories={sheetCategories.length ? sheetCategories : subcategories}
+			{owned}
+			{manage}
+			{mayAsk}
+			{who}
+			busyFor={(c) => flow?.busy(c) ?? false}
+			onquick={(c, act) => void quick(c, act)}
+			onback={() => pickCat(null)}
+			onopenall={openSubcatSheet}
+		/>
 	{:else if failed && !okOnce && !hubView.hubOn}
 		<LoadError hasData={false} message={t('discover.explore.couldNotLoadExplore')} onretry={load} {busy} />
 	{:else}
@@ -619,7 +640,23 @@
 		{:else}
 			{#if heroCards.length}
 				{@const h = live(heroCards[heroAt % heroCards.length])}
-				<ExploreHero kind={h.kind === 'show' ? 'show' : 'movie'} tmdb={cardTmdb(h)} title={h.name} href={cardHref(h)} backdrop={h.wide ?? h.image} poster={h.image} vtName={h.vtName} subtitle={h.year ? (h.kind === 'show' ? t('discover.explore.yearShow', { year: h.year }) : t('discover.explore.yearMovie', { year: h.year })) : h.subtitle} settled={(headLoaded || hubView.hubOn) && !busy}>
+				<ExploreHero
+					kind={h.kind === 'show' ? 'show' : 'movie'}
+					tmdb={cardTmdb(h)}
+					title={h.name}
+					href={cardHref(h)}
+					backdrop={h.wide ?? h.image}
+					poster={h.image}
+					vtName={h.vtName}
+					subtitle={h.year ? (h.kind === 'show' ? t('discover.explore.yearShow', { year: h.year }) : t('discover.explore.yearMovie', { year: h.year })) : h.subtitle}
+					settled={(headLoaded || hubView.hubOn) && !busy}
+					onPlayHover={(k, id, ttl, yr) => prefetchStreamSources({ query: ttl, kind: k, year: yr ?? 0, season: k === 'show' ? 1 : 0, episode: k === 'show' ? 1 : 0, tmdb: Number(id) || 0 })}
+					slideIndex={heroAt % heroCards.length}
+					slideCount={heroCards.length}
+					onPrev={() => (heroAt = (heroAt - 1 + heroCards.length) % heroCards.length)}
+					onNext={() => (heroAt = (heroAt + 1) % heroCards.length)}
+					onSelectSlide={(idx) => (heroAt = idx)}
+				>
 					{#snippet action()}{@render heroAction(h)}{/snippet}
 					{#snippet badge()}
 						{@const why = whyShown({ kind: h.kind, tmdb: cardTmdb(h) ?? '', genres: heroGenres[`${h.kind}:${cardTmdb(h)}`], fresh: h.fresh }, { taste })}
@@ -660,7 +697,7 @@
 					{#if newServices && newCards.length}{@render newServicesRow(newServices, newCards)}{/if}
 				{:else}
 				<div class="row-wrap" class:wide-row={row.wide || row.cards.some((c) => wideKind(c.kind))} data-row={hubView.hubOn ? undefined : (row.type ?? row.id)} data-row-id={row.id} data-title-layer={row.titleLayer}>
-				<Shelf title={serverWords(row.title)} subtitle={serverWords(row.subtitle)} href={typeHref(row.href, type)} item={row.cards.some((c) => wideKind(c.kind)) ? 'var(--title-item)' : 'var(--explore-item)'}
+				<Shelf title={serverWords(row.title)} subtitle={serverWords(row.subtitle)} href={row.category ? to(`/explore?cat=${encodeURIComponent(row.category)}`) : typeHref(row.href, type)} item={row.cards.some((c) => wideKind(c.kind)) ? 'var(--title-item)' : 'var(--explore-item)'}
 					items={row.cards} key={(c) => c.key} defer={ri >= EAGER_ROWS && !back} placeholder={row.wide || row.cards.some((c) => wideKind(c.kind)) ? 'wide' : 'poster'} lines={row.cards.some((c) => c.subtitle) ? 2 : 1}>
 					{#snippet card(raw: ExploreCard)}
 						{@const c = live(raw)}
@@ -726,6 +763,7 @@
 </div>
 
 <QuickAsk bind:this={flow} onadded={() => void load()} />
+<SubcategorySheet open={subcatSheetOpen} categories={sheetCategories.length ? sheetCategories : subcategories} activeId={catId} onclose={() => (subcatSheetOpen = false)} onselect={(id) => pickCat(id)} />
 
 <style>
 	.hero-wait { margin: 8px 0 0; border-radius: 24px; overflow: hidden; min-height: max(380px, min(77svh, calc((100vw - var(--gutter) * 2) / 2.18))); display: grid; }
@@ -735,42 +773,7 @@
 	.explore > :global(.ui-head) { margin-bottom: -8px; }
 	/* The held banner keeps the real one's words for its height, unseen until the real one comes. */
 	.music-banner.hold :global(.name) { visibility: hidden; }
-	/* The type switch sits in the page under the title; once scrolled past it floats as a glass pill under the top bar. */
-	.types-mark { height: 0; margin-top: -32px; }
-	.types { position: sticky; top: calc(var(--topbar) + 10px); z-index: 20; display: flex; justify-content: center; margin-top: -12px; pointer-events: none; }
-	.types :global(.ui-seg) { pointer-events: auto; transition: transform var(--bar-glide), box-shadow var(--bar-glide), background-color var(--bar-glide); transform-origin: top center; }
-	.types.stuck :global(.ui-seg) { transform: scale(0.9); background: color-mix(in srgb, var(--surface-2) 70%, transparent); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); box-shadow: 0 10px 30px rgb(0 0 0 / 0.28), 0 0 0 0.5px color-mix(in srgb, var(--text) 14%, transparent); }
-	/* Scaled to 0.9 while stuck: the segments' hit area grows to stay 44px on touch phones. */
-	.types.stuck { --seg-hit: 49px; }
-	/* Reduced motion: the same compact size, without the animation. */
-	@media (prefers-reduced-motion: reduce) { .types :global(.ui-seg), .types :global(.ui-seg .thumb), .genre-pick :global(.trigger) { transition: none; } }
-	/* Phones have no top bar: the pills sit at the top of the page above the hero, not 56px down over it. */
-	@media (max-width: 767px) { .types { top: max(16px, env(safe-area-inset-top)); } }
-	@media (max-width: 767px) { .types :global(.ui-seg) { display: grid; width: 100%; } .types :global(.ui-seg button) { padding: 0 8px; } .music-banner { margin-top: 28px; } }
-	/* Phones: the pills share the row with Genres (never wider than the screen); a long genre name ends in an ellipsis. */
-	@media (max-width: 767px) { .types { max-width: 100%; } .types :global(.ui-seg) { flex: 1 1 auto; width: auto; min-width: 0; } .genre-pick { flex: none; min-width: 0; } .genre-pick :global(.trigger) { max-width: 36vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } }
-	@media (max-width: 479px) { .types :global(.ui-seg button) { padding: 0 6px; font-size: 13px; min-width: 0; } .genre-pick { margin-left: 6px; } .genre-pick :global(.trigger) { padding: 0 12px; font-size: 13px; } }
-	/* Phones: the words win, the glyphs step aside, so no label is clipped. */
-	@media (min-width: 360px) and (max-width: 479px) { .types :global(.ui-seg button svg) { display: none; } }
-	@media (max-width: 359px) {
-		.types :global(.ui-seg button span) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-	}
 	.pick-sk { --poster-ratio: 1; }
-	.genre-pick { pointer-events: auto; margin-left: 8px; display: flex; align-items: center; }
-	/* Genres matches the tab pill: same height, type and glass. */
-	.genre-pick :global(.trigger) { min-height: 36px; border-radius: 10px; padding: 0 14px; font: 600 14px/1 var(--font-ui); background: var(--surface-2); color: var(--text); }
-	.genre-pick :global(.trigger) { transition: transform var(--bar-glide); transform-origin: top center; }
-	@media (pointer: coarse) { .genre-pick :global(.trigger) { min-height: 44px; } }
-	.types.stuck .genre-pick :global(.trigger) { transform: scale(0.9); }
-	.types.stuck .genre-pick :global(.trigger) { background: color-mix(in srgb, var(--surface-2) 70%, transparent); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); box-shadow: 0 10px 30px rgb(0 0 0 / 0.28), 0 0 0 0.5px color-mix(in srgb, var(--text) 14%, transparent); }
-	/* Minimal look: the floating pills are solid, with no blur and only a hairline edge. */
-	:global(html[data-look='minimal']) .types.stuck :global(.ui-seg), :global(html[data-look='minimal']) .types.stuck .genre-pick :global(.trigger) { background: var(--surface-2); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--text) 14%, transparent); }
-	/* The picker panel is the one scroll: a thin themed bar, never taller than the screen allows. */
-	.genre-pick :global(.panel) { max-height: min(calc(100dvh - var(--topbar, 64px) - 96px), 560px); padding: 0; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--text) 28%, transparent) transparent; }
-	.genre-pick :global(.panel::-webkit-scrollbar) { width: 8px; }
-	.genre-pick :global(.panel::-webkit-scrollbar-thumb) { border-radius: 8px; background: color-mix(in srgb, var(--text) 28%, transparent); }
-	.genre-tiles { padding: 14px; }
-	@media (max-width: 767px) { .genre-pick :global(.panel) { max-width: calc(100vw - 16px); } .genre-tiles { padding: 10px; } }
 	.sentinel { height: 1px; }
 	/* Hero badges, next to the facts line: small glass pills. */
 	.why { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; padding: 0; list-style: none; }

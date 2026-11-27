@@ -36,21 +36,23 @@ var Categories = []Category{
 	cat("family", "genres", "Family", true, CatQuery{Genres: "10751"}),
 	split("adventure", "Adventure", true, "12", "10759", kw("adventure", "quest", "treasure hunt", "expedition", "journey")),
 	split("war", "War", false, "10752", "10768", kw("war", "world war ii", "soldier", "military")),
-	showCat("politics", "genres", "Politics", false, CatQuery{Genres: "10768", Keywords: kw("politics", "president", "election", "political")}),
+	{ID: "politics", Section: "genres", Name: "Politics",
+		Movie: &CatQuery{Keywords: kw("politics", "president", "election", "political thriller")},
+		Show:  &CatQuery{Genres: "10768", Keywords: kw("politics", "president", "election", "political")}},
 	cat("western", "genres", "Western", false, CatQuery{Genres: "37"}),
 	{ID: "history", Section: "genres", Name: "History", Movie: &CatQuery{Genres: "36"}, Show: &CatQuery{Keywords: kw("history", "historical", "period drama", "historical drama")}},
 	movieCat("music", "genres", "Music", true, CatQuery{Genres: "10402"}),
 	showCat("kids", "genres", "Kids", true, CatQuery{Genres: "10762"}),
 	showCat("reality", "genres", "Reality", false, CatQuery{Genres: "10764"}),
 	showCat("sitcoms", "genres", "Sitcoms", true, CatQuery{Genres: "35", Keywords: kw("sitcom")}),
-	showCat("medical", "genres", "Medical", false, kwq("medical drama", "hospital", "doctor")),
-	showCat("legal", "genres", "Legal", false, kwq("legal drama", "lawyer", "courtroom")),
-	showCat("cops", "genres", "Cop procedurals", false, kwq("police procedural", "police", "detective")),
+	cat("medical", "genres", "Medical", false, kwq("medical drama", "hospital", "doctor", "surgeon")),
+	cat("legal", "genres", "Legal", false, kwq("legal drama", "lawyer", "courtroom", "trial", "attorney", "law firm")),
+	cat("cops", "genres", "Cop procedurals", false, kwq("police procedural", "police", "detective", "investigation")),
 	showCat("teen", "genres", "Teen", false, kwq("teen drama", "high school", "teenager")),
 	showCat("soaps", "genres", "Soaps", false, CatQuery{Genres: "10766"}),
 	showCat("talk", "genres", "Talk & late night", false, CatQuery{Genres: "10767"}),
-	movieCat("spy", "genres", "Spy", false, kwq("spy", "secret agent", "espionage")),
-	movieCat("sports", "genres", "Sports", true, kwq("sport", "sports", "boxing", "football (soccer)", "basketball")),
+	cat("spy", "genres", "Spy", false, kwq("spy", "secret agent", "espionage", "cia", "mi6")),
+	cat("sports", "genres", "Sports", true, kwq("sport", "sports", "boxing", "football (soccer)", "basketball", "baseball")),
 	movieCat("musicals", "genres", "Musicals", true, kwq("musical")),
 	movieCat("disaster", "genres", "Disaster", false, kwq("disaster", "natural disaster", "disaster movie")),
 
@@ -186,6 +188,21 @@ var Categories = []Category{
 	{ID: "holiday", Section: "collections", Name: "Holiday", Kid: true, Months: []time.Month{time.November, time.December},
 		Movie: &CatQuery{Keywords: kw("christmas", "holiday", "thanksgiving", "santa claus")},
 		Show:  &CatQuery{Keywords: kw("christmas", "holiday", "santa claus")}},
+
+	cat("psychological-thriller", "genres", "Psychological thrillers", false, kwq("psychological thriller", "paranoia", "mind game", "obsession")),
+	{ID: "romcom", Section: "genres", Name: "Romantic comedies", Kid: true,
+		Movie: &CatQuery{Genres: "10749,35"}, Show: &CatQuery{Genres: "35", Keywords: kw("romantic comedy", "romance")}},
+	{ID: "sci-fi-action", Section: "genres", Name: "Sci-Fi action", Kid: true,
+		Movie: &CatQuery{Genres: "878,28"}, Show: &CatQuery{Genres: "10765,10759"}},
+	{ID: "family-adventure", Section: "genres", Name: "Family adventures", Kid: true,
+		Movie: &CatQuery{Genres: "10751,12"}, Show: &CatQuery{Genres: "10751,10759"}},
+	cat("slice-of-life", "moods", "Slice of life", true, CatQuery{Genres: "35|18", Keywords: kw("slice of life", "everyday life", "friendship")}),
+	cat("true-crime", "stories", "True crime", false, kwq("true crime", "murder investigation", "cold case", "forensic")),
+	cat("political-thriller", "stories", "Political thrillers", false, kwq("political thriller", "government conspiracy", "assassination", "corruption")),
+	{ID: "kdrama-thriller", Section: "world", Name: "Korean thrillers", Kid: false,
+		Movie: &CatQuery{Lang: "ko", Genres: "80|9648|53"}, Show: &CatQuery{Lang: "ko", Genres: "80|9648|10759"}},
+	cat("shonen", "collections", "Shonen anime", true, CatQuery{Lang: "ja", Genres: "16", Keywords: kw("shounen", "anime", "superpower", "martial arts", "battle")}),
+	cat("isekai", "collections", "Isekai anime", true, CatQuery{Lang: "ja", Genres: "16", Keywords: kw("isekai", "parallel world", "reincarnation", "fantasy world")}),
 }
 
 // DarkBackdrop reports whether a backdrop is too dark to read as a tile. It is
@@ -411,6 +428,9 @@ func (c Category) Query(kind string) *CatQuery {
 // one per kind. A Kid's requests leave out kidWithout and, for movies,
 // anything above PG.
 func (c Category) Requests(sw string, kid bool) []Request {
+	if !c.inExploreTab(sw) {
+		return nil
+	}
 	var out []Request
 	for _, k := range Kinds(sw) {
 		q := c.Query(k)
@@ -426,7 +446,20 @@ func (c Category) Requests(sw string, kid bool) []Request {
 				r.Cert = "PG"
 			}
 		}
-		out = append(out, r)
+		if sw != "anime" {
+			out = append(out, r)
+			continue
+		}
+		// These themes also have live-action titles. Keep Animation and
+		// Japanese on every request, including each alternative genre.
+		r.Lang = "ja"
+		for _, genres := range strings.Split(q.Genres, "|") {
+			r.Genres = "16"
+			if genres != "" && genres != "16" {
+				r.Genres += "," + genres
+			}
+			out = append(out, r)
+		}
 	}
 	return out
 }

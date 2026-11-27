@@ -243,6 +243,7 @@
 	"server.discover.too-many-explore-requests-try-again": "探索へのリクエストが多すぎます。1 分後にもう一度お試しください",
 	"server.discover.too-many-lookups-try-again-in": "検索が多すぎます。1 分後にもう一度お試しください",
 	"server.discover.type-must-be-all-movies-or": "type は all、movies、shows のいずれかにしてください",
+	"server.discover.type-must-be-all-movies-shows": "type は all、movies、shows、anime のいずれかにしてください",
 	"server.discover.type-must-be-all-movies-or-2": "type は all、movies、shows のいずれか、region は国コードにしてください",
 	"server.downloads.a-tracker-is-an-http-https": "トラッカーは、インターネット上の http、https、udp のアドレスにしてください(ローカルのものには、ダウンローダーのローカルネットワークへのアクセスが必要です): {u}",
 	"server.downloads.add-500-torrents-at-most-at": "一度に追加できるトレントは最大 500 件です",

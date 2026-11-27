@@ -243,6 +243,7 @@
 	"server.discover.too-many-explore-requests-try-again": "quá nhiều yêu cầu Khám phá; hãy thử lại sau một phút",
 	"server.discover.too-many-lookups-try-again-in": "quá nhiều lượt tra cứu; hãy thử lại sau một phút",
 	"server.discover.type-must-be-all-movies-or": "type phải là all, movies hoặc shows",
+	"server.discover.type-must-be-all-movies-shows": "type phải là all, movies, shows hoặc anime",
 	"server.discover.type-must-be-all-movies-or-2": "type phải là all, movies hoặc shows và region là mã quốc gia",
 	"server.downloads.a-tracker-is-an-http-https": "tracker là một địa chỉ http, https hoặc udp trên internet (địa chỉ cục bộ cần Trình tải được truy cập mạng cục bộ): {u}",
 	"server.downloads.add-500-torrents-at-most-at": "mỗi lần chỉ thêm tối đa 500 torrent",

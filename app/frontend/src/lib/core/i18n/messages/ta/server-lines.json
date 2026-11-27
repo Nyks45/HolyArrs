@@ -243,6 +243,7 @@
 	"server.discover.too-many-explore-requests-try-again": "Explore கோரிக்கைகள் மிக அதிகம்; ஒரு நிமிடத்தில் மீண்டும் முயலுங்கள்",
 	"server.discover.too-many-lookups-try-again-in": "தேடல்கள் மிக அதிகம்; ஒரு நிமிடத்தில் மீண்டும் முயலுங்கள்",
 	"server.discover.type-must-be-all-movies-or": "type என்பது all, movies அல்லது shows ஆக இருக்க வேண்டும்",
+	"server.discover.type-must-be-all-movies-shows": "type என்பது all, movies, shows அல்லது anime ஆக இருக்க வேண்டும்",
 	"server.discover.type-must-be-all-movies-or-2": "type என்பது all, movies அல்லது shows ஆகவும் region நாட்டுக் குறியீடாகவும் இருக்க வேண்டும்",
 	"server.downloads.a-tracker-is-an-http-https": "tracker என்பது இணையத்தில் உள்ள http, https அல்லது udp முகவரி (உள்ளூர் முகவரிகளுக்குப் பதிவிறக்கியின் உள்ளூர் வலையமைப்பு அணுகல் தேவை): {u}",
 	"server.downloads.add-500-torrents-at-most-at": "ஒரே நேரத்தில் அதிகபட்சம் 500 டொரண்டுகளைச் சேர்க்கலாம்",

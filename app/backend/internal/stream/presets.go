@@ -134,6 +134,15 @@ var builtinPluginPresets = []PresetPluginRepo{
 		Default:         false,
 		DefaultScrapers: nil,
 	},
+	{
+		ID:              "nuviotr",
+		Name:            "MoOnCrOwN-NUVİO",
+		Category:        "Turkish & Global",
+		Description:     "Optional 18-scraper community repo (enabled manually in Settings).",
+		ManifestURL:     "https://raw.githubusercontent.com/mooncrown04/nuviotr/refs/heads/main/manifest.json",
+		Default:         false,
+		DefaultScrapers: nil,
+	},
 }
 
 func normPresetURL(raw string) string {

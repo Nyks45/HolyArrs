@@ -243,6 +243,7 @@
 	"server.discover.too-many-explore-requests-try-again": "massa peticions d'Explora; torna-ho a provar d'aquí a un minut",
 	"server.discover.too-many-lookups-try-again-in": "massa consultes; torna-ho a provar d'aquí a un minut",
 	"server.discover.type-must-be-all-movies-or": "type ha de ser all, movies o shows",
+	"server.discover.type-must-be-all-movies-shows": "type ha de ser all, movies, shows o anime",
 	"server.discover.type-must-be-all-movies-or-2": "type ha de ser all, movies o shows i region un codi de país",
 	"server.downloads.a-tracker-is-an-http-https": "un tracker és una adreça http, https o udp a internet (les locals necessiten l'accés a la xarxa local del Gestor de baixades): {u}",
 	"server.downloads.add-500-torrents-at-most-at": "afegeix com a màxim 500 torrents alhora",

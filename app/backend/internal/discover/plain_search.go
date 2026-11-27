@@ -13,6 +13,7 @@ import (
 
 	"github.com/HolyArrs/holyarrs/app/backend/internal/core/parts"
 	"github.com/HolyArrs/holyarrs/app/backend/internal/metadata"
+	engine "github.com/HolyArrs/holyarrs/app/backend/internal/suggest"
 )
 
 // plainSearchMax bounds each list of a plain-words search.
@@ -31,7 +32,12 @@ var showGenres = map[string]string{
 // hide titles, as in the Library search.
 func (h *Handlers) plainSearch(w http.ResponseWriter, r *http.Request) {
 	q := ParsePlainWords(r.URL.Query().Get("q"))
-	out := map[string]any{"query": q, "titles": []TitleView{}, "more": []ItemView{}}
+	out := map[string]any{
+		"query":      q,
+		"titles":     []TitleView{},
+		"more":       []ItemView{},
+		"categories": []engine.CategorySummary{},
+	}
 	if q.Text == "" {
 		webserver.WriteJSON(w, http.StatusOK, out)
 		return
@@ -43,6 +49,29 @@ func (h *Handlers) plainSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out["titles"] = views
+	if q.Kind != "music" {
+		sw := plainSearchSwitch(r.URL.Query().Get("type"), q.Kind)
+		now := time.Now()
+		if h.Explore != nil {
+			now = h.Explore.Now()
+		}
+		kid := h.KidMax(r) != ""
+		cats := engine.MatchCategories(q.Text, sw, kid, now)
+		if len(cats) > 8 {
+			cats = cats[:8]
+		}
+		if len(cats) > 0 {
+			out["categories"] = cats
+			remainder := strings.TrimSpace(q.Name + " " + strings.Join(q.Words, " "))
+			if engine.IsCategoryLeadQuery(q.Text, sw, kid, now) || (remainder != "" && engine.IsCategoryLeadQuery(remainder, sw, kid, now)) || (!q.Plain && len(q.Name) == 0) {
+				if catName, catItems := h.plainCategory(ctx, r, cats[0].ID, sw, kid, q, now); len(catItems) > 0 || catName != "" {
+					out["category_id"] = cats[0].ID
+					out["category_name"] = catName
+					out["category_items"] = catItems
+				}
+			}
+		}
+	}
 	// A plain name is already searched outside by Search's own rows.
 	if !q.Plain && q.Kind != "music" {
 		more, note := h.plainMore(ctx, r, q)
@@ -53,6 +82,82 @@ func (h *Handlers) plainSearch(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	webserver.WriteJSON(w, http.StatusOK, out)
+}
+
+func plainSearchSwitch(rawType, queryKind string) string {
+	if strings.EqualFold(strings.TrimSpace(rawType), "anime") {
+		return "all"
+	}
+	if sw, ok := ExploreSwitch(rawType); ok && strings.TrimSpace(rawType) != "" {
+		return sw
+	}
+	switch queryKind {
+	case "movie":
+		return "movies"
+	case "show":
+		return "shows"
+	default:
+		return "all"
+	}
+}
+
+func (h *Handlers) plainCategory(ctx context.Context, r *http.Request, catID, sw string, kid bool, q PlainQuery, now time.Time) (string, []ItemView) {
+	cat, found := engine.CategoryByID(catID)
+	if !found || (kid && !cat.Kid) || len(cat.Requests(sw, kid)) == 0 {
+		return "", nil
+	}
+	if h.Explore == nil {
+		return cat.Name, []ItemView{}
+	}
+	me := h.UserID(r)
+	if kid && h.Cache != nil && !h.Cache.Allow(me, now) {
+		return cat.Name, []ItemView{}
+	}
+	items, err := h.browseItems(ctx, h.LiveExplore(ctx), cat, sw, kid, h.KidMax(r))
+	if err != nil {
+		return cat.Name, []ItemView{}
+	}
+	items, err = h.browseDropNever(ctx, items)
+	if err != nil {
+		return cat.Name, []ItemView{}
+	}
+	keep := make([]metadata.DiscoverItem, 0, min(plainSearchMax, len(items)))
+	for _, it := range items {
+		if p, ok := parts.ForTitleKind(it.Kind); ok && h.PartOn != nil && !h.PartOn(p) {
+			continue
+		}
+		if !inYears(q, it.Year) {
+			continue
+		}
+		genres := it.Genres
+		if genres == nil {
+			genres = []string{}
+		}
+		keep = append(keep, metadata.DiscoverItem{
+			TMDBID:      it.TMDBID,
+			Kind:        it.Kind,
+			Name:        it.Name,
+			Year:        it.Year,
+			Poster:      it.Poster,
+			Backdrop:    it.Backdrop,
+			Overview:    it.Overview,
+			Genres:      genres,
+			Popularity:  it.Pop,
+			VoteAverage: it.Vote,
+			VoteCount:   it.Votes,
+			Released:    it.Released,
+		})
+		if len(keep) >= plainSearchMax {
+			break
+		}
+	}
+	keep = h.KidItems(ctx, h.KidMax(r), keep, plainSearchMax)
+	views, err := h.JoinItems(ctx, keep, me, plainSearchMax)
+	if err != nil {
+		return cat.Name, []ItemView{}
+	}
+	FillText(r, h.Metadata, views)
+	return cat.Name, views
 }
 
 // plainLibrary are the Library titles that fit q, those about q.Words first.

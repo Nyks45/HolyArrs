@@ -212,11 +212,14 @@
 {/if}
 
 <style>
-	.wp-pop { position: absolute; top: 62px; right: 24px; width: min(410px, calc(100vw - 32px)); max-height: min(74vh, 620px); z-index: 14; background: rgb(16 16 22 / 94%); border: 1px solid rgb(255 255 255 / 14%); border-radius: 16px; backdrop-filter: blur(22px); display: flex; flex-direction: column; box-shadow: 0 20px 50px rgb(0 0 0 / 60%); }
+	.wp-pop { position: absolute; top: 62px; right: 24px; width: min(410px, calc(100vw - 32px)); max-height: min(74vh, 620px); z-index: 14; background: rgb(16 16 22 / 94%); border: 1px solid rgb(255 255 255 / 14%); border-radius: 16px; backdrop-filter: blur(22px); display: flex; flex-direction: column; box-shadow: 0 20px 50px rgb(0 0 0 / 60%); animation: wp-pop-in 150ms cubic-bezier(0.22, 1, 0.36, 1); }
+	@keyframes wp-pop-in { from { opacity: 0; transform: translateY(-6px) scale(0.985); } }
 	.wp-pop-head { display: flex; align-items: center; justify-content: space-between; padding: 13px 16px; border-bottom: 1px solid rgb(255 255 255 / 10%); }
 	.wp-pop-head h3 { margin: 0; font-size: 15px; font-weight: 700; }
 	.wp-close { width: 28px; height: 28px; border-radius: 50%; border: 0; background: rgb(255 255 255 / 12%); color: #fff; display: grid; place-items: center; cursor: pointer; }
-	.wp-pop-body { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+	.wp-pop-body { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 10px; scrollbar-width: thin; scrollbar-color: rgb(255 255 255 / 24%) transparent; }
+	.wp-pop-body::-webkit-scrollbar { width: 6px; }
+	.wp-pop-body::-webkit-scrollbar-thumb { background: rgb(255 255 255 / 24%); border-radius: 999px; }
 	.wp-sync-note { color: #86efac; font-size: 11.5px; }
 	.wp-box { padding: 11px; border-radius: 10px; background: rgb(255 255 255 / 5%); display: flex; flex-direction: column; gap: 9px; }
 	.wp-box-title { font-size: 11px; font-weight: 700; color: rgb(255 255 255 / 66%); text-transform: uppercase; letter-spacing: .04em; }

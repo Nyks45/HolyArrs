@@ -243,6 +243,7 @@
 	"server.discover.too-many-explore-requests-try-again": "per daug Naršymo užklausų; po minutės bandykite dar kartą",
 	"server.discover.too-many-lookups-try-again-in": "per daug paieškų; po minutės bandykite dar kartą",
 	"server.discover.type-must-be-all-movies-or": "type turi būti all, movies arba shows",
+	"server.discover.type-must-be-all-movies-shows": "type turi būti all, movies, shows arba anime",
 	"server.discover.type-must-be-all-movies-or-2": "type turi būti all, movies arba shows, o region – šalies kodas",
 	"server.downloads.a-tracker-is-an-http-https": "trekeris yra http, https ar udp adresas internete (vietiniams reikia Atsisiuntėjo prieigos prie vietinio tinklo): {u}",
 	"server.downloads.add-500-torrents-at-most-at": "vienu metu pridėkite ne daugiau kaip 500 torentų",

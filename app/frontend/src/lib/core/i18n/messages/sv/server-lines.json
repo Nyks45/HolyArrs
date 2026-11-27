@@ -243,6 +243,7 @@
 	"server.discover.too-many-explore-requests-try-again": "för många Utforska-förfrågningar; försök igen om en minut",
 	"server.discover.too-many-lookups-try-again-in": "för många uppslagningar; försök igen om en minut",
 	"server.discover.type-must-be-all-movies-or": "type måste vara all, movies eller shows",
+	"server.discover.type-must-be-all-movies-shows": "type måste vara all, movies, shows eller anime",
 	"server.discover.type-must-be-all-movies-or-2": "type måste vara all, movies eller shows och region en landskod",
 	"server.downloads.a-tracker-is-an-http-https": "en tracker är en http-, https- eller udp-adress på internet (lokala kräver nedladdarens åtkomst till det lokala nätverket): {u}",
 	"server.downloads.add-500-torrents-at-most-at": "lägg till högst 500 torrenter åt gången",

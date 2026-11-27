@@ -15,6 +15,9 @@ const (
 	TypeTrending      = "trending"
 	TypeBecauseHave   = "because_have"
 	TypeBecauseAsked  = "because_asked"
+	TypeBecauseWatched = "because_watched"
+	TypeBecauseOpened = "because_opened"
+	TypeSubcategory   = "subcategory"
 	TypePerson        = "person"
 	TypeGenre         = "genre"
 	TypePopularGenre  = "popular_genre"
@@ -51,12 +54,15 @@ var sequelTail = regexp.MustCompile(`(?i)(\s*[:\-–]\s.*$|\s+(part\s+)?([0-9]+|
 // catalog holds, per row type, the fewest items it shows, its prior weight in
 // row scoring and whether it is personal.
 var catalog = map[string]rowKind{
-	TypeTopPicks:      {8, 0.95, true},
-	TypeTrending:      {8, 0, false},
-	TypeBecauseHave:   {6, 0.8, true},
-	TypeBecauseAsked:  {6, 0.75, true},
-	TypePerson:        {6, 0.6, true},
-	TypeGenre:         {8, 0.65, true},
+	TypeTopPicks:       {8, 0.95, true},
+	TypeTrending:       {8, 0, false},
+	TypeBecauseHave:    {6, 0.8, true},
+	TypeBecauseAsked:   {6, 0.75, true},
+	TypeBecauseWatched: {6, 0.9, true},
+	TypeBecauseOpened:  {6, 0.78, true},
+	TypeSubcategory:    {8, 0.82, true},
+	TypePerson:         {6, 0.6, true},
+	TypeGenre:          {8, 0.65, true},
 	TypePopularGenre:  {8, 0.5, false},
 	TypePopularDecade: {8, 0.45, false},
 	TypeNewServices:   {6, 0.75, false},
@@ -110,6 +116,7 @@ type Row struct {
 	Seed       string  `json:"seed,omitempty"`
 	SeedWeight float64 `json:"seed_weight,omitempty"`
 	Genre      string  `json:"genre,omitempty"`
+	Category   string  `json:"category,omitempty"`
 	Items      []Item  `json:"items"`
 	// Score is the row score before the daily jitter. Fresh is its type freshness.
 	Score float64 `json:"score"`
@@ -226,11 +233,11 @@ func (s Scorer) ItemScore(t string, it Item) float64 {
 		return 0.45*aff + 0.20*r + 0.15*p + 0.10*fresh(it, s.Now, 365) + 0.10*hh
 	case TypeCinemas:
 		return 0.6*p + 0.4*aff
-	case TypeBecauseHave, TypeBecauseAsked:
+	case TypeBecauseHave, TypeBecauseAsked, TypeBecauseWatched, TypeBecauseOpened:
 		return 0.50*it.Sim + 0.20*r + 0.15*aff + 0.15*p
 	case TypePerson:
 		return 0.5*r + 0.3*p + 0.2*aff
-	case TypeGenre:
+	case TypeGenre, TypeSubcategory:
 		return 0.35*aff + 0.30*r + 0.25*p + 0.10*fresh(it, s.Now, 1095)
 	case TypePopularGenre, TypePopularDecade:
 		// Not personal: rating-weighted, well-known titles.
@@ -276,6 +283,12 @@ func RowTitle(t, arg string) string {
 		return "Because you have " + arg
 	case TypeBecauseAsked:
 		return "Because you asked for " + arg
+	case TypeBecauseWatched:
+		return "Because you watched " + arg
+	case TypeBecauseOpened:
+		return "Because you checked out " + arg
+	case TypeSubcategory:
+		return arg + " for you"
 	case TypePerson:
 		return "More from " + arg
 	case TypeGenre:

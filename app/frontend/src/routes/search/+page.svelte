@@ -16,7 +16,7 @@
 	import { artistCard, inLibrary, movieCard, personCard, showCard, type Card, type LibraryAnswer } from '#lib/discover/index.ts';
 	import { createSearchArtists } from '#lib/discover/index.ts';
 	import { createSearchRecent } from '#lib/discover/index.ts';
-	import { createSearchBrowse } from '#lib/discover/index.ts';
+	import { createSearchBrowse, SearchCategoryMatches } from '#lib/discover/index.ts';
 	import { type IconName } from '#lib/ui/Icon.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import SegmentedControl from '#lib/ui/SegmentedControl.svelte';
@@ -57,6 +57,7 @@
 	let error = $state('');
 	let noTMDB = $state(false);
 	let searched = $state('');
+	let catHasMatches = $state(false);
 	let groups = $state<Record<Card['type'], Card[] | null>>({ show: null, movie: null, music: null, people: null });
 	/** What was on screen when the current search started: kept up until the new answers arrive. */
 	let stale = $state.raw<{ groups: Record<Card['type'], Card[] | null>; lib: LibraryAnswer | null } | null>(null);
@@ -64,21 +65,12 @@
 	// The entry: a mosaic dissolve down the whole visible page, the tiles rising row by row behind it; under reduced motion the band alone. Timing: a 120 ms hold, the band builds to about 900 ms, the last visible row lands by about 1.1 s, the field's glow settles by about 1.4 s. Only transform and opacity move.
 	const calm = reducedMotion();
 	let revealing = $state(true);
-	const entryCtx = {
-		get revealing() {
-			return revealing;
-		},
-		set revealing(v) {
-			revealing = v;
-		},
-		get calm() {
-			return calm;
-		},
-		get restored() {
-			return restored;
-		},
-	};
-	const entry = createSearchEntry(entryCtx);
+	const entry = createSearchEntry({
+		get revealing() { return revealing; },
+		set revealing(v) { revealing = v; },
+		get calm() { return calm; },
+		get restored() { return restored; }
+	});
 	let cols = $state(6);
 	const recents = createSearchRecent({ run });
 	const beginSearch = createLatestOnly();
@@ -485,13 +477,14 @@
 
 	{#if searchField.term.trim()}
 		<div class="results-head" data-testid="search-results-head">
-			<p class="muted count" style:visibility={waiting || !searched ? 'hidden' : null}>{t(total === 1 ? 'discover.search.resultCount.one' : 'discover.search.resultCount.other', { n: total })}</p>
+			<p class="muted count" style:visibility={waiting || !searched || (total === 0 && catHasMatches) ? 'hidden' : null}>{t(total === 1 ? 'discover.search.resultCount.one' : 'discover.search.resultCount.other', { n: total })}</p>
 			<SegmentedControl size="sm" options={whereOptions} value={onlyLib ? 'library' : 'everywhere'} label={t('discover.search.showResultsFrom')} testid="search-only-library" onchange={(v) => setOnlyLib(v === 'library')} />
 		</div>
 	{/if}
 
 	<div class="results" class:holding aria-live="polite" aria-busy={busy}>
 		{#if waiting}<p class="sr-only">{t('discover.search.searchingFor', { v: searchField.term.trim() })}</p>{/if}
+		<SearchCategoryMatches query={searchField.term} {scope} {onlyLib} onmatches={(has) => (catHasMatches = has)} />
 		{#if plainShown && plainAns}
 			<section class="plain" aria-labelledby="plain-h" data-testid="search-plain">
 				<h2 id="plain-h" class="h2">{t('discover.search.matchesForYourDescription')}</h2>
@@ -689,7 +682,7 @@
 			<p class="notice bad" role="alert">{plainReason(error).text}</p>
 		{:else if total === 0 && (pending || busy)}
 			{@render resultsSkeleton()}
-		{:else if total === 0 && searched && !plainShown}
+		{:else if total === 0 && searched && !plainShown && !catHasMatches}
 			<div class="empty" data-testid="search-empty">
 				<h2 class="h2">{t('discover.search.nothingFoundFor', { searched })}</h2>
 				<ul class="tips">
@@ -773,14 +766,12 @@
 	/* Ghost tiles use the shared skeleton shimmer (tokens.css .sk), sized like BrowseTile. */
 	.ghost { aspect-ratio: 3 / 4; border-radius: 16px; }
 	.more .tiles { width: 100%; }
-	.grid-sk { min-width: 0; }
-	.results-sk { display: flex; flex-direction: column; gap: 32px; min-width: 0; }
+	.grid-sk, .results-sk { display: flex; flex-direction: column; gap: 32px; min-width: 0; }
 	.mood-head { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-bottom: 8px; }
-	.mood-head p { margin: 0; }
+	.mood-head p, .plain .understood, .notice { margin: 0; }
 	.mood { display: flex; flex-direction: column; gap: 16px; }
 	.muted { color: var(--text-muted); }
 	.recent { display: flex; flex-direction: column; gap: 12px; }
-	/* The same head as a Shelf row: the name at the left, its action at the right edge like See all. */
 	.recent-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 	.clear-all { display: inline-flex; align-items: center; min-height: 44px; flex: none; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--accent-text); font: var(--t-callout); font-weight: 500; cursor: pointer; }
 	.clear-all:hover { text-decoration: underline; text-underline-offset: 3px; }
@@ -792,8 +783,8 @@
 	.empty { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; max-width: 640px; }
 	.tips { margin: 0; padding-left: 1.2em; list-style: disc; color: var(--text-muted); font: var(--t-body); display: grid; gap: 4px; }
 	.tips li::marker { color: var(--text-faint, var(--text-muted)); }
-	.notice { margin: 0; padding: 10px 12px; border-radius: var(--r-btn); background: var(--surface-2); font: var(--t-callout); }
+	.notice { padding: 10px 12px; border-radius: var(--r-btn); background: var(--surface-2); font: var(--t-callout); }
 	.notice.bad { color: var(--fail); }
 	.plain { display: grid; gap: 8px; margin-bottom: 24px; min-width: 0; }
-	.plain .understood { margin: 0; font: var(--t-callout); overflow-wrap: anywhere; }
+	.plain .understood { font: var(--t-callout); overflow-wrap: anywhere; }
 </style>

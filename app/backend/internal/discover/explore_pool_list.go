@@ -181,6 +181,7 @@ func (e *Explore) Input(ctx context.Context, m ExploreMember, sw string, now tim
 		return in, err
 	}
 	var lib []engine.LibTitle
+	libByKey := map[string]engine.LibTitle{}
 	for rows.Next() {
 		var t engine.LibTitle
 		var genres, people, added string
@@ -197,6 +198,7 @@ func (e *Explore) Input(ctx context.Context, m ExploreMember, sw string, now tim
 			continue
 		}
 		lib = append(lib, t)
+		libByKey[key] = t
 		for _, p := range t.People[:min(4, len(t.People))] {
 			in.OwnedPeople[p]++
 		}
@@ -272,8 +274,171 @@ func (e *Explore) Input(ctx context.Context, m ExploreMember, sw string, now tim
 			return in, err
 		}
 	}
-	in.Seeds = engine.Seeds(m.ID, m.Kid, lib, asks, now)
+	activity := e.collectActivitySignals(ctx, m, now, libByKey, &in)
+	in.Seeds = engine.SeedsWithActivity(m.ID, m.Kid, lib, asks, activity, now)
 	return in, nil
+}
+
+func (e *Explore) collectActivitySignals(ctx context.Context, m ExploreMember, now time.Time, libByKey map[string]engine.LibTitle, in *engine.Input) []engine.ActivitySeed {
+	var disc metadata.Discoverer
+	var discOK bool
+	if e.Metadata != nil && !e.lookupsOff() && !e.hold.held(now) {
+		if mp := e.Metadata(); mp != nil {
+			disc, discOK = metadata.DiscovererFor(ctx, mp)
+		}
+	}
+	metaMemo := map[string]metadata.Details{}
+	liveLookups := 0
+
+	var activity []engine.ActivitySeed
+	if e.WatchSignals != nil {
+		watches := e.WatchSignals(m.ID)
+		if len(watches) > 24 {
+			watches = watches[:24]
+		}
+		for _, w := range watches {
+			k := normalizeSignalKind(w.Kind)
+			id := strings.TrimSpace(w.TMDBID)
+			if k == "" || id == "" {
+				continue
+			}
+			act := engine.ActivitySeed{
+				TMDBID:    id,
+				Kind:      k,
+				Name:      strings.TrimSpace(w.Title),
+				Year:      w.Year,
+				KindTag:   "watched",
+				Completed: w.Completed,
+				Episodes:  w.Episodes,
+				At:        w.UpdatedAt,
+			}
+			if !e.enrichActivitySignal(ctx, m, &act, libByKey, metaMemo, disc, discOK, &liveLookups) {
+				continue
+			}
+			activity = append(activity, act)
+			for _, p := range act.People[:min(4, len(act.People))] {
+				in.OwnedPeople[p]++
+			}
+			if act.Year > 0 {
+				for _, g := range act.Genres {
+					in.OwnedDecadeGenre[strconv.Itoa(act.Year/10*10)+"s|"+g]++
+				}
+			}
+		}
+	}
+	if e.ViewSignals != nil {
+		views := e.ViewSignals.List(m.ID)
+		if len(views) > 24 {
+			views = views[:24]
+		}
+		for _, v := range views {
+			k := normalizeSignalKind(v.Kind)
+			id := strings.TrimSpace(v.TMDBID)
+			if k == "" || id == "" {
+				continue
+			}
+			act := engine.ActivitySeed{
+				TMDBID:  id,
+				Kind:    k,
+				Name:    strings.TrimSpace(v.Name),
+				Year:    v.Year,
+				KindTag: "opened",
+				Opens:   v.Opens,
+				At:      v.OpenedAt,
+			}
+			if !e.enrichActivitySignal(ctx, m, &act, libByKey, metaMemo, disc, discOK, &liveLookups) {
+				continue
+			}
+			activity = append(activity, act)
+		}
+	}
+	return activity
+}
+
+func (e *Explore) enrichActivitySignal(
+	ctx context.Context,
+	m ExploreMember,
+	act *engine.ActivitySeed,
+	libByKey map[string]engine.LibTitle,
+	metaMemo map[string]metadata.Details,
+	disc metadata.Discoverer,
+	discOK bool,
+	liveLookups *int,
+) bool {
+	key := act.Kind + ":" + act.TMDBID
+	if lt, ok := libByKey[key]; ok {
+		if act.Name == "" {
+			act.Name = lt.Name
+		}
+		if act.Year == 0 {
+			act.Year = lt.Year
+		}
+		if len(act.Genres) == 0 {
+			act.Genres = append([]string(nil), lt.Genres...)
+		}
+		if len(act.People) == 0 {
+			act.People = append([]string(nil), lt.People[:min(4, len(lt.People))]...)
+		}
+		if act.Rating == "" {
+			act.Rating = lt.Rating
+		}
+	}
+
+	det, haveDet := metaMemo[key]
+	if !haveDet && e.Store() != nil {
+		if k, ok := metadata.LoadKept[metadata.Details](ctx, e.Store(), "details|"+act.Kind+"|"+act.TMDBID); ok {
+			det, haveDet = k.V, true
+			metaMemo[key] = det
+		}
+	}
+	if !haveDet && discOK && *liveLookups < 8 {
+		*liveLookups++
+		lctx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
+		loaded, err := disc.Details(lctx, act.Kind, act.TMDBID)
+		cancel()
+		if err == nil {
+			det, haveDet = loaded, true
+			metaMemo[key] = det
+			if e.Store() != nil {
+				metadata.KeepOnDisk(ctx, e.Store(), "details|"+act.Kind+"|"+act.TMDBID, det)
+			}
+		}
+	}
+	if haveDet {
+		if act.Name == "" {
+			act.Name = det.Name
+		}
+		if act.Year == 0 {
+			act.Year = det.Year
+		}
+		if len(act.Genres) == 0 {
+			act.Genres = append([]string(nil), det.Genres...)
+		}
+		if act.Rating == "" {
+			act.Rating = det.Rating
+		}
+		if len(act.People) == 0 && len(det.People) > 0 {
+			limit := min(4, len(det.People))
+			for _, p := range det.People[:limit] {
+				if strings.TrimSpace(p.Name) != "" {
+					act.People = append(act.People, p.Name)
+				}
+			}
+		}
+		if len(det.Keywords) > 0 {
+			act.Keywords = append(act.Keywords, det.Keywords...)
+		}
+		if lang := strings.ToLower(strings.TrimSpace(det.OriginalLanguage)); lang != "" {
+			act.Keywords = append(act.Keywords, "lang:"+lang)
+		}
+		if metadata.LooksAnime(det.Genres, det.OriginCountry, det.OriginalLanguage) {
+			act.Keywords = append(act.Keywords, "anime")
+		}
+	}
+	if m.Kid && !metadata.RatingAllows(m.MaxRating, act.Kind, act.Rating) {
+		return false
+	}
+	return true
 }
 
 // ExploreReturning are the Library shows whose next episode airs in 7 to

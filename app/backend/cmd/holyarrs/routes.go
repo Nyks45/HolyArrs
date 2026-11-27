@@ -77,6 +77,8 @@ type handlers struct {
 	artMisses discover.ArtworkBudget
 	// explore runs the Explore pool job and keeps its lists and pages.
 	explore discover.Explore
+	// viewSignals tracks recent title-page opens per member.
+	viewSignals *discover.ViewSignalStore
 	// trailers keeps resolved trailer addresses, serves the trailer routes
 	// and runs the trailer pass (metadata).
 	trailers *metadata.Trailers

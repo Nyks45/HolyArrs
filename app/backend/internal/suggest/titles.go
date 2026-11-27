@@ -79,7 +79,7 @@ var kidBanned = regexp.MustCompile(`(?i)horror|scar[ey]|fright|after dark|lights
 
 // fixedTypes are the row types that keep their title and get a subtitle.
 var fixedTypes = map[string]bool{TypeTopServices: true, TypeTopPicks: true, TypeTrending: true, TypeBest: true, TypeBecauseHave: true, TypeBecauseAsked: true,
-	TypeCollection: true, TypeCinemas: true, TypeNewSeasons: true, TypeReturning: true, TypeClassics: true}
+	TypeBecauseWatched: true, TypeBecauseOpened: true, TypeSubcategory: true, TypeCollection: true, TypeCinemas: true, TypeNewSeasons: true, TypeReturning: true, TypeClassics: true}
 
 // requiredSlot is the slot the titles of a row type must name.
 var requiredSlot = map[string]string{TypeBecauseHave: "name_of_seed", TypePerson: "person", TypeDecade: "decade", TypePopularDecade: "decade"}
@@ -390,7 +390,13 @@ func (m Moment) Occasions() []string {
 func fixedSubtitle(r Row, c TitleContext) string {
 	switch r.Type {
 	case TypeTopPicks:
-		return "Matched to your Library and asks"
+		return "Matched to what you watch, open and add"
+	case TypeBecauseWatched:
+		return "Picked from your watch history"
+	case TypeBecauseOpened:
+		return "Based on titles you explored"
+	case TypeSubcategory:
+		return "Subcategory picks matched to your taste"
 	case TypeTrending:
 		if g := MixOf(r.Items).Lead; g != "" && !(c.Kid && g == "horror") {
 			return "This week, mostly " + groupWord[g]

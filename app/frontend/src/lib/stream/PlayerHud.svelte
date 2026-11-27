@@ -297,7 +297,7 @@
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div class="wp-scrub-wrap" onmousemove={onTrackMove} onmouseleave={() => { hoverSec = null; }}>
 		{#if hoverSec !== null}
-			<div class="wp-hover-tip" style:left="{hoverPct}%">
+			<div class="wp-hover-tip" style:left="clamp(42px, {hoverPct}%, calc(100% - 42px))">
 				<span>{formatDuration(hoverSec)}</span>
 				{#if hoverChapter}<small>{hoverChapter}</small>{/if}
 			</div>
@@ -441,7 +441,8 @@
 	.wp-scrub-buf { position: absolute; left: 0; top: 0; bottom: 0; background: rgb(255 255 255 / 34%); }
 	.wp-seg-mark { position: absolute; top: 0; bottom: 0; background: rgb(250 204 21 / 55%); z-index: 1; }
 	.wp-ch-tick { position: absolute; top: 0; bottom: 0; width: 2px; background: rgb(255 255 255 / 85%); z-index: 2; }
-	.wp-scrub-fill { position: relative; z-index: 3; height: 100%; background: #fff; }
+	.wp-scrub-fill { position: relative; z-index: 3; height: 100%; background: #fff; transition: box-shadow 120ms ease; }
+	.wp-scrub-wrap:hover .wp-scrub-fill { box-shadow: 0 0 12px rgb(255 255 255 / 48%); }
 	.wp-scrub-knob { position: absolute; top: 50%; width: 12px; height: 12px; border-radius: 50%; background: #fff; transform: translate(-50%, -50%) scale(0.8); pointer-events: none; z-index: 4; box-shadow: 0 0 8px rgb(0 0 0 / 60%); transition: transform 120ms ease; }
 	.wp-scrub-wrap:hover .wp-scrub-knob { transform: translate(-50%, -50%) scale(1.1); }
 	.wp-scrub-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 5; margin: 0; }

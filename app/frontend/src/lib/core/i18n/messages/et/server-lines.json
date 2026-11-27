@@ -243,6 +243,7 @@
 	"server.discover.too-many-explore-requests-try-again": "liiga palju Avasta päringuid; proovi minuti pärast uuesti",
 	"server.discover.too-many-lookups-try-again-in": "liiga palju otsinguid; proovi minuti pärast uuesti",
 	"server.discover.type-must-be-all-movies-or": "type peab olema all, movies või shows",
+	"server.discover.type-must-be-all-movies-shows": "type peab olema all, movies, shows või anime",
 	"server.discover.type-must-be-all-movies-or-2": "type peab olema all, movies või shows ja region riigikood",
 	"server.downloads.a-tracker-is-an-http-https": "tracker on internetis olev http-, https- või udp-aadress (kohalikud vajavad allalaadija ligipääsu kohtvõrku): {u}",
 	"server.downloads.add-500-torrents-at-most-at": "lisa korraga kuni 500 torrentit",

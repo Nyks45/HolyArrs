@@ -142,10 +142,13 @@
 				<div class="wp-cand-list">
 					{#each visibleList as c (candidateKey(c))}
 						{@const b = badgeFor(c)}
-						<article class="wp-cand" class:current={activeCandidateKey === candidateKey(c)}>
+						{@const isCurrent = activeCandidateKey === candidateKey(c)}
+						<article class="wp-cand" class:current={isCurrent}>
 							<div class="wp-cand-info">
 								<div class="wp-cand-name">{c.release_name || c.title}</div>
 								<div class="wp-cand-meta">
+									{#if isCurrent}<span class="tag playing">Playing</span>{/if}
+									{#if isCurrent && session?.needs_transcode}<span class="tag transcode">Transcode</span>{/if}
 									<span class="tag kind-{b.cls}">{b.text}</span>
 									<span class="tag src">{c.provider || c.source_name}</span>
 									{#if c.quality || c.resolution}<span class="tag res">{c.quality || c.resolution}</span>{/if}
@@ -154,7 +157,7 @@
 											{formatShortDuration(c.duration_sec!)}{c.duration_mismatch === 'severe' ? ' · Wrong length' : c.duration_mismatch === 'warn' ? ' · Length diff' : ''}
 										</span>
 									{/if}
-									{#if c.probe_ms}<span class="tag ms">{c.probe_ms}ms</span>{/if}
+									{#if c.probe_ms}<span class="tag {c.probe_ms < 400 ? 'ms-fast' : c.probe_ms < 1200 ? 'ms-mid' : 'ms-slow'}">{c.probe_ms}ms</span>{/if}
 									{#if c.hdr}<span class="tag hdr">{c.hdr}</span>{/if}
 									{#if c.size > 0}<span>{bytes(c.size)}</span>{/if}
 									{#if (c.kind ?? 'torrent') === 'torrent'}<span>{c.seeders} seeds</span>{/if}
@@ -173,13 +176,16 @@
 {/if}
 
 <style>
-	.wp-pop { position: absolute; top: 62px; right: 24px; width: min(420px, calc(100vw - 32px)); max-height: min(74vh, 620px); z-index: 14; background: rgb(16 16 22 / 94%); border: 1px solid rgb(255 255 255 / 14%); border-radius: 16px; backdrop-filter: blur(22px); display: flex; flex-direction: column; box-shadow: 0 20px 50px rgb(0 0 0 / 60%); }
+	.wp-pop { position: absolute; top: 62px; right: 24px; width: min(420px, calc(100vw - 32px)); max-height: min(74vh, 620px); z-index: 14; background: rgb(16 16 22 / 94%); border: 1px solid rgb(255 255 255 / 14%); border-radius: 16px; backdrop-filter: blur(22px); display: flex; flex-direction: column; box-shadow: 0 20px 50px rgb(0 0 0 / 60%); animation: wp-pop-in 150ms cubic-bezier(0.22, 1, 0.36, 1); }
+	@keyframes wp-pop-in { from { opacity: 0; transform: translateY(-6px) scale(0.985); } }
 	.wp-pop-head { display: flex; align-items: center; justify-content: space-between; padding: 13px 16px; border-bottom: 1px solid rgb(255 255 255 / 10%); }
 	.wp-pop-title { display: flex; align-items: center; gap: 8px; }
 	.wp-pop-head h3 { margin: 0; font-size: 15px; font-weight: 700; }
 	.wp-loading-tag { font-size: 11px; font-weight: 600; color: #7dd3fc; }
 	.wp-close { width: 28px; height: 28px; border-radius: 50%; border: 0; background: rgb(255 255 255 / 12%); color: #fff; display: grid; place-items: center; cursor: pointer; }
-	.wp-pop-body { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+	.wp-pop-body { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 10px; scrollbar-width: thin; scrollbar-color: rgb(255 255 255 / 24%) transparent; }
+	.wp-pop-body::-webkit-scrollbar { width: 6px; }
+	.wp-pop-body::-webkit-scrollbar-thumb { background: rgb(255 255 255 / 24%); border-radius: 999px; }
 	.wp-fallback-banner { padding: 7px 10px; border-radius: 8px; background: rgb(245 158 11 / 20%); color: #fcd34d; font-size: 12px; }
 	.wp-box { padding: 10px; border-radius: 10px; background: rgb(255 255 255 / 5%); display: flex; flex-direction: column; gap: 8px; }
 	.wp-label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: rgb(255 255 255 / 72%); }
@@ -204,7 +210,11 @@
 	.tag.dur { background: rgb(255 255 255 / 10%); color: rgb(255 255 255 / 84%); }
 	.tag.dur-warn { background: rgb(245 158 11 / 24%); color: #fde68a; }
 	.tag.dur-bad { background: rgb(239 68 68 / 28%); color: #fca5a5; }
-	.tag.ms { background: rgb(34 197 94 / 16%); color: #86efac; }
+	.tag.playing { background: #e50914; color: #fff; }
+	.tag.transcode { background: rgb(245 158 11 / 26%); color: #fde68a; }
+	.tag.ms-fast { background: rgb(34 197 94 / 18%); color: #86efac; }
+	.tag.ms-mid { background: rgb(245 158 11 / 22%); color: #fde68a; }
+	.tag.ms-slow { background: rgb(239 68 68 / 24%); color: #fca5a5; }
 	.tag.hdr { background: rgb(245 158 11 / 22%); }
 	.wp-cand-acts { display: flex; gap: 5px; flex: none; }
 	.wp-mini-btn { padding: 6px 10px; border-radius: 8px; border: 1px solid rgb(255 255 255 / 20%); background: rgb(255 255 255 / 10%); color: #fff; font-size: 11.5px; font-weight: 600; cursor: pointer; }

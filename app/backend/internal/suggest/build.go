@@ -16,7 +16,7 @@ import (
 const MemberBudget = 30
 
 // PoolVersion is the row set a pool was built with; an older pool is rebuilt.
-const PoolVersion = 2
+const PoolVersion = 3
 
 // maxCollections caps how many collections one pool looks up.
 const maxCollections = 8
@@ -373,7 +373,7 @@ func Build(ctx context.Context, src Source, in Input) (Pool, error) {
 		}
 	}
 	for _, s := range seeds {
-		if nSeedRows == 10 || s.Weight <= 0 {
+		if nSeedRows == 12 || s.Weight <= 0 {
 			break
 		}
 		if !s.Recent {
@@ -395,6 +395,12 @@ func Build(ctx context.Context, src Source, in Input) (Pool, error) {
 		}
 		items = similarity(s, items)
 		t := TypeBecauseHave
+		switch s.Source {
+		case "watched":
+			t = TypeBecauseWatched
+		case "opened":
+			t = TypeBecauseOpened
+		}
 		addRow(Row{ID: t + ":" + s.Key(), Type: t, Seed: s.Key(), SeedWeight: s.Weight, SeedName: s.Name, Title: RowTitle(t, s.Name), Items: dropKey(items, s.Key())})
 	}
 	// Because you asked for: the member's two newest open asks.
@@ -403,7 +409,7 @@ func Build(ctx context.Context, src Source, in Input) (Pool, error) {
 		if nAsked == 2 {
 			break
 		}
-		if !kindIn(kinds, ask.Kind) || hasRow(rows, TypeBecauseHave+":"+ask.Key()) {
+		if !kindIn(kinds, ask.Kind) || hasRow(rows, TypeBecauseHave+":"+ask.Key()) || hasRow(rows, TypeBecauseWatched+":"+ask.Key()) || hasRow(rows, TypeBecauseOpened+":"+ask.Key()) {
 			continue
 		}
 		q := Request{List: "similar", Kind: ask.Kind, Ref: ask.TMDBID}
@@ -418,6 +424,23 @@ func Build(ctx context.Context, src Source, in Input) (Pool, error) {
 		seed := Seed{TMDBID: ask.TMDBID, Kind: ask.Kind, Name: ask.Name, Genres: ask.Genres}
 		t := TypeBecauseAsked
 		addRow(Row{ID: t + ":" + ask.Key(), Type: t, Seed: ask.Key(), SeedName: ask.Name, Title: RowTitle(t, ask.Name), Items: dropKey(similarity(seed, items), ask.Key())})
+	}
+	if nSeeds >= 1 {
+		for _, c := range MatchTasteCategories(profile.KeywordWeights(), profile.GenreWeights(), in.Switch, in.Kid, in.Now, 3) {
+			var subLists [][]Item
+			for _, rq := range c.Requests(in.Switch, in.Kid) {
+				if !spend(rq) {
+					continue
+				}
+				got, err := src.List(ctx, rq)
+				if !soft(err) {
+					continue
+				}
+				subLists = append(subLists, allow(got))
+			}
+			merged := uniq(interleave(subLists))
+			addRow(Row{ID: TypeSubcategory + ":" + c.ID, Type: TypeSubcategory, Category: c.ID, Genre: c.Name, Title: RowTitle(TypeSubcategory, c.Name), Items: merged})
+		}
 	}
 	if nSeeds >= 3 {
 		for _, g := range profile.TopGenres(5, 0.10) {
@@ -478,7 +501,7 @@ func Build(ctx context.Context, src Source, in Input) (Pool, error) {
 			union = append(union, rows[i].Items...)
 		}
 	}
-	if nSeeds >= 3 {
+	if nSeeds >= 1 && len(union) > 0 {
 		u := uniq(union)
 		for j := range u {
 			u[j].HH = hhBy[u[j].Key()]

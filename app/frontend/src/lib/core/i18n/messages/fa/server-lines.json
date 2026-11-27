@@ -243,6 +243,7 @@
 	"server.discover.too-many-explore-requests-try-again": "درخواست‌های کاوش زیادی بوده؛ یک دقیقه بعد دوباره امتحان کن",
 	"server.discover.too-many-lookups-try-again-in": "جستجوهای زیادی بوده؛ یک دقیقه بعد دوباره امتحان کن",
 	"server.discover.type-must-be-all-movies-or": "type باید all، movies یا shows باشد",
+	"server.discover.type-must-be-all-movies-shows": "type باید all، movies، shows یا anime باشد",
 	"server.discover.type-must-be-all-movies-or-2": "type باید all، movies یا shows باشد و region یک کد کشور",
 	"server.downloads.a-tracker-is-an-http-https": "ردیاب یک آدرس http، https یا udp در اینترنت است (آدرس‌های محلی به دسترسی شبکه محلی دانلودر نیاز دارند): {u}",
 	"server.downloads.add-500-torrents-at-most-at": "در هر بار حداکثر 500 تورنت اضافه کن",

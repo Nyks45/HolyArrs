@@ -26,13 +26,31 @@ type AskSeed struct {
 	At                 time.Time
 }
 
-// Seed is a title with a weight for one member.
-type Seed struct {
+// ActivitySeed is a watched or recently opened title signal for one member.
+type ActivitySeed struct {
 	TMDBID, Kind, Name string
 	Year               int
 	Genres, People     []string
-	Weight             float64
-	// Recent means added or asked within a year, so it may name a Because row.
+	Keywords           []string
+	Rating             string
+	// KindTag is "watched" or "opened".
+	KindTag   string
+	Completed bool
+	Episodes  int
+	Opens     int
+	At        time.Time
+}
+
+// Seed is a title with a weight for one member.
+type Seed struct {
+	TMDBID, Kind, Name     string
+	Year                   int
+	Genres, People         []string
+	Keywords               []string
+	// Source identifies the primary signal: "watched", "asked", "have", or "opened".
+	Source string
+	Weight float64
+	// Recent means added, asked or interacted with recently, so it may name a Because row.
 	Recent bool
 }
 
@@ -45,6 +63,25 @@ func (s Seed) Key() string { return s.Kind + ":" + s.TMDBID }
 // only, and a Kid's asks never seed an adult. lib arrives already filtered to
 // the Kid's limit.
 func Seeds(member int64, kid bool, lib []LibTitle, asks []AskSeed, now time.Time) []Seed {
+	return SeedsWithActivity(member, kid, lib, asks, nil, now)
+}
+
+func sourcePriority(src string) int {
+	switch src {
+	case "watched":
+		return 4
+	case "asked":
+		return 3
+	case "have":
+		return 2
+	case "opened":
+		return 1
+	}
+	return 0
+}
+
+// SeedsWithActivity weighs Library, asks, watch history, and recent title opens.
+func SeedsWithActivity(member int64, kid bool, lib []LibTitle, asks []AskSeed, activity []ActivitySeed, now time.Time) []Seed {
 	by := map[string]*Seed{}
 	add := func(s Seed, w float64) {
 		if s.TMDBID == "" || (s.Kind != "movie" && s.Kind != "show") || w == 0 {
@@ -58,11 +95,29 @@ func Seeds(member int64, kid bool, lib []LibTitle, asks []AskSeed, now time.Time
 		}
 		cur.Weight += w
 		cur.Recent = cur.Recent || s.Recent
+		if sourcePriority(s.Source) > sourcePriority(cur.Source) {
+			cur.Source = s.Source
+		}
+		if cur.Name == "" {
+			cur.Name = s.Name
+		}
 		if len(cur.Genres) == 0 {
 			cur.Genres = s.Genres
 		}
 		if len(cur.People) == 0 {
 			cur.People = s.People
+		}
+		if len(s.Keywords) > 0 {
+			haveKW := map[string]bool{}
+			for _, k := range cur.Keywords {
+				haveKW[k] = true
+			}
+			for _, k := range s.Keywords {
+				if !haveKW[k] {
+					haveKW[k] = true
+					cur.Keywords = append(cur.Keywords, k)
+				}
+			}
 		}
 		if cur.Year == 0 {
 			cur.Year = s.Year
@@ -73,17 +128,46 @@ func Seeds(member int64, kid bool, lib []LibTitle, asks []AskSeed, now time.Time
 		if now.Sub(t.Added) <= 365*24*time.Hour {
 			w = 1.0
 		}
-		add(Seed{TMDBID: t.TMDBID, Kind: t.Kind, Name: t.Name, Year: t.Year, Genres: t.Genres, People: t.People, Recent: w == 1.0}, w*decay(now, t.Added))
+		add(Seed{TMDBID: t.TMDBID, Kind: t.Kind, Name: t.Name, Year: t.Year, Genres: t.Genres, People: t.People, Source: "have", Recent: w == 1.0}, w*decay(now, t.Added))
 	}
 	for _, a := range asks {
 		w := 0.5
+		src := ""
 		switch {
 		case a.Member == member:
 			w = 2.0
+			src = "asked"
 		case kid || a.Kid:
 			continue
 		}
-		add(Seed{TMDBID: a.TMDBID, Kind: a.Kind, Name: a.Name, Year: a.Year, Genres: a.Genres, Recent: now.Sub(a.At) <= 365*24*time.Hour}, w*decay(now, a.At))
+		add(Seed{TMDBID: a.TMDBID, Kind: a.Kind, Name: a.Name, Year: a.Year, Genres: a.Genres, Source: src, Recent: now.Sub(a.At) <= 365*24*time.Hour}, w*decay(now, a.At))
+	}
+	for _, act := range activity {
+		switch act.KindTag {
+		case "watched":
+			w := 2.6
+			if act.Completed {
+				w += 0.4
+			}
+			if act.Episodes > 1 {
+				w += min(0.4, float64(act.Episodes-1)*0.15)
+			}
+			add(Seed{
+				TMDBID: act.TMDBID, Kind: act.Kind, Name: act.Name, Year: act.Year,
+				Genres: act.Genres, People: act.People, Keywords: act.Keywords,
+				Source: "watched", Recent: now.Sub(act.At) <= 365*24*time.Hour,
+			}, w*decay(now, act.At))
+		case "opened":
+			w := 0.85
+			if act.Opens > 1 {
+				w += min(0.35, float64(act.Opens-1)*0.12)
+			}
+			add(Seed{
+				TMDBID: act.TMDBID, Kind: act.Kind, Name: act.Name, Year: act.Year,
+				Genres: act.Genres, People: act.People, Keywords: act.Keywords,
+				Source: "opened", Recent: now.Sub(act.At) <= 60*24*time.Hour,
+			}, w*decayDays(now, act.At, 30))
+		}
 	}
 	out := make([]Seed, 0, len(by))
 	for _, s := range by {
@@ -125,18 +209,19 @@ func TailCap(seeds int, kid bool) int {
 	return n
 }
 
-// Profile is a member's taste: a genre weight vector, a set of people and the
+// Profile is a member's taste: a genre weight vector, keyword vector, a set of people and the
 // median seed year.
 type Profile struct {
-	genres map[string]float64
-	people map[string]bool
-	year   int
+	genres   map[string]float64
+	keywords map[string]float64
+	people   map[string]bool
+	year     int
 }
 
 // NewProfile builds a profile from seeds. A negative seed takes genre weight
 // away at half strength, so one dislike does not outweigh a liking.
 func NewProfile(seeds []Seed) Profile {
-	p := Profile{genres: map[string]float64{}, people: map[string]bool{}}
+	p := Profile{genres: map[string]float64{}, keywords: map[string]float64{}, people: map[string]bool{}}
 	var years []int
 	for _, s := range seeds {
 		w := s.Weight
@@ -147,6 +232,11 @@ func NewProfile(seeds []Seed) Profile {
 			p.genres[g] += w
 		}
 		if s.Weight > 0 {
+			for _, kw := range s.Keywords {
+				if k := strings.ToLower(strings.TrimSpace(kw)); k != "" {
+					p.keywords[k] += w
+				}
+			}
 			for _, n := range s.People {
 				p.people[strings.ToLower(n)] = true
 			}
@@ -161,6 +251,12 @@ func NewProfile(seeds []Seed) Profile {
 	}
 	return p
 }
+
+// KeywordWeights returns the member's taste keyword weight map.
+func (p Profile) KeywordWeights() map[string]float64 { return p.keywords }
+
+// GenreWeights returns the member's taste genre weight map.
+func (p Profile) GenreWeights() map[string]float64 { return p.genres }
 
 // TopGenres returns up to n of the strongest genres whose share of the total
 // positive weight is at least minShare.
@@ -227,11 +323,18 @@ func (p Profile) Affinity(it Item) float64 {
 // decay fades a signal by age with a 120 day time constant. A future date
 // counts as now.
 func decay(now, at time.Time) float64 {
+	return decayDays(now, at, 120)
+}
+
+func decayDays(now, at time.Time, tauDays float64) float64 {
+	if at.IsZero() {
+		return 0.5
+	}
 	days := now.Sub(at).Hours() / 24
 	if days < 0 {
 		days = 0
 	}
-	return math.Exp(-days / 120)
+	return math.Exp(-days / tauDays)
 }
 
 // clamp limits x to the range 0 to 1.

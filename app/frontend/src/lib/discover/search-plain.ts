@@ -21,6 +21,10 @@ export interface PlainAnswer {
 	titles: TitleView[];
 	more: ProviderItem[];
 	note?: string;
+	categories?: { id: string; name: string; section: string; section_title: string; movie: boolean; show: boolean }[];
+	category_id?: string;
+	category_name?: string;
+	category_items?: ProviderItem[];
 }
 
 const KIND = /\b(movies?|films?|shows?|series|tv|sitcom)\b/i;

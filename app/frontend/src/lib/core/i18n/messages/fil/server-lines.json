@@ -243,6 +243,7 @@
 	"server.discover.too-many-explore-requests-try-again": "masyadong maraming request sa Explore; subukan ulit sa loob ng isang minuto",
 	"server.discover.too-many-lookups-try-again-in": "masyadong maraming lookup; subukan ulit sa loob ng isang minuto",
 	"server.discover.type-must-be-all-movies-or": "dapat all, movies o shows ang type",
+	"server.discover.type-must-be-all-movies-shows": "dapat all, movies, shows o anime ang type",
 	"server.discover.type-must-be-all-movies-or-2": "dapat all, movies o shows ang type at country code ang region",
 	"server.downloads.a-tracker-is-an-http-https": "ang tracker ay http, https o udp address sa internet (kailangan ng access sa local network ng Downloader ang mga lokal): {u}",
 	"server.downloads.add-500-torrents-at-most-at": "hanggang 500 torrent lang ang maidadagdag nang sabay-sabay",

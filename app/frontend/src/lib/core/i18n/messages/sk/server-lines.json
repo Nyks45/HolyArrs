@@ -243,6 +243,7 @@
 	"server.discover.too-many-explore-requests-try-again": "príliš veľa požiadaviek na Preskúmať; skúste to o minútu",
 	"server.discover.too-many-lookups-try-again-in": "príliš veľa vyhľadávaní; skúste to o minútu",
 	"server.discover.type-must-be-all-movies-or": "type musí byť all, movies alebo shows",
+	"server.discover.type-must-be-all-movies-shows": "type musí byť all, movies, shows alebo anime",
 	"server.discover.type-must-be-all-movies-or-2": "type musí byť all, movies alebo shows a region kód krajiny",
 	"server.downloads.a-tracker-is-an-http-https": "tracker je adresa http, https alebo udp na internete (lokálne vyžadujú prístup Sťahovača k lokálnej sieti): {u}",
 	"server.downloads.add-500-torrents-at-most-at": "naraz pridajte najviac 500 torrentov",

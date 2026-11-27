@@ -214,6 +214,8 @@ var RoutePerms = map[string]webserver.Perm{
 	"GET /api/v1/explore/browse/section":                   webserver.NeedSignedIn,
 	"GET /api/v1/explore/browse/category":                  webserver.NeedSignedIn,
 	"POST /api/v1/explore/counts":                          webserver.NeedSignedIn,
+	"POST /api/v1/explore/opened":                          webserver.NeedSignedIn,
+	"GET /api/v1/explore/subcategories":                    webserver.NeedSignedIn,
 	"GET /api/v1/explore/strip":                            webserver.NeedSignedIn,
 	"POST /api/v1/explore/strip/counts":                    webserver.NeedSignedIn,
 	"DELETE /api/v1/explore/strip/counts":                  webserver.NeedSignedIn,

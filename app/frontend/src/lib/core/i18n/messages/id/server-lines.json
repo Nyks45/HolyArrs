@@ -243,6 +243,7 @@
 	"server.discover.too-many-explore-requests-try-again": "terlalu banyak permintaan Jelajahi; coba lagi dalam semenit",
 	"server.discover.too-many-lookups-try-again-in": "terlalu banyak pencarian; coba lagi dalam semenit",
 	"server.discover.type-must-be-all-movies-or": "type harus all, movies, atau shows",
+	"server.discover.type-must-be-all-movies-shows": "type harus all, movies, shows, atau anime",
 	"server.discover.type-must-be-all-movies-or-2": "type harus all, movies, atau shows dan region kode negara",
 	"server.downloads.a-tracker-is-an-http-https": "tracker adalah alamat http, https, atau udp di internet (yang lokal butuh akses jaringan lokal Pengunduh): {u}",
 	"server.downloads.add-500-torrents-at-most-at": "tambahkan maksimal 500 torrent sekaligus",

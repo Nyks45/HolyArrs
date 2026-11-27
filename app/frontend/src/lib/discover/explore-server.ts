@@ -9,6 +9,7 @@ export interface ServerRow {
 	title: string;
 	/** A small line under the title, chosen by the server. */
 	subtitle?: string;
+	category?: string;
 	title_layer?: string;
 	wide?: boolean;
 	items: ProviderItem[];
@@ -71,6 +72,7 @@ export function serverRow(r: ServerRow): ExploreRow & { wide: boolean; type: str
 		type: r.type,
 		title: r.title,
 		...(r.subtitle ? { subtitle: r.subtitle } : {}),
+		...(r.category ? { category: r.category } : {}),
 		...(r.title_layer ? { titleLayer: r.title_layer } : {}),
 		wide: !!r.wide,
 		cards: r.items.map((d) => {

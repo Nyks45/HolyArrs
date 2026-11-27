@@ -243,6 +243,7 @@
 	"server.discover.too-many-explore-requests-try-again": "pārāk daudz Explore pieprasījumu; pēc minūtes mēģini vēlreiz",
 	"server.discover.too-many-lookups-try-again-in": "pārāk daudz meklējumu; pēc minūtes mēģini vēlreiz",
 	"server.discover.type-must-be-all-movies-or": "type jābūt all, movies vai shows",
+	"server.discover.type-must-be-all-movies-shows": "type jābūt all, movies, shows vai anime",
 	"server.discover.type-must-be-all-movies-or-2": "type jābūt all, movies vai shows un region valsts kodam",
 	"server.downloads.a-tracker-is-an-http-https": "trakeris ir http, https vai udp adrese internetā (vietējiem vajadzīga Lejupielādētāja piekļuve vietējam tīklam): {u}",
 	"server.downloads.add-500-torrents-at-most-at": "vienlaikus pievieno ne vairāk kā 500 torrentus",

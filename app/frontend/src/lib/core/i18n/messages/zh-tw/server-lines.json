@@ -243,6 +243,7 @@
 	"server.discover.too-many-explore-requests-try-again": "「探索」請求太多；請一分鐘後再試",
 	"server.discover.too-many-lookups-try-again-in": "查詢太多；請一分鐘後再試",
 	"server.discover.type-must-be-all-movies-or": "type 必須是 all、movies 或 shows",
+	"server.discover.type-must-be-all-movies-shows": "type 必須是 all、movies、shows 或 anime",
 	"server.discover.type-must-be-all-movies-or-2": "type 必須是 all、movies 或 shows，region 必須是國家代碼",
 	"server.downloads.a-tracker-is-an-http-https": "tracker 必須是互聯網上的 http、https 或 udp 位址（本機位址需要下載器有區域網路存取權限）：{u}",
 	"server.downloads.add-500-torrents-at-most-at": "一次最多新增 500 個種子",

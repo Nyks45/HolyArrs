@@ -252,6 +252,14 @@
 			allCast = false;
 		});
 	});
+	let openedKey = '';
+	$effect(() => {
+		if (!details?.name || (kind !== 'movie' && kind !== 'show')) return;
+		const k = `${kind}:${tmdb}`;
+		if (openedKey === k) return;
+		openedKey = k;
+		void api.post('/explore/opened', { kind, tmdb_id: tmdb, name: details.name, year: details.year ?? 0 }).catch(() => {});
+	});
 	$effect(() => {
 		if (!details?.name || (kind !== 'movie' && kind !== 'show')) return;
 		const ss = kind === 'show' ? (resumeTarget?.season ?? seasons.find((s) => s.number > 0)?.number ?? 1) : 0;

@@ -112,7 +112,8 @@
 					onmouseenter={() => scheduleHoverPrefetch(entry)}
 					onmouseleave={clearHoverPrefetch}
 				>
-					<a class="cw-media" href={watchHref(entry)}>
+					<div class="cw-frame">
+					<a class="cw-media" href={to(detailPath(entry.kind, entry.tmdb))} aria-label={`Open ${entry.title}`}>
 						{#if art}
 							<img src={sized(art, 'backdrop', 480)} alt="" loading="lazy" decoding="async" />
 						{:else}
@@ -126,23 +127,17 @@
 								Resume
 							{/if}
 						</span>
-						<span class="cw-play-badge" aria-hidden="true">
-							<Icon name="play" size={18} />
-						</span>
 						{#if (entry.progress_pct ?? 0) > 0}
 							<span class="cw-prog"><i style="width: {Math.min(100, entry.progress_pct ?? 0)}%"></i></span>
 						{/if}
 					</a>
+					<!-- The title opens its page; only this button plays. -->
+					<a class="cw-play-badge" href={watchHref(entry)} aria-label={`${entry.completed ? 'Play' : 'Resume'} ${entry.title}`} title={entry.completed ? 'Play' : 'Resume'}>
+						<Icon name="play" size={18} />
+					</a>
+					</div>
 
 					<div class="cw-tools">
-						<a
-							class="cw-tool-btn"
-							href={to(detailPath(entry.kind, entry.tmdb))}
-							aria-label={`Details for ${entry.title}`}
-							title="Title details"
-						>
-							<Icon name="info" size={14} />
-						</a>
 						{#if entry.key}
 							<button
 								type="button"
@@ -157,7 +152,7 @@
 						{/if}
 					</div>
 
-					<a class="cw-meta" href={watchHref(entry)}>
+					<a class="cw-meta" href={to(detailPath(entry.kind, entry.tmdb))}>
 						<b class="cw-title" dir="auto">{entry.title}</b>
 						<span class="cw-sub">
 							{#if entry.kind === 'show' && entry.season}
@@ -213,11 +208,12 @@
 		backdrop-filter: blur(8px); font-variant-numeric: tabular-nums;
 	}
 	.cw-play-badge {
-		position: absolute; left: 10px; bottom: 12px; display: inline-grid; place-items: center;
+		position: absolute; z-index: 3; left: 10px; bottom: 12px; display: inline-grid; place-items: center;
 		width: 34px; height: 34px; border-radius: 999px; background: rgb(255 255 255 / 92%); color: #111;
 		box-shadow: 0 4px 14px rgb(0 0 0 / 40%); transition: transform var(--dur-fast) var(--ease-out);
 	}
-	.cw-card:hover .cw-play-badge { transform: scale(1.08); }
+	.cw-play-badge:hover, .cw-play-badge:focus-visible { transform: scale(1.12); }
+	.cw-frame { position: relative; }
 	.cw-prog { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgb(255 255 255 / 26%); }
 	.cw-prog i { display: block; height: 100%; background: #e50914; }
 

@@ -38,15 +38,27 @@ func (s ListerSource) List(ctx context.Context, q engine.Request) ([]engine.Item
 	}
 	var out []metadata.DiscoverItem
 	var err error
+	// paged adds the page to a list's query; the first page sends none, so
+	// its cached answer stays the same.
+	paged := func(v url.Values) url.Values {
+		if q.Page <= 1 {
+			return v
+		}
+		if v == nil {
+			v = url.Values{}
+		}
+		v.Set("page", strconv.Itoa(q.Page))
+		return v
+	}
 	switch q.List {
 	case "trending":
-		out, err = s.L.ExploreList(ctx, q.Kind, "/trending/"+p+"/week", nil)
+		out, err = s.L.ExploreList(ctx, q.Kind, "/trending/"+p+"/week", paged(nil))
 	case "upcoming":
 		path := "/movie/upcoming"
 		if q.Kind == "show" {
 			path = "/tv/on_the_air"
 		}
-		out, err = s.L.ExploreList(ctx, q.Kind, path, nil)
+		out, err = s.L.ExploreList(ctx, q.Kind, path, paged(nil))
 	case "now_playing":
 		// Movies in cinemas now (New & Popular); shows have no such list.
 		if q.Kind != "movie" {
@@ -56,22 +68,25 @@ func (s ListerSource) List(ctx context.Context, q engine.Request) ([]engine.Item
 		if q.Region != "" {
 			v = url.Values{"region": {q.Region}}
 		}
-		out, err = s.L.ExploreList(ctx, q.Kind, "/movie/now_playing", v)
+		out, err = s.L.ExploreList(ctx, q.Kind, "/movie/now_playing", paged(v))
 	case "best":
-		out, err = s.L.ExploreList(ctx, q.Kind, "/discover/"+p, metadata.BestQuery(q.Kind, time.Now()))
+		out, err = s.L.ExploreList(ctx, q.Kind, "/discover/"+p, paged(metadata.BestQuery(q.Kind, time.Now())))
 	case "similar":
 		var recs, sim []metadata.DiscoverItem
-		if recs, err = s.L.ExploreList(ctx, q.Kind, "/"+p+"/"+q.Ref+"/recommendations", nil); err == nil {
-			sim, err = s.L.ExploreList(ctx, q.Kind, "/"+p+"/"+q.Ref+"/similar", nil)
+		if recs, err = s.L.ExploreList(ctx, q.Kind, "/"+p+"/"+q.Ref+"/recommendations", paged(nil)); err == nil {
+			sim, err = s.L.ExploreList(ctx, q.Kind, "/"+p+"/"+q.Ref+"/similar", paged(nil))
 		}
 		out = append(recs, sim...)
 	case "collection":
 		cl, ok := s.L.(metadata.CollectionLister)
-		if !ok {
+		if !ok || q.Page > 1 {
 			return []engine.Item{}, nil
 		}
 		out, err = cl.CollectionParts(ctx, q.Ref)
 	case "person":
+		if q.Page > 1 {
+			return []engine.Item{}, nil
+		}
 		var all []metadata.DiscoverItem
 		all, err = s.L.PersonCredits(ctx, q.Ref)
 		for _, it := range all {
@@ -109,6 +124,15 @@ func (s ListerSource) List(ctx context.Context, q engine.Request) ([]engine.Item
 		}
 		if q.Lang != "" {
 			v.Set("with_original_language", q.Lang)
+		}
+		if q.Networks != "" && q.Kind == "show" {
+			v.Set("with_networks", q.Networks)
+		}
+		if q.Companies != "" {
+			v.Set("with_companies", q.Companies)
+		}
+		if q.Country != "" {
+			v.Set("with_origin_country", q.Country)
 		}
 		if q.Cert != "" && q.Kind == "movie" {
 			v.Set("certification_country", "US")
@@ -167,7 +191,7 @@ func (s ListerSource) List(ctx context.Context, q engine.Request) ([]engine.Item
 		if q.MinVotes > 0 {
 			v.Set("vote_count.gte", strconv.Itoa(q.MinVotes))
 		}
-		out, err = s.L.ExploreList(ctx, q.Kind, "/discover/"+p, v)
+		out, err = s.L.ExploreList(ctx, q.Kind, "/discover/"+p, paged(v))
 	default:
 		return nil, errors.New("explore: unknown list " + q.List)
 	}

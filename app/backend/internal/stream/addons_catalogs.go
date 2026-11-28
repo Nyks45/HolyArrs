@@ -140,7 +140,20 @@ func isAnimeCatalog(addon StremioAddon, cat AddonCatalogDef) bool {
 	return false
 }
 
-// BrowseCatalogs returns metadata shelves exposed by enabled Stremio addons, fetching up to 6 shelves.
+// maxCatalogShelves is the most add-on catalogs one Explore tab reads.
+const maxCatalogShelves = 12
+
+// browsable says a catalog can be listed without input: no required extra
+// (a search box or a fixed genre) and not a search catalog by its name.
+func browsable(c AddonCatalogDef) bool {
+	if c.Required {
+		return false
+	}
+	low := strings.ToLower(c.ID + " " + c.Name)
+	return !strings.Contains(low, "search")
+}
+
+// BrowseCatalogs returns metadata shelves exposed by enabled Stremio addons, at most maxCatalogShelves, in the addons' order.
 func (s *AddonStore) BrowseCatalogs(ctx context.Context, kind string) []AddonCatalogShelf {
 	k := strings.ToLower(strings.TrimSpace(kind))
 	switch k {
@@ -160,6 +173,9 @@ func (s *AddonStore) BrowseCatalogs(ctx context.Context, kind string) []AddonCat
 			continue
 		}
 		for _, c := range a.Catalogs {
+			if !browsable(c) {
+				continue
+			}
 			animeCat := isAnimeCatalog(a, c)
 			cKind := normalizeCatalogKind(c.Type)
 			switch k {
@@ -177,41 +193,47 @@ func (s *AddonStore) BrowseCatalogs(ctx context.Context, kind string) []AddonCat
 				}
 			}
 			jobs = append(jobs, catJob{addon: a, cat: c})
-			if len(jobs) >= 6 {
+			if len(jobs) >= maxCatalogShelves {
 				break
 			}
 		}
-		if len(jobs) >= 6 {
+		if len(jobs) >= maxCatalogShelves {
 			break
 		}
 	}
 	if len(jobs) == 0 {
 		return nil
 	}
-	var mu sync.Mutex
-	var shelves []AddonCatalogShelf
+	// Each shelf keeps its job's place, so the order is the addons' order
+	// whichever answers first.
+	got := make([]*AddonCatalogShelf, len(jobs))
 	var wg sync.WaitGroup
-	for _, j := range jobs {
+	for i, j := range jobs {
 		wg.Add(1)
-		go func(job catJob) {
+		go func(i int, job catJob) {
 			defer wg.Done()
 			items, err := s.FetchCatalog(ctx, job.addon.ID, job.cat.Type, job.cat.ID, "", 0)
 			if err != nil || len(items) == 0 {
 				return
 			}
-			mu.Lock()
-			shelves = append(shelves, AddonCatalogShelf{
+			got[i] = &AddonCatalogShelf{
 				AddonID:   job.addon.ID,
 				AddonName: job.addon.Name,
 				CatalogID: job.cat.ID,
 				Type:      job.cat.Type,
 				Name:      job.cat.Name,
+				Pages:     job.cat.Pages,
 				Items:     items,
-			})
-			mu.Unlock()
-		}(j)
+			}
+		}(i, j)
 	}
 	wg.Wait()
+	var shelves []AddonCatalogShelf
+	for _, sh := range got {
+		if sh != nil {
+			shelves = append(shelves, *sh)
+		}
+	}
 	return shelves
 }
 

@@ -38,6 +38,10 @@ export interface AddonCatalogDef {
 	id: string;
 	name: string;
 	genres?: string[];
+	/** Lists nothing without an input (a search catalog). */
+	required?: boolean;
+	/** Takes skip, so later pages can be read. */
+	pages?: boolean;
 }
 
 export interface StremioAddon {
@@ -76,6 +80,8 @@ export interface AddonCatalogShelf {
 	catalog_id: string;
 	type: string;
 	name: string;
+	/** Later pages can be read with skip. */
+	pages?: boolean;
 	items: AddonCatalogItem[];
 }
 
@@ -220,6 +226,12 @@ export function deleteStremioAddon(id: string): Promise<void> {
 export function listAddonCatalogs(kind = ''): Promise<{ shelves: AddonCatalogShelf[] }> {
 	const q = kind ? `?kind=${encodeURIComponent(kind)}` : '';
 	return api.get<{ shelves: AddonCatalogShelf[] }>(`/streaming/addons/catalogs${q}`);
+}
+
+/** One catalog's items from skip on (its later pages). */
+export function addonCatalogPage(s: Pick<AddonCatalogShelf, 'addon_id' | 'type' | 'catalog_id'>, skip: number, signal?: AbortSignal): Promise<{ items: AddonCatalogItem[] | null }> {
+	const path = `/streaming/addons/${encodeURIComponent(s.addon_id)}/catalog/${encodeURIComponent(s.type)}/${encodeURIComponent(s.catalog_id)}?skip=${skip}`;
+	return api.get<{ items: AddonCatalogItem[] | null }>(path, signal);
 }
 
 export function listPluginRepos(): Promise<{ repos: NuvioRepo[]; node_available: boolean }> {

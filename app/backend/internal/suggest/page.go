@@ -53,6 +53,8 @@ type Page struct {
 	Kid   bool     `json:"-"`
 	Taste []string `json:"-"`
 	Leans []string `json:"-"`
+	// Later are the pool's because rows still to show (Pool.Later).
+	Later []Row `json:"-"`
 }
 
 // ledger is the per-page dedup record of where each title showed.
@@ -82,7 +84,7 @@ func AssembleAt(p Pool, member int64, m Moment) Page {
 // titles (svcTop), which the rows under it never repeat in the first
 // HeadDedupe rows. Rows follow the tab's head order with the charts spread apart.
 func AssembleTabAt(p Pool, svcTop []Item, member int64, m Moment) Page {
-	pg := Page{Seeds: p.Seeds, Cap: TailCap(p.Seeds, p.Kid), Kid: p.Kid, Taste: p.Taste, Leans: p.Leans}
+	pg := Page{Seeds: p.Seeds, Cap: TailCap(p.Seeds, p.Kid), Kid: p.Kid, Taste: p.Taste, Leans: p.Leans, Later: p.Later}
 	by := map[string]Row{}
 	var tail []Row
 	for _, r := range p.Rows {

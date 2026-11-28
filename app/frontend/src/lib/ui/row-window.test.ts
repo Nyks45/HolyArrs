@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mountNow, nextLimit, ROW_FIRST, ROW_STEP, stableRows } from './row-window.ts';
+import { mountNow, nearEnd, nextLimit, ROW_FIRST, ROW_STEP, stableRows } from './row-window.ts';
 
 describe('row windowing', () => {
 	it('mounts a row within 1.5 screens below the viewport', () => {
@@ -24,5 +24,14 @@ describe('row windowing', () => {
 		const later = stableRows(first.order, [{ id: 'new' }, { id: 'c', n: 2 }, { id: 'a' }], id);
 		expect(later.rows).toEqual([{ id: 'a' }, { id: 'c', n: 2 }, { id: 'new' }]);
 		expect(later.order).toEqual(['a', 'c', 'new']);
+	});
+});
+
+describe('nearEnd', () => {
+	it('is true within 1.5 widths of a row end in either reading direction', () => {
+		expect(nearEnd({ scrollLeft: 0, clientWidth: 1000, scrollWidth: 5000 })).toBe(false);
+		expect(nearEnd({ scrollLeft: 3600, clientWidth: 1000, scrollWidth: 5000 })).toBe(true);
+		expect(nearEnd({ scrollLeft: -3600, clientWidth: 1000, scrollWidth: 5000 })).toBe(true);
+		expect(nearEnd({ scrollLeft: 0, clientWidth: 1000, scrollWidth: 1400 })).toBe(true);
 	});
 });

@@ -41,6 +41,14 @@ describe('revision 4', () => {
 	it('keeps the Top on your services marker row in place', () => {
 		const r = serverRow({ id: 'top_services', type: 'top_services', title: 'Trending on streaming', items: [] });
 		expect(r.keep).toBe(true);
-		expect(serverRow({ id: 'top10', type: 'top10', title: 'Trending now', items: [] }).keep).toBe(false);
+		// The server already left out rows under their type's minimum (a because row may hold 6), so every row it sends stays.
+		expect(serverRow({ id: 'because_watched:movie:1', type: 'because_watched', title: 'Because you watched Dune', items: [] }).keep).toBe(true);
+	});
+	it('carries the word that reads the next page of a row', () => {
+		expect(serverRow({ id: 'trending', type: 'trending', title: 'Trending', items: [], more: 'abc' }).more).toBe('abc');
+		expect(serverRow({ id: 'trending', type: 'trending', title: 'Trending', items: [] }).more).toBeUndefined();
+	});
+	it('sends the region with a tail page so the endless rows can name its services', () => {
+		expect(tailPath({ type: 'all', region: 'GB' }, 3)).toBe('/explore/tail?type=all&region=GB&page=3');
 	});
 });

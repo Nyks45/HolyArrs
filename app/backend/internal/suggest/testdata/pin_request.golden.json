@@ -19,5 +19,9 @@
   "Without": "s",
   "Lang": "s",
   "Cert": "s",
+  "Networks": "s",
+  "Companies": "s",
+  "Country": "s",
+  "Page": 7,
   "Scope": "s"
 }

@@ -199,6 +199,7 @@ var RoutePerms = map[string]webserver.Perm{
 	"GET /api/v1/watch-services":                           webserver.NeedSignedIn,
 	"GET /api/v1/explore/head":                             webserver.NeedSignedIn,
 	"GET /api/v1/explore/tail":                             webserver.NeedSignedIn,
+	"GET /api/v1/explore/row":                              webserver.NeedSignedIn,
 	"GET /api/v1/explore/top":                              webserver.NeedSignedIn,
 	"GET /api/v1/explore/service-top":                      webserver.NeedSignedIn,
 	"GET /api/v1/explore/genre":                            webserver.NeedSignedIn,

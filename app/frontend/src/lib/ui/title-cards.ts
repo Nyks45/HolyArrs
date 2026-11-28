@@ -44,6 +44,8 @@ export interface ExploreRow {
 	type?: string;
 	wide?: boolean;
 	titleLayer?: string;
+	/** The word that reads the row's next page (Explore rows only). */
+	more?: string;
 }
 
 export interface ProviderItem {

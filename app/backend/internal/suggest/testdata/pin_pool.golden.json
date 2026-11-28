@@ -23,6 +23,35 @@
           "score": 0
         }
       ],
+      "specs": [
+        {
+          "List": "",
+          "Kind": "",
+          "Ref": "",
+          "Genre": "",
+          "From": "",
+          "To": "",
+          "Services": "",
+          "Region": "",
+          "MinVote": 0,
+          "MinVotes": 0,
+          "MaxVotes": 0,
+          "Sort": "",
+          "AirFrom": "",
+          "AirTo": "",
+          "Types": "",
+          "Keywords": "",
+          "Genres": "",
+          "Without": "",
+          "Lang": "",
+          "Cert": "",
+          "Networks": "",
+          "Companies": "",
+          "Country": "",
+          "Page": 0,
+          "Scope": ""
+        }
+      ],
       "score": 1.5,
       "fresh": 1.5,
       "wide": true,
@@ -41,5 +70,64 @@
   "leans": [
     "s"
   ],
-  "built": "2026-10-13T12:00:00Z"
+  "built": "2026-10-13T12:00:00Z",
+  "later": [
+    {
+      "id": "s",
+      "type": "s",
+      "title": "s",
+      "seed": "s",
+      "seed_weight": 1.5,
+      "genre": "s",
+      "category": "s",
+      "items": [
+        {
+          "tmdb_id": "",
+          "kind": "",
+          "name": "",
+          "genres": null,
+          "score": 0
+        }
+      ],
+      "specs": [
+        {
+          "List": "",
+          "Kind": "",
+          "Ref": "",
+          "Genre": "",
+          "From": "",
+          "To": "",
+          "Services": "",
+          "Region": "",
+          "MinVote": 0,
+          "MinVotes": 0,
+          "MaxVotes": 0,
+          "Sort": "",
+          "AirFrom": "",
+          "AirTo": "",
+          "Types": "",
+          "Keywords": "",
+          "Genres": "",
+          "Without": "",
+          "Lang": "",
+          "Cert": "",
+          "Networks": "",
+          "Companies": "",
+          "Country": "",
+          "Page": 0,
+          "Scope": ""
+        }
+      ],
+      "score": 1.5,
+      "fresh": 1.5,
+      "wide": true,
+      "seed_name": "s",
+      "person": "s",
+      "decade": 7,
+      "plain": "s",
+      "subtitle": "s",
+      "title_id": "s",
+      "title_layer": "s"
+    }
+  ]
 }

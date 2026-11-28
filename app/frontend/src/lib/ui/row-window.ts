@@ -18,6 +18,11 @@ export function nextLimit(limit: number, total: number, s: { scrollLeft: number;
 	return Math.min(total, limit + ROW_STEP);
 }
 
+// True when the row is scrolled within 1.5 widths of its end (either reading direction).
+export function nearEnd(s: { scrollLeft: number; clientWidth: number; scrollWidth: number }): boolean {
+	return Math.abs(s.scrollLeft) + s.clientWidth * 1.5 >= s.scrollWidth;
+}
+
 // Keeps known rows in place and appends new ones, so rows do not jump when data refreshes.
 export function stableRows<R>(order: readonly string[], rows: readonly R[], id: (r: R) => string): { rows: R[]; order: string[] } {
 	const byId = new Map(rows.map((r) => [id(r), r]));

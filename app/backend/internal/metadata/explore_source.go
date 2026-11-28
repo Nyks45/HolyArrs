@@ -192,3 +192,15 @@ func (t *TMDB) KeywordID(ctx context.Context, name string) (int64, error) {
 	}
 	return 0, nil
 }
+
+// ExploreFiltersAll says Explore lists go to TMDB itself (the household's own
+// key), which takes every discover filter: networks, companies and origin
+// countries too. The HolyArrs metadata server refuses those, so rows built on
+// them are left out there.
+func ExploreFiltersAll(ctx context.Context, provider Provider) bool {
+	if sw, ok := provider.(*Switch); ok {
+		provider = sw.pick(ctx)
+	}
+	t, ok := provider.(*TMDB)
+	return ok && t.route(ctx).Direct
+}

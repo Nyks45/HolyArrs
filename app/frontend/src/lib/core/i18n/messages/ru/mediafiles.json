@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "Смотрел кто-либо",
 	"mediafiles.watched.part": "Просмотрено {seen} из {of}",
 	"mediafiles.watched.partly": "Просмотрено частично",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "Не проверено",
 	"mediafiles.releaseSheet.showPickPart": "Чтобы искать, используйте «{choose}» у сезона или серии.",
 	"mediafiles.held.one": "1 прежняя копия в разделе Недавно удалённые",

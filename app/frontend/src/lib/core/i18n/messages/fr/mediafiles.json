@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "Vu par quelqu’un",
 	"mediafiles.watched.part": "{seen} sur {of} vus",
 	"mediafiles.watched.partly": "Vu en partie",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "Non recherché",
 	"mediafiles.releaseSheet.showPickPart": "Pour chercher, utilisez {choose} sur une saison ou un épisode.",
 	"mediafiles.held.one": "1 copie précédente est dans Supprimés récemment",

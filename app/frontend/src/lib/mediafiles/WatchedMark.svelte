@@ -6,7 +6,7 @@
 	let { mark, look = 'badge' }: { mark: WatchedMark | null | undefined; look?: 'badge' | 'bar' } = $props();
 
 	// A sliver stays visible when what aired is not known, so partly watched never reads as nothing.
-	const share = $derived(!mark ? 0 : mark.state === 'watched' ? 100 : mark.of > 0 ? Math.round((Math.min(mark.seen, mark.of) / mark.of) * 100) : 10);
+	const share = $derived(!mark ? 0 : mark.state === 'watched' ? 100 : mark.pct !== undefined ? Math.max(4, Math.round(mark.pct)) : mark.of > 0 ? Math.round((Math.min(mark.seen, mark.of) / mark.of) * 100) : 10);
 </script>
 
 {#if mark}

@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "شاهده أي شخص",
 	"mediafiles.watched.part": "تمت مشاهدة {seen} من {of}",
 	"mediafiles.watched.partly": "مشاهدة جزئية",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "لم يُبحث عنه",
 	"mediafiles.releaseSheet.showPickPart": "للبحث، استخدم {choose} على موسم أو حلقة.",
 	"mediafiles.held.one": "نسخة سابقة واحدة في المحذوف حديثًا",

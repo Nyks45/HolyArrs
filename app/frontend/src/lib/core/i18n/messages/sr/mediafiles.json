@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "Неко је одгледао",
 	"mediafiles.watched.part": "Одгледано {seen} од {of}",
 	"mediafiles.watched.partly": "Делимично одгледано",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "Није потражено",
 	"mediafiles.releaseSheet.showPickPart": "За претрагу користите {choose} на сезони или епизоди.",
 	"mediafiles.held.one": "1 ранија копија је у Недавно обрисано",

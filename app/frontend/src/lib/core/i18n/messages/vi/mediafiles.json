@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "Có người đã xem",
 	"mediafiles.watched.part": "Đã xem {seen} / {of}",
 	"mediafiles.watched.partly": "Đã xem một phần",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "Chưa tra cứu",
 	"mediafiles.releaseSheet.showPickPart": "Để tìm kiếm, hãy dùng {choose} ở một mùa hoặc một tập.",
 	"mediafiles.held.one": "1 bản trước đó đang ở Đã xóa gần đây",

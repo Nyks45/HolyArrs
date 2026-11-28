@@ -33,3 +33,6 @@ export {
 	type SeasonEpisodeSummary,
 	type ShowWatchMeta
 } from './episode-tracking.ts';
+export { airedEpisodes, historyByTitle, historyMark, historyMarks, playTarget, tmdbOf, watchedMovieEntry, watchedShowEntries, watchMetaOf, showHistoryKeys } from './title-watch.ts';
+export { createWatchHistory, setMovieWatched } from './watch-history.svelte.ts';
+export { continueTitle, heroStats, newestTitle } from './watchlist-head.ts';

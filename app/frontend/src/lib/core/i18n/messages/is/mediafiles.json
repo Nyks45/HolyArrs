@@ -557,6 +557,7 @@
   "mediafiles.watched.byAnyone": "Einhver hefur horft",
   "mediafiles.watched.part": "Horft á {seen} af {of}",
   "mediafiles.watched.partly": "Horft að hluta",
+	"mediafiles.watched.pct": "{pct}% watched",
   "mediafiles.adopt.not_looked_up": "Ekki flett upp",
   "mediafiles.releaseSheet.showPickPart": "Til að leita skaltu nota {choose} á þáttaröð eða þætti.",
   "mediafiles.held.one": "1 eldra eintak er í Nýlega eytt",

@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "Visto por alguien",
 	"mediafiles.watched.part": "Vistos {seen} de {of}",
 	"mediafiles.watched.partly": "Visto en parte",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "No buscado",
 	"mediafiles.releaseSheet.showPickPart": "Para buscar, usa {choose} en una temporada o un episodio.",
 	"mediafiles.held.one": "1 copia anterior está en Eliminados recientemente",

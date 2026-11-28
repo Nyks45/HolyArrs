@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "Гледано от някого",
 	"mediafiles.watched.part": "Гледани {seen} от {of}",
 	"mediafiles.watched.partly": "Частично гледано",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "Не е потърсено",
 	"mediafiles.releaseSheet.showPickPart": "За да търсите, използвайте {choose} за сезон или епизод.",
 	"mediafiles.held.one": "1 предишно копие е в Наскоро изтрити",

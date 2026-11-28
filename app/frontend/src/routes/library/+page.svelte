@@ -9,7 +9,8 @@
 	import { audienceOf } from '#lib/ui/title-status.ts';
 	import { densityLabels, loadDensity, loadPosterSize, posterLabels, saveDensity, savePosterSize, type Density, type PosterSize } from '#lib/ui/library-art.ts';
 	import { libraryGrid, filters, kinds, matchesTitleQuery, ofKind, titleQuery, type Filter, type Kind, activeCount, filterCounts, loadColumns, loadSaved, passes, saveColumns, saveSaved, sortTitles, sortsFor, startDir, chosenColumns, columnsFor, defaultSort, type Column, type FilterContext, type FilterState, type Kept, type LibKind, type SavedFilter, type SortDir, type SortKey, detailLabels, flipFrom, loadPosterDetail, savePosterDetail, loadPosterDates, savePosterDates, type PosterDetail, rememberLibraryKind, partsNow, codecLabel, copyCodecs, type CopySearchPreview, type CopySearchResult, deleteBody } from '#lib/mediafiles/index.ts';
-	import { episodeLabel, showProgress } from '#lib/shows/index.ts';
+	import { continueTitle, createWatchHistory, heroStats, newestTitle, episodeLabel, showProgress } from '#lib/shows/index.ts';
+	import { WatchlistHero, WatchlistTabs, watchList, watchedOf, watchedNow, passesSeen, readSeen, seenCounts, type SeenFilter, type HeroFeature } from '#lib/mediafiles/index.ts';
 	import { artistProgress, artistHref, UnmatchedMusicNote } from '#lib/music/index.ts';
 	import { DlFind, searchShortcut, dlTop } from '#lib/downloads/index.ts';
 	import type { MovieCollection, CollectionDetail } from '#lib/mediafiles/index.ts';
@@ -80,6 +81,7 @@
 	let sort = $state(readSort(page.url.searchParams, readKind(page.url.searchParams.get('kind'))));
 	let q = $state(page.url.searchParams.get('q')?.slice(0, 256) ?? '');
 	let groupSets = $state(page.url.searchParams.get('group') === 'series');
+	let seen = $state<SeenFilter>(readSeen(page.url.searchParams.get('seen')));
 	$effect(() => {
 		const p = params();
 		kind = readKind(p.get('kind'));
@@ -87,6 +89,7 @@
 		sort = readSort(p, kind);
 		q = p.get('q')?.slice(0, 256) ?? '';
 		groupSets = p.get('group') === 'series';
+		seen = readSeen(p.get('seen'));
 	});
 	function syncUrl() {
 		const url = new URL((page.shallow?.url ?? page.url).href);
@@ -104,6 +107,7 @@
 		set('sort', sort.key === d.key ? null : sort.key);
 		set('dir', sort.dir === (sort.key === d.key ? d.dir : startDir(sort.key)) ? null : sort.dir);
 		set('group', groupSets ? 'series' : null);
+		set('seen', seen === 'all' ? null : seen);
 		url.searchParams.delete('layout');
 		void goto(url, { replace: true, shallow: true, reset: false });
 	}
@@ -244,14 +248,28 @@
 	const ctx = $derived<FilterContext>({ askers: (t) => linkedPeople(t).map((p) => p.id), me: myId, seriesOf: (t) => seriesOfTitle.get(t.id), subsMissing: (t) => !!subsTitles?.has(t.id), watchedAnyone: anyoneWatched ? (t) => anyoneWatched!.has(t.id) : undefined });
 	const ofThisKind = $derived(titles.filter((t) => ofKind(t, kind) && matchesTitleQuery(t, query, indexedIds)));
 	const counts = $derived(filterCounts(ofThisKind, filter, ctx));
-	const shown = $derived(sortTitles(ofThisKind.filter((t) => passes(t, filter, ctx)), sort.key, sort.dir));
+	// Watch state: the media server's marks with HolyArrs' own watch history; Music has none.
+	const history = createWatchHistory(() => { const u = page.shallow?.url ?? page.url; return u.pathname + u.search; });
+	const historyMarks = $derived(session.kid ? {} : history.marks(titles));
+	$effect(() => void (watchList.marks = historyMarks));
+	$effect(() => void (watchList.busy = history.busy));
+	const markOf = (t: TitleView) => watchedOf(t, watchedNow.ix);
+	const seenTab = $derived<SeenFilter>(kind === 'artist' ? 'all' : seen);
+	const filtered = $derived(ofThisKind.filter((t) => passes(t, filter, ctx)));
+	const seenTally = $derived(seenCounts(filtered, markOf));
+	const shown = $derived(sortTitles(seenTab === 'all' ? filtered : filtered.filter((t) => passesSeen(t.kind, markOf(t), seenTab)), sort.key, sort.dir));
+	function setSeen(f: SeenFilter) {
+		seen = f;
+		syncUrl();
+	}
 	const askers = $derived([...new Map(ofThisKind.flatMap((t) => linkedPeople(t)).map((p) => [p.id, p])).values()].sort((a, b) => bareNames(a.name).localeCompare(bareNames(b.name))));
 	const filtersOn = $derived(activeCount(filter));
+	const narrowed = $derived(filtersOn + (seenTab === 'all' ? 0 : 1));
 
 	const kindTotal = $derived(titles.filter((t) => ofKind(t, kind)).length);
 	const countText = $derived.by(() => {
 		const k = ['movie', 'show', 'artist'].includes(kind) ? kind : 'all';
-		if (filtersOn || q) return tr(`library.count.${k}.${kindTotal === 1 ? 'ofOne' : 'ofOther'}`, { n: shown.length.toLocaleString(appLocale()), total: kindTotal.toLocaleString(appLocale()) });
+		if (narrowed || q) return tr(`library.count.${k}.${kindTotal === 1 ? 'ofOne' : 'ofOther'}`, { n: shown.length.toLocaleString(appLocale()), total: kindTotal.toLocaleString(appLocale()) });
 		return tr(`library.count.${k}.${shown.length === 1 ? 'one' : 'other'}`, { n: shown.length.toLocaleString(appLocale()) });
 	});
 	// The Library has no top bar: its own row carries the search (as on Downloads). Ctrl K and "/" focus it.
@@ -289,6 +307,22 @@
 			(e): MenuItem => ({ label: e.key === 'stats' ? tr('frame.nav.stats') : tr(`mediafiles.kinds.${e.key}`), checked: e.key === 'stats' ? false : kind === e.key, onselect: () => void goto(to(e.href)) })
 		)
 	);
+	// The header: Movies, TV shows and Music as tabs, the counts, and the title to pick up next.
+	const kindTabs = $derived(shelfEntries({ on: (part) => partsNow.answer?.parts.find((p) => p.part === part)?.on !== false, kid: !!session.kid, manage: false }).map((e) => ({ key: e.key, label: tr(`mediafiles.kinds.${e.key}`), href: to(e.href), icon: (e.key === 'show' ? 'tv' : e.key === 'artist' ? 'music' : 'film') as 'tv' | 'music' | 'film', on: kind === e.key, count: titles.filter((t) => t.kind === e.key).length })));
+	const watchTally = $derived(seenCounts(titles.filter((t) => t.kind === 'movie' || t.kind === 'show'), markOf));
+	const stats = $derived(heroStats(kindTabs, watchTally, kind === 'artist', (x) => (loaded ? x.toLocaleString(appLocale()) : '…'), tr));
+	const openHref = (t: TitleView) => { const u = page.shallow?.url ?? page.url; return to(`/library/${t.id}?returnTo=${encodeURIComponent(u.pathname + u.search)}`); };
+	const feature = $derived.by<HeroFeature | null>(() => {
+		if (kind === 'artist' || !loaded) return null;
+		const pool = titles.filter((t) => t.kind === kind);
+		const going = session.kid ? undefined : continueTitle(pool, history.entriesOf, markOf);
+		const t = going ?? newestTitle(pool);
+		if (!t) return null;
+		const play = session.kid ? null : history.acts.play(t);
+		const m = markOf(t);
+		return { name: t.name, year: t.year, poster: t.artwork[0], href: openHref(t), note: tr(going ? 'library.watch.continue' : 'library.watch.recent'), pct: going && m ? (m.pct ?? (m.of ? (m.seen / m.of) * 100 : undefined)) : undefined, play: play ? { href: play.href, label: tr(`library.watch.${play.how}`) } : null, backdrop: t.backdrop };
+	});
+	const heroArt = $derived(feature?.backdrop ?? titles.find((t) => t.kind === kind && t.backdrop)?.backdrop ?? null);
 	let findOpen = $state(false);
 	let sortOpen = $state(false);
 	function setFilter(patch: Partial<FilterState>) {
@@ -302,6 +336,7 @@
 	}
 	function clearFilters() {
 		filter = { ...noFilter };
+		seen = 'all';
 		clearSearch();
 	}
 	function setSort(key: SortKey, dir?: SortDir) {
@@ -673,12 +708,18 @@
 			}
 		} catch { /* Start normally if a saved position is unavailable. */ }
 		void load();
+		if (!session.kid) {
+			void history.load();
+			watchList.acts = history.acts;
+		}
 		const offs = [live.on('title', reload), live.on('slot', reload), live.on('resync', reload)];
 		return () => {
 			offs.forEach((off) => off());
 			restoreScroll?.stop();
 			stopRestore();
 			mounted = false;
+			watchList.acts = null;
+			watchList.marks = {};
 		};
 	});
 </script>
@@ -686,8 +727,10 @@
 <svelte:head><title>{kindTitle} · HolyArrs</title></svelte:head>
 <svelte:window onkeydown={selectKey} />
 
-<div class="library" class:selecting>
-	<h1 class="sr-only">{kindTitle}</h1>
+<div class="library wl-page" class:selecting data-theme="dark">
+	<WatchlistHero heading={kindTitle} backdrop={heroArt} {stats} {feature}>
+		{#snippet tabs()}<WatchlistTabs kinds={kindTabs} seen={seenTab} counts={seenTally} showSeen={kind !== 'artist'} {loaded} onseen={setSeen} />{/snippet}
+	</WatchlistHero>
 	<LibraryToolbar {phone} {kind} {kindTitle} {loaded} {error} {countText} {shelfItems} sidebarCollapsed={dlTop.collapsed} {sortFilter} {view} {setView} {sizeItems} {posterSize} {density} {listWidth} {filtersOn} bind:sortOpen bind:findOpen {findWords} bind:q {syncUrl} {columns} {cutIds} {libKind} {setColumns} {canManage} shownCount={shown.length} {selecting} {startSelecting} {stopSelecting} {addItems} deletedCount={!partOff('movies') || !partOff('shows') || !partOff('music') ? deletedCount : null}>
 		{#snippet sidebarButton()}<IconButton icon="sidebar" label={tr('library.page.showSidebar')} onclick={() => dlTop.toggle()} data-testid="library-side-btn" />{/snippet}
 		{#snippet find()}<DlFind bind:term={() => q, setQ} shown={shown.length} total={kindTotal} searchKey={dlTop.searchKey} placeholder={findWords} note={loaded && !error ? countText : ''} testid="library-find" />{/snippet}
@@ -715,7 +758,7 @@
 	{#if canManage && (kind === 'artist' || kind === 'all') && !partOff('music')}<UnmatchedMusicNote />{/if}
 	{#if searchError && !error}<p class="search-error" role="alert"><Icon name="alert" size={16} />{plainReason(searchError).text}</p>{/if}
 
-	<LibraryList bind:this={list} {titles} {shown} {loaded} {error} {view} {kind} {libKind} {filter} {sort} {grouped} {kindTitle} {q} {filtersOn} {who} {canManage} {selecting} {picked} {lastOpenedId} {chosenCols} {density} {posterSize} {posterDetail} {posterDates} {seriesOfTitle} {seriesName} {phone} bind:listWidth bind:cutIds bind:gridEl bind:listEl {progressText} {artistHref} {episodeLabel} {retryLoad} {clearFilters} {togglePick} {startSelecting} {setSort} {searchTitles} {setKeep} {refreshTitle} />
+	<LibraryList bind:this={list} {titles} {shown} {loaded} {error} {view} {kind} {libKind} {filter} {sort} {grouped} {kindTitle} {q} filtersOn={narrowed} {who} {canManage} {selecting} {picked} {lastOpenedId} {chosenCols} {density} {posterSize} {posterDetail} {posterDates} {seriesOfTitle} {seriesName} {phone} bind:listWidth bind:cutIds bind:gridEl bind:listEl {progressText} {artistHref} {episodeLabel} {retryLoad} {clearFilters} {togglePick} {startSelecting} {setSort} {searchTitles} {setKeep} {refreshTitle} />
 
 	<LibrarySelectBar {selecting} {phone} {kind} {busy} pickedCount={pickedShown.length} pickedIds={pickedShown.map((t) => t.id)} shownCount={shown.length} {allPicked} copyPicksCount={copyPicks.length} {phoneActs} {moveItems} rulesItems={rulesItems.length && kind !== 'artist' ? [...rulesItems, { kind: 'separator' }, audioItem] : rulesItems} {pickAll} {setKeep} {searchTitles} {reviewCopies} {askDelete} {stopSelecting} />
 </div>
@@ -739,6 +782,11 @@
 		--edge: inset 0 1px 0 light-dark(rgb(255 255 255 / 95%), rgb(255 255 255 / 10%)), inset 0 0 0 1px light-dark(rgb(30 36 58 / 9%), rgb(255 255 255 / 6%));
 		--drop: 0 1px 2px light-dark(rgb(20 24 40 / 5%), rgb(0 0 0 / 40%)), 0 18px 32px -20px light-dark(rgb(20 24 40 / 30%), rgb(0 0 0 / 85%)); }
 	.library.selecting { padding-bottom: 112px; }
+	/* The Watchlist is dark and art-backed like the title page and the player, whatever the app theme. */
+	:global(html body main:has(> .wl-page)) { background: #0b0b0c; min-height: 100dvh; box-sizing: border-box; }
+	:global(html:has(main > .wl-page)) { scrollbar-color: #3a3a40 #0b0b0c; }
+	.wl-page { color: var(--text); }
+	.wl-page :global(.toolbar) { margin-top: 0; }
 	.chips .t-miss { display: inline-flex; margin-left: auto; }
 	.chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
 	.search-error { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 12px; border-radius: var(--r-btn); background: var(--surface-2); color: var(--fail); font: var(--t-callout); }

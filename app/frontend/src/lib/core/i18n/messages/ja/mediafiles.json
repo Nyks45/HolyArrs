@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "誰かが視聴済み",
 	"mediafiles.watched.part": "{of} 話中 {seen} 話を視聴",
 	"mediafiles.watched.partly": "一部視聴済み",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "未検索",
 	"mediafiles.releaseSheet.showPickPart": "検索するには、シーズンまたはエピソードの「{choose}」を使ってください。",
 	"mediafiles.held.one": "以前のコピー1件が最近削除したものにあります",

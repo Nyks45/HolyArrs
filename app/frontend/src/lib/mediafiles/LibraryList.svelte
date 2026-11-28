@@ -28,7 +28,9 @@
 	import LibraryLetterRail from './LibraryLetterRail.svelte';
 	import LibraryPoster from './LibraryPoster.svelte';
 	import WatchedMark from './WatchedMark.svelte';
-	import { titleWatched, watchedWords } from './watched.ts';
+	import { watchedWords } from './watched.ts';
+	import { watchedOf } from './watch-list.svelte.ts';
+	import WatchRowActs from './WatchRowActs.svelte';
 	import { refreshWatched, watchedNow } from './watched.svelte.ts';
 	import { emptyAdds, exceptionChip, firstOfLetter, letterOf, letters, missingEpisodes, posterStatus, type AddKind, type Kind } from './library.ts';
 	import { libraryState } from './library-state.ts';
@@ -108,7 +110,7 @@
 	});
 	const hiddenCols = $derived(chosenCols.length - shownCols.length);
 	// Rows: the same fit rule as Table. Chosen columns keep their order (Status and Kept are ordinary columns), each at its own width; what does not fit is cut from the end and counted in a "+N" mark.
-	const actsW = $derived(96 + (touchActs ? 48 : 0));
+	const actsW = $derived((canManage ? 96 : 0) + 64 + (touchActs ? 48 : 0));
 	const factCols = $derived(chosenCols.filter((c) => c.id !== 'status' && c.id !== 'kept'));
 	const rowStatus = $derived(kind === 'all' || chosenCols.some((c) => c.id === 'status'));
 	const rowW = (c: Column) => (c.id === 'status' ? 168 : colPx(c));
@@ -374,7 +376,7 @@
 					{@const p = progressOf(t)}
 					{@const ls = who === 'staff' ? libraryState(t) : null}
 					<li class="item" style:--poster-ratio={posterRatio(t.kind)} aria-setsize={shown.length} aria-posinset={range.start * cols + i + 1} data-testid="library-card" data-title-id={t.id} data-letter={letterOf(sortName(t.name))} class:selected={picked.has(t.id)} class:last-opened={lastOpenedId === t.id}>
-						<LibraryPoster title={t.name} year={posterYear(t, posterDates)} note={posterNote(t, posterDates)} href={openLink(t)} image={posterSrc(t.artwork[0], gridMin)} kind={t.kind === 'artist' ? 'artist' : t.kind === 'show' ? 'show' : 'movie'} vtName={artName(t.id)} status={ls} attention={needsAttention(ls)} bar={barOf(ls, p.have, p.total)} detail={posterDetail} extra={posterExtra(t)} facts={posterFacts(t)} score={sort.key === 'score' ? scoreText(t) : ''} kept={t.keep_up_to_date} {canManage} {selecting} selected={picked.has(t.id)} onsearch={() => searchTitles([t.id])} onkeep={(k) => setKeep([t.id], k)} seen={seenIds.has(t.id)} onseen={() => seenIds.add(t.id)} watched={titleWatched(t, watchedNow.ix)} />
+						<LibraryPoster title={t.name} year={posterYear(t, posterDates)} note={posterNote(t, posterDates)} href={openLink(t)} image={posterSrc(t.artwork[0], gridMin)} kind={t.kind === 'artist' ? 'artist' : t.kind === 'show' ? 'show' : 'movie'} vtName={artName(t.id)} status={ls} attention={needsAttention(ls)} bar={barOf(ls, p.have, p.total)} detail={posterDetail} extra={posterExtra(t)} facts={posterFacts(t)} score={sort.key === 'score' ? scoreText(t) : ''} kept={t.keep_up_to_date} {canManage} {selecting} selected={picked.has(t.id)} onsearch={() => searchTitles([t.id])} onkeep={(k) => setKeep([t.id], k)} seen={seenIds.has(t.id)} onseen={() => seenIds.add(t.id)} watched={watchedOf(t, watchedNow.ix)} item={t} />
 						{#if selecting}
 							<button type="button" class="pick" aria-pressed={picked.has(t.id)} aria-label={tr('mediafiles.list.select', { name: t.name })} onclick={() => togglePick(t.id)} data-testid="library-pick"><span class="pick-dot" aria-hidden="true">{#if picked.has(t.id)}<Icon name="check" size={14} stroke={3} />{/if}</span></button>
 						{/if}
@@ -438,7 +440,7 @@
 								{@const requester = requestedBy(t)}
 								{@const fold = filter.status === 'missing' && t.kind === 'show' && (t.show?.missing ?? 0) > 0}
 								{@const ri = rowEntries.findIndex((r) => r.t.id === t.id)}
-								{@const wm = titleWatched(t, watchedNow.ix)}
+								{@const wm = watchedOf(t, watchedNow.ix)}
 								<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
 								<div
 									class="entry"
@@ -461,7 +463,7 @@
 										<div class="lr" class:ph={phone} style="--facts: {factsTpl}; --row-h: {phone ? 60 : 54}px">
 											{#if selecting}<span class="lsel"><input type="checkbox" class="pick-box lpick" checked={picked.has(t.id)} aria-label={tr('mediafiles.list.select', { name: t.name })} tabindex="-1" onchange={() => togglePick(t.id)} data-testid="library-pick" /></span>{/if}
 											<span class="lp" style:--poster-ratio={posterRatio(t.kind)} class:round={t.kind === 'artist'}>
-												<Poster src={t.artwork[0]} name={t.name} />{#if phone}<WatchedMark mark={wm} look="bar" />{/if}
+												<Poster src={t.artwork[0]} name={t.name} /><WatchedMark mark={wm} look="bar" />
 											</span>
 											<span class="lt">
 												<a href={openLink(t)} tabindex="-1" title={t.name} dir="auto">{t.name}</a>
@@ -477,6 +479,7 @@
 												{/each}
 												{#if rowCut}<span></span>{/if}
 												<span class="acts">
+													{#if !selecting}<WatchRowActs {t} tabindex={ri === active ? 0 : -1} />{/if}
 													{#if canManage && !selecting}
 														<IconButton icon="search" size="sm" tipSide="below-end" label={tr('mediafiles.poster.searchFor', { title: t.name })} tabindex={ri === active ? 0 : -1} onclick={() => searchTitles([t.id])} />
 														<IconButton icon="refresh" size="sm" tipSide="below-end" label={tr('mediafiles.list.refresh', { name: t.name })} tabindex={ri === active ? 0 : -1} onclick={() => refreshTitle(t)} />
@@ -635,7 +638,6 @@
 	.lr.ph .lt a { max-width: 100%; }
 	.lsub { color: var(--text-muted); font: var(--t-footnote); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 	.lyr { color: var(--text-muted); font: 500 12px/1 var(--font-ui); }
-
 	.rows { position: relative; isolation: isolate; min-width: 0; border-radius: 20px; background: linear-gradient(180deg, var(--sheet-a), var(--sheet-b) 420px); box-shadow: var(--edge), var(--drop); overflow: clip; }
 	/* A whisper of grain keeps the flat colour from looking printed (as on Home's tiles). */
 	.rows::before { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: .05; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5 0 0 0 0 .5 0 0 0 0 .5 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
@@ -711,7 +713,6 @@
 	.acts:empty { display: none; }
 	.entry:hover .acts, .entry:focus-within .acts { opacity: 1; }
 	@media (hover: none) { .acts { opacity: 1; } }
-
 	.meter { position: relative; display: block; height: 5px; border-radius: 99px; background: var(--surface-3); overflow: hidden; }
 	.meter i { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: var(--text-muted); transition: width var(--dur-slow) var(--ease-out); }
 	.meter.full i { background: var(--ok, #2fa36b); }
@@ -719,12 +720,10 @@
 	.meter.gap { background: color-mix(in srgb, var(--fail, #d64545) 28%, var(--surface-3)); }
 	.meter.later i { background: var(--info, #3b82f6); }
 	.meter.none i { background: var(--text-muted); }
-
 	.series-head { display: flex; align-items: baseline; gap: 12px; padding: 18px 16px 10px; background: var(--surface-2); border-top: 1px solid var(--line); }
 	.series-head h2 { margin: 0; font: var(--t-headline); }
 	.series-head span { color: var(--text-muted); font: var(--t-footnote); }
 	.series-head a { margin-left: auto; color: var(--accent-text); font: var(--t-footnote); font-weight: 600; }
-
 	.ov { display: grid; grid-template-columns: 92px minmax(0, 1fr) minmax(200px, 264px); gap: 18px 24px; padding: 14px 20px 14px 16px; }
 	.ov-poster { position: relative; display: block; border-radius: 8px; overflow: hidden; }
 	.ov-main { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
@@ -746,7 +745,6 @@
 	.ov-pick { position: absolute; right: 14px; top: 14px; }
 	/* Music: a square photo that keeps its shape, and two or three lines of bio. */
 	.ov.music .ov-poster { align-self: start; }
-
 	.grid:focus { outline: none; }
 	.grid { display: grid; grid-template-columns: repeat(var(--pcols, 1), minmax(0, 1fr)); margin: 0; padding: 0; list-style: none; }
 	/* Posters: no paint containment here, so the lift, tilt and shadow are never clipped. */

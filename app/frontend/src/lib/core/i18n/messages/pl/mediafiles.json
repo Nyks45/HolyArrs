@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "Obejrzane przez kogokolwiek",
 	"mediafiles.watched.part": "Obejrzano {seen} z {of}",
 	"mediafiles.watched.partly": "Częściowo obejrzane",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "Nie wyszukano",
 	"mediafiles.releaseSheet.showPickPart": "Aby wyszukać, użyj {choose} przy sezonie lub odcinku.",
 	"mediafiles.held.one": "1 wcześniejsza kopia jest w Ostatnio usunięte",

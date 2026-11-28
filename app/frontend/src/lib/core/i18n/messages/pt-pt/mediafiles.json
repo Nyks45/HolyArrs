@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "Visto por alguém",
 	"mediafiles.watched.part": "{seen} de {of} vistos",
 	"mediafiles.watched.partly": "Visto em parte",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "Não procurado",
 	"mediafiles.releaseSheet.showPickPart": "Para procurar, use {choose} numa temporada ou num episódio.",
 	"mediafiles.held.one": "1 cópia anterior está em Apagados recentemente",

@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "யாரோ பார்த்தது",
 	"mediafiles.watched.part": "{of} இல் {seen} பார்க்கப்பட்டது",
 	"mediafiles.watched.partly": "பகுதியளவு பார்க்கப்பட்டது",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "தேடப்படவில்லை",
 	"mediafiles.releaseSheet.showPickPart": "தேட, ஒரு சீசன் அல்லது எபிசோடில் {choose} பயன்படுத்துங்கள்.",
 	"mediafiles.held.one": "1 முந்தைய நகல் சமீபத்தில் நீக்கியவை-இல் உள்ளது",

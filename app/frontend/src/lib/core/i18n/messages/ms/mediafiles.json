@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "Ditonton sesiapa",
 	"mediafiles.watched.part": "{seen} daripada {of} ditonton",
 	"mediafiles.watched.partly": "Ditonton sebahagian",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "Belum dicari",
 	"mediafiles.releaseSheet.showPickPart": "Untuk mencari, gunakan {choose} pada musim atau episod.",
 	"mediafiles.held.one": "1 salinan terdahulu ada dalam Baru dipadam",

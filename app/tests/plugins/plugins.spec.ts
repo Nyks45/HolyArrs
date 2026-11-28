@@ -550,6 +550,42 @@ for (const width of [1366, 390]) {
 	});
 }
 
+// an empty number box turns Save off and says why; a whole number turns it back on.
+for (const width of [1366, 390]) {
+	test(`plugins: empty number setting blocks Save at ${width}`, async ({ browser }) => {
+		const page = await (await browser.newContext({ viewport: { width, height: width > 500 ? 768 : 844 } })).newPage();
+		await signIn(page, owner());
+		const ov = structuredClone(fake) as typeof fake & { plugins: Record<string, unknown>[] };
+		const fields = [{ key: 'port', label: 'Listen port', type: 'number', default: '8765' }];
+		Object.assign(ov.plugins[0], { installed: true, installed_version: '1.2.0', running: true, enabled: true, settings: fields });
+		const puts: string[] = [];
+		await page.route('**/api/v1/plugins**', async (route) => {
+			const r = route.request();
+			if (r.url().endsWith('/settings')) {
+				if (r.method() === 'PUT') puts.push(r.postData() ?? '');
+				return route.fulfill({ json: { fields, values: { port: '8765' }, secrets_set: {} } });
+			}
+			return route.fulfill({ json: ov });
+		});
+		await page.goto('/plugins#tailscale');
+		await page.getByTestId('plugin-detail').getByTestId('plugin-settings').click();
+		const form = page.getByTestId('plugin-settings-form');
+		const save = form.getByTestId('plugin-settings-save');
+		const box = form.getByLabel('Listen port');
+		await box.fill('');
+		await expect(save).toBeDisabled();
+		await expect(box).toHaveAttribute('aria-invalid', 'true');
+		await expect(form.getByRole('alert')).toBeVisible();
+		await noSidewaysScroll(page);
+		await box.fill('0');
+		await expect(save).toBeEnabled();
+		await save.click();
+		await expect.poll(() => puts.length).toBe(1);
+		expect(JSON.parse(puts[0]).values).toEqual({ port: '0' });
+		await page.context().close();
+	});
+}
+
 // A link to /plugins#<id> opens that plugin; Esc closes it, clears the address and puts focus back on its tile.
 // Update all updates every plugin with an update, after the same access question.
 test('plugins: logos and developer pictures never load from github.com', async ({ browser }) => {
@@ -1024,3 +1060,27 @@ test('plugins: Language Packs row lines up in the list view', async ({ browser }
 	await page.screenshot({ path: test.info().outputPath('list-view-1280.png') });
 	await page.context().close();
 });
+
+// The card's Install on a developer plugin installs from the developer folder, not the signed list.
+for (const [width, height] of [[1280, 800], [390, 844]]) {
+	test(`plugins: card Install on a developer plugin uses dev-install at ${width}`, async ({ browser }) => {
+		const page = await (await browser.newContext({ viewport: { width, height } })).newPage();
+		await signIn(page, owner());
+		const ov = { ...fake, blocklist_stale: false, dev_mode: true, dev_dir: '/config/plugins/_dev', plugins: [{ id: 'subtitle-log', version: '0.1.0', installed: false, running: false, enabled: false, dev: true, access: { hosts: [], folders: [], actions: [] } }, { id: 'broken-dev', version: '0.1.0', installed: false, running: false, enabled: false, dev: true, dev_error: 'plugin.json is missing', access: { hosts: [], folders: [], actions: [] } }] };
+		const calls: string[] = [];
+		await page.route('**/api/v1/plugins**', async (route) => {
+			const r = route.request();
+			if (r.method() === 'GET') return route.fulfill({ json: ov });
+			calls.push(`${r.method()} ${new URL(r.url()).pathname}`);
+			return route.fulfill({ json: { ok: true } });
+		});
+		await page.goto('/plugins');
+		await page.locator('[data-testid="plugin-row"][data-id="subtitle-log"]').getByTestId('plugin-card-install').click();
+		await expect.poll(() => calls).toContain('POST /api/v1/plugins/subtitle-log/dev-install');
+		expect(calls).not.toContain('POST /api/v1/plugins/subtitle-log/install');
+		// One whose files can't be read can't be installed from the card either.
+		await expect(page.locator('[data-testid="plugin-row"][data-id="broken-dev"]').getByTestId('plugin-card-install')).toBeDisabled();
+		await noSidewaysScroll(page);
+		await page.context().close();
+	});
+}

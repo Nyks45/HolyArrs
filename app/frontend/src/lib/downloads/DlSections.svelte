@@ -137,23 +137,14 @@
 	let sub = $state(start.sub);
 	// A link followed while the page is open (a pin in the alerts list) picks its tab too; the address this page writes itself reads back as the same tab.
 	let linkShow = page.url.searchParams.get('show');
-	$effect(() => {
-		const v = page.url.searchParams.get('show');
-		if (v === linkShow) return;
-		linkShow = v;
-		const next = showOf(v);
-		show = next.show;
-		sub = next.sub;
-	});
+	$effect(() => { const v = page.url.searchParams.get('show'); if (v === linkShow) return; linkShow = v; ({ show, sub } = showOf(v)); });
 	function remember() {
 		try {
 			const u = new URL(location.href);
 			if (show === ALL) u.searchParams.delete('show');
 			else u.searchParams.set('show', sub ? `${show}.${sub}` : show);
 			if (u.href !== location.href) replaceState(u, page.state);
-		} catch {
-			/* The router is not ready yet; the next pick writes the address. */
-		}
+		} catch { /* The router is not ready yet; the next pick writes the address. */ }
 	}
 	const tabs = $derived(tabsFor(rows, torrent));
 	const filtered = $derived(!!(kindOn || q.trim() || trackKey)); // Unloaded torrents count on their tabs too (Torrent or Usenet filter included); other filters check loaded rows only.

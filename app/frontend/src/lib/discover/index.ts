@@ -200,3 +200,4 @@ export { createRowPager, type RowPager } from './row-pager.svelte.ts';
 export { rowMorePath, newCards, moreCards } from './row-more.ts';
 export { createExploreTail, tailSentinel, addTailRows, type TailKept, type TailRow } from './explore-tail.svelte.ts';
 export { serverCard } from './explore-server.ts';
+export { default as SearchMore } from './SearchMore.svelte';

@@ -148,6 +148,7 @@ GET /api/v1/explore/strip see
 GET /api/v1/explore/subcategories see
 GET /api/v1/explore/tail see
 GET /api/v1/explore/row see
+GET /api/v1/explore/search see
 GET /api/v1/explore/title-stats see
 GET /api/v1/explore/top see
 GET /api/v1/extras/{kind}/{id} see

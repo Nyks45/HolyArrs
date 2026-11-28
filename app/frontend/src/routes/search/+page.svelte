@@ -16,7 +16,7 @@
 	import { artistCard, inLibrary, movieCard, personCard, showCard, type Card, type LibraryAnswer } from '#lib/discover/index.ts';
 	import { createSearchArtists } from '#lib/discover/index.ts';
 	import { createSearchRecent } from '#lib/discover/index.ts';
-	import { createSearchBrowse, SearchCategoryMatches } from '#lib/discover/index.ts';
+	import { createSearchBrowse, SearchCategoryMatches, SearchMore } from '#lib/discover/index.ts';
 	import { type IconName } from '#lib/ui/Icon.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import SegmentedControl from '#lib/ui/SegmentedControl.svelte';
@@ -716,6 +716,7 @@
 				<h2 class="sec">{labels[scope]}</h2>
 				<ul class="grid">
 					{#each g as c (c.key)}<li>{@render card(c)}</li>{/each}
+					{#if (scope === 'movie' || scope === 'show') && searched}<SearchMore kind={scope} q={searched} have={g} {card} />{/if}
 				</ul>
 			{/if}
 		{/if}

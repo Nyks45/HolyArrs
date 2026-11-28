@@ -204,3 +204,43 @@ func ExploreFiltersAll(ctx context.Context, provider Provider) bool {
 	t, ok := provider.(*TMDB)
 	return ok && t.route(ctx).Direct
 }
+
+// SearchPager reads one page of TMDB's movie or show search by name, for
+// the results past the first page.
+type SearchPager interface {
+	SearchPage(ctx context.Context, kind, query string, page int) ([]DiscoverItem, error)
+}
+
+// SearchPagerFor returns the search page surface selected for ctx.
+func SearchPagerFor(ctx context.Context, provider Provider) (SearchPager, bool) {
+	if sw, ok := provider.(*Switch); ok {
+		provider = sw.pick(ctx)
+	}
+	p, ok := provider.(SearchPager)
+	return p, ok
+}
+
+// SearchPage reads page (from 1) of /search/movie or /search/tv as items of kind.
+func (t *TMDB) SearchPage(ctx context.Context, kind, query string, page int) ([]DiscoverItem, error) {
+	path := "/search/movie"
+	if kind == "show" {
+		path = "/search/tv"
+	} else if kind != "movie" {
+		return nil, fmt.Errorf("search kind %q is not movie or show", kind)
+	}
+	names, err := t.genreNames(ctx, kind)
+	if err != nil {
+		return nil, err
+	}
+	b, err := t.get(ctx, path, url.Values{"query": {query}, "include_adult": {"false"}, "language": {"en-US"}, "page": {strconv.Itoa(page)}})
+	if err != nil {
+		return nil, err
+	}
+	var res struct {
+		Results []tmdbListItem `json:"results"`
+	}
+	if err := json.Unmarshal(b, &res); err != nil {
+		return nil, fmt.Errorf("TMDB: odd answer: %w", err)
+	}
+	return t.items(kind, res.Results, names, maxDiscover), nil
+}

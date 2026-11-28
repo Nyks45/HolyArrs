@@ -144,6 +144,7 @@ GET /api/v1/explore/new/service auth=signed_in scope=read assurance=false part=m
 GET /api/v1/explore/new/services auth=signed_in scope=read assurance=false part=media
 GET /api/v1/explore/row auth=signed_in scope=read assurance=false part=media
 GET /api/v1/explore/row-stats auth=users scope=admin assurance=false part=media
+GET /api/v1/explore/search auth=signed_in scope=read assurance=false part=media
 GET /api/v1/explore/service-top auth=signed_in scope=read assurance=false part=media
 GET /api/v1/explore/strip auth=signed_in scope=read assurance=false part=media
 GET /api/v1/explore/subcategories auth=signed_in scope=read assurance=false part=media

@@ -130,6 +130,7 @@
   "GET /api/v1/explore/subcategories": "discover.explore.read",
   "GET /api/v1/explore/tail": "discover.explore.read",
   "GET /api/v1/explore/row": "discover.explore.read",
+  "GET /api/v1/explore/search": "discover.explore.read",
   "GET /api/v1/explore/title-stats": "discover.explore.read",
   "GET /api/v1/explore/top": "discover.explore.read",
   "GET /api/v1/extras/{kind}/{id}": "library.extras.read",

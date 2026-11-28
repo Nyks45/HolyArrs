@@ -2,7 +2,7 @@
 import type { SearchScope } from './search-address.ts';
 import type { CardOwned } from '#lib/ui/CardBadges.svelte';
 import type { PersonSummary } from '#lib/ui/people.ts';
-import type { ExploreCard } from '#lib/ui/title-cards.ts';
+import { discoverCard, type ExploreCard, type ProviderItem } from '#lib/ui/title-cards.ts';
 import { appPicture, artistHref } from '#lib/music/index.ts';
 import { detailPath } from '#lib/metadata/index.ts';
 import type { LookupArtist } from '#lib/music/index.ts';
@@ -35,3 +35,16 @@ export const showCard = (s: LookupShow, i: number): Card => {
 };
 export const artistCard = (a: LookupArtist): Card => ({ key: `a${a.mbid}`, type: 'music', titleId: a.title_id || undefined, name: a.name, subtitle: a.disambiguation || [a.type, a.country].filter(Boolean).join(' · ') || undefined, image: appPicture(a.image), href: artistHref(a.mbid), owned: a.title_id ? inLibrary : askMark(a.ask), artist: a });
 export const personCard = (p: PersonSummary): Card => ({ key: `p${p.id}`, type: 'people', name: p.name, subtitle: p.department, image: p.profile, href: to(`/people/${encodeURIComponent(p.id)}`), owned: null });
+
+/** A later search page's result (GET /explore/search) as a card like the first page's. */
+export const itemCard = (d: ProviderItem): Card => {
+	const kind = d.kind === 'show' ? 'show' : 'movie';
+	const key = `${kind === 'movie' ? 'm' : 'st'}${d.tmdb_id}`;
+	const titleId = d.in_library ? d.title_id : undefined;
+	return { key, type: kind, titleId, name: d.name, year: d.year || undefined, subtitle: d.year ? String(d.year) : undefined, image: d.poster ?? null,
+		href: to(titleId ? `/library/${titleId}` : detailPath(kind, d.tmdb_id)), owned: titleId ? inLibrary : askMark(d.ask), preview: { kind, tmdb: d.tmdb_id, year: d.year || undefined, titleId },
+		ec: { ...discoverCard(d, 'search'), key } };
+};
+
+/** The TMDB id a result card stands for, to leave out a later page's repeats. */
+export const cardTmdbOf = (c: Pick<Card, 'type' | 'preview'>): string => (c.preview ? `${c.type}:${c.preview.tmdb}` : '');

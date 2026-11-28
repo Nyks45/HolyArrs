@@ -140,8 +140,13 @@ func isAnimeCatalog(addon StremioAddon, cat AddonCatalogDef) bool {
 	return false
 }
 
-// maxCatalogShelves is the most add-on catalogs one Explore tab reads.
-const maxCatalogShelves = 12
+// maxCatalogShelves is the most add-on catalogs one Explore tab lists;
+// the first eagerCatalogShelves come with their items, the rest are read by
+// the page as they come near (their items empty here).
+const (
+	maxCatalogShelves   = 24
+	eagerCatalogShelves = 6
+)
 
 // browsable says a catalog can be listed without input: no required extra
 // (a search box or a fixed genre) and not a search catalog by its name.
@@ -153,7 +158,7 @@ func browsable(c AddonCatalogDef) bool {
 	return !strings.Contains(low, "search")
 }
 
-// BrowseCatalogs returns metadata shelves exposed by enabled Stremio addons, at most maxCatalogShelves, in the addons' order.
+// BrowseCatalogs returns metadata shelves exposed by enabled Stremio addons, at most maxCatalogShelves, in the addons' order. Shelves past eagerCatalogShelves come without items.
 func (s *AddonStore) BrowseCatalogs(ctx context.Context, kind string) []AddonCatalogShelf {
 	k := strings.ToLower(strings.TrimSpace(kind))
 	switch k {
@@ -209,6 +214,10 @@ func (s *AddonStore) BrowseCatalogs(ctx context.Context, kind string) []AddonCat
 	got := make([]*AddonCatalogShelf, len(jobs))
 	var wg sync.WaitGroup
 	for i, j := range jobs {
+		if i >= eagerCatalogShelves {
+			got[i] = &AddonCatalogShelf{AddonID: j.addon.ID, AddonName: j.addon.Name, CatalogID: j.cat.ID, Type: j.cat.Type, Name: j.cat.Name, Pages: j.cat.Pages, Items: []AddonCatalogItem{}}
+			continue
+		}
 		wg.Add(1)
 		go func(i int, job catJob) {
 			defer wg.Done()

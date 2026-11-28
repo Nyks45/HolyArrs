@@ -94,6 +94,18 @@
 		return to(`/search?q=${encodeURIComponent(item.name)}`);
 	}
 
+	/** Calls go once the node comes within a screen and a half of view. */
+	function near(node: HTMLElement, go: () => void) {
+		const io = new IntersectionObserver(([e]) => {
+			if (e.isIntersecting) {
+				io.disconnect();
+				go();
+			}
+		}, { rootMargin: '0px 0px 150% 0px' });
+		io.observe(node);
+		return { destroy: () => io.disconnect() };
+	}
+
 	/** An IMDb card finds its TMDB id first and opens the title page; the search stays its link when the lookup finds nothing. */
 	async function open(e: MouseEvent, item: AddonCatalogItem) {
 		if (!item.imdb_id || (item.tmdb_id ?? 0) > 0 || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
@@ -110,8 +122,13 @@
 
 {#if shelves.length > 0}
 	{#each shelves as shelf (shelfKey(shelf))}
+		{@const items = itemsOf(shelf)}
+		{#if items.length === 0}
+			<!-- A shelf listed without items is read when it comes near; one that has none goes. -->
+			{#if !ended[shelfKey(shelf)]}<section class="addon-shelf" aria-hidden="true" use:near={() => void more(shelf)}><div class="lazy-sk"></div></section>{/if}
+		{:else}
 		<section class="addon-shelf" aria-label={shelf.name}>
-			<Shelf title={`${shelf.name} · ${shelf.addon_name}`} items={itemsOf(shelf)} key={(it) => it.id} item="152px" hasMore={mayPage(shelf) && !ended[shelfKey(shelf)]} onmore={() => void more(shelf)}>
+			<Shelf title={`${shelf.name} · ${shelf.addon_name}`} {items} key={(it) => it.id} item="152px" hasMore={mayPage({ pages: shelf.pages, items }) && !ended[shelfKey(shelf)]} onmore={() => void more(shelf)}>
 				{#snippet card(item: AddonCatalogItem)}
 					<a class="addon-card" href={itemHref(item)} onclick={(e) => void open(e, item)}>
 						<div class="poster-wrap">
@@ -129,11 +146,13 @@
 				{/snippet}
 			</Shelf>
 		</section>
+		{/if}
 	{/each}
 {/if}
 
 <style>
 	.addon-shelf { margin-top: 4px; }
+	.lazy-sk { height: 260px; border-radius: var(--r-card, 10px); background: linear-gradient(90deg, var(--surface-2), transparent); }
 	.addon-card {
 		display: flex; flex-direction: column; gap: 6px; width: 152px; flex: none; text-decoration: none; color: var(--text);
 		transition: transform var(--dur-fast) var(--ease-out);

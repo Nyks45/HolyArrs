@@ -76,9 +76,12 @@ test('home before setup: welcome card on top, then the grid and the picture rows
 	expect(w.y).toBeLessThan(g.y);
 	expect(w.height).toBeLessThan(260);
 	// One gap between every block on the page.
-	const gaps = await page.evaluate(() => {
-		const kids = [...document.querySelectorAll<HTMLElement>('[data-testid="home-welcome"], [data-testid="home-overview"], [data-testid="home-pick"] > .ui-shelf')]
-			.map((e) => e.getBoundingClientRect())
+	const gaps = await welcome.evaluate((card) => {
+		const boxes = (el: Element): DOMRect[] => getComputedStyle(el).display === 'contents'
+			? [...el.children].flatMap(boxes)
+			: [el.getBoundingClientRect()];
+		const kids = [...card.parentElement!.children].flatMap(boxes)
+			.filter((r) => r.height > 0)
 			.sort((a, b) => a.top - b.top);
 		return kids.slice(1).map((r, i) => Math.round(r.top - kids[i].bottom));
 	});

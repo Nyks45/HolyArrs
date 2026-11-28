@@ -38,7 +38,11 @@
 
 	let loading = $state(true);
 	let failed = $state(false);
-	let name = $state('');
+	let loaded = $state<{ id: string; type: ExploreType; name: string }>();
+	const name = $derived(
+		(loaded?.id === catId && loaded.type === type ? loaded.name : '') ||
+		categories.find((c) => c.id === catId)?.name || catId
+	);
 	let cards = $state<ExploreCard[]>([]);
 	let askSeq = 0;
 
@@ -49,7 +53,7 @@
 		try {
 			const res = await fetchCategoryBrowse(id, t, signal);
 			if (seq !== askSeq) return;
-			name = res.name || categories.find((c) => c.id === id)?.name || id;
+			loaded = { id, type: t, name: res.name };
 			cards = (res.items ?? []).map((d) => ({ ...discoverCard(d, `cat-${id}`), wide: d.backdrop ?? null }));
 		} catch {
 			if (seq === askSeq) {
@@ -72,7 +76,7 @@
 
 </script>
 
-<section class="cat-view" data-testid="explore-subcategory-view" aria-label={name || catId}>
+<section class="cat-view" data-testid="explore-subcategory-view" aria-label={name}>
 	<header class="cat-head">
 		<div class="cat-left">
 			<button type="button" class="back-btn" onclick={onback}>
@@ -80,7 +84,7 @@
 				<span>Explore</span>
 			</button>
 			<div class="cat-title">
-				<h2>{name || categories.find((c) => c.id === catId)?.name || catId}</h2>
+				<h2>{name}</h2>
 				{#if !loading && !failed}
 					<span class="cat-count">{cards.length} {cards.length === 1 ? 'title' : 'titles'}</span>
 				{/if}

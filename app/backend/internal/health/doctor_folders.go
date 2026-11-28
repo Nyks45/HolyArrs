@@ -14,11 +14,12 @@ import (
 
 // Folder is the outcome of checking one Library or download folder.
 type Folder struct {
-	Role  string // "movie library", "show library", "music library", "downloads"
-	Path  string
-	State string // ok, missing, read_only, no_hardlink, low_space, slow
-	Owner string // uid:gid, empty when unknown
-	Free  int64  // bytes, -1 when unknown
+	Role     string // "movie library", "show library", "music library", "downloads"
+	Path     string
+	State    string // ok, missing, read_only, no_hardlink, low_space, slow
+	Owner    string // uid:gid, empty when unknown
+	Free     int64  // bytes, -1 when unknown
+	LookOnly bool
 	// Reason is library.CheckFolder's reason, when it gave one.
 	Reason string
 	// Budget is the time limit of the run that marked the folder slow
@@ -45,12 +46,16 @@ func (f Folder) Check(uid, gid int) Check {
 	}
 	switch f.State {
 	case "ok", "no_hardlink", "low_space":
-		facts = append(facts, "writable")
+		if f.LookOnly {
+			facts = append(facts, "look-only")
+		} else {
+			facts = append(facts, "writable")
+		}
 		if f.Free >= 0 {
 			facts = append(facts, Size(f.Free)+" free")
 		}
 	}
-	if f.Role != "downloads" && f.State == "ok" {
+	if !f.LookOnly && f.Role != "downloads" && f.State == "ok" {
 		facts = append(facts, "hardlinks from downloads work")
 	}
 	if len(facts) > 0 {
@@ -94,7 +99,7 @@ func (f Folder) Check(uid, gid int) Check {
 // that is not done within budget is marked slow and left behind. db may
 // be nil (only savePath is checked then).
 func CheckFolders(ctx context.Context, db database.Lister, savePath string, budget time.Duration) ([]Folder, error) {
-	var libs [][2]string
+	var libs []doctorLibraryFolder
 	downloads := []string{}
 	if savePath != "" {
 		downloads = append(downloads, savePath)
@@ -109,24 +114,11 @@ func CheckFolders(ctx context.Context, db database.Lister, savePath string, budg
 		}
 	}
 	out := make([]Folder, 0, len(libs)+len(downloads))
-	links := make([][]string, 0, len(libs)+len(downloads))
-	routed := map[string][]string{} // a Library folder's new-title tags
-	lookOnly := map[string]bool{}   // nothing is written there, so only being there counts
-	if db != nil {
-		if lfs, err := database.Select[mediafiles.LibraryFolder](ctx, db, "library_folders", "stand_in = 0"); err == nil {
-			for _, lf := range lfs {
-				routed[lf.Path] = library.TagsFromFolder(lf)
-				lookOnly[lf.Path] = lf.LookOnly
-			}
-		}
-	}
 	for _, l := range libs {
-		out = append(out, Folder{Role: l[1] + " library", Path: l[0]})
-		links = append(links, downloads)
+		out = append(out, Folder{Role: l.Kind + " library", Path: l.Path, LookOnly: l.LookOnly})
 	}
 	for _, d := range downloads {
 		out = append(out, Folder{Role: "downloads", Path: d})
-		links = append(links, nil)
 	}
 	type done struct {
 		i int
@@ -135,10 +127,11 @@ func CheckFolders(ctx context.Context, db database.Lister, savePath string, budg
 	ch := make(chan done, len(out))
 	for i, f := range out {
 		go func() {
-			if tags, ok := routed[f.Path]; ok && f.Role != "downloads" && !lookOnly[f.Path] {
-				links[i] = library.LinkPaths(ctx, db, f.Path, downloads, tags)
+			var links []string
+			if i < len(libs) && !f.LookOnly {
+				links = library.LinkPaths(ctx, db, f.Path, downloads, libs[i].NewTitleTags)
 			}
-			h := library.CheckUse(mediafiles.LibraryFolder{Path: f.Path, LookOnly: lookOnly[f.Path] && f.Role != "downloads"}, links[i])
+			h := library.CheckUse(mediafiles.LibraryFolder{Path: f.Path, LookOnly: f.LookOnly}, links)
 			f.State, f.Reason, f.Free = h.State, h.Reason, h.FreeSpace
 			if f.State == "ok" && h.Reason != "" {
 				f.State = "low_space"
@@ -222,8 +215,8 @@ func UnsafeFolderWarnings(ctx context.Context, db database.Lister, configDir str
 	}
 	var out []string
 	for _, l := range libs {
-		if library.UnsafeFolder(l[0], configDir) {
-			out = append(out, l[1]+" library "+l[0]+": is a whole drive or overlaps the config folder "+configDir+"; move the Library to its own folder")
+		if library.UnsafeFolder(l.Path, configDir) {
+			out = append(out, l.Kind+" library "+l.Path+": is a whole drive or overlaps the config folder "+configDir+"; move the Library to its own folder")
 		}
 	}
 	return out

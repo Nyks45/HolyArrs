@@ -145,6 +145,7 @@ GET /api/v1/explore/new/services see
 GET /api/v1/explore/row-stats see
 GET /api/v1/explore/service-top see
 GET /api/v1/explore/strip see
+GET /api/v1/explore/subcategories see
 GET /api/v1/explore/tail see
 GET /api/v1/explore/title-stats see
 GET /api/v1/explore/top see
@@ -522,6 +523,7 @@ POST /api/v1/downloads/{id}/remove delete
 POST /api/v1/downloads/{id}/resume control
 POST /api/v1/downloads/{id}/top control
 POST /api/v1/explore/counts see
+POST /api/v1/explore/opened add
 POST /api/v1/explore/strip/counts see
 POST /api/v1/files/{id}/subtitles/choices add
 POST /api/v1/files/{id}/subtitles/choose add
@@ -627,6 +629,7 @@ POST /api/v1/sources/{id}/try settings
 POST /api/v1/stages/{name}/pause admin
 POST /api/v1/stages/{name}/restart admin
 POST /api/v1/stages/{name}/resume admin
+POST /api/v1/stream/history/batch add
 POST /api/v1/stream/search control
 POST /api/v1/stream/start add
 POST /api/v1/stream/subtitles/autosync add

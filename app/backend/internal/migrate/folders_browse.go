@@ -51,7 +51,9 @@ func newRooted(roots []string) *rooted { return &rooted{roots: roots, open: map[
 
 func (r *rooted) close() {
 	for _, rt := range r.open {
-		_ = rt.Close()
+		if rt != nil {
+			_ = rt.Close()
+		}
 	}
 }
 

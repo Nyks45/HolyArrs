@@ -38,12 +38,13 @@ test('phone: bottom menu, one column, no sideways scroll on any page', async ({ 
 	}
 
 	// Downloads lives in the Manage sheet behind the last tab.
+	const downloads = page.getByRole('dialog', { name: 'Manage' }).getByRole('link', { name: /^Downloads(?:,|$)/ });
 	await tabs.getByRole('button', { name: /^Manage/ }).click();
-	await page.getByRole('dialog', { name: 'Manage' }).getByRole('link', { name: 'Downloads', exact: true }).click();
+	await downloads.click();
 	await expect(page).toHaveURL(/\/downloads$/);
 	await expect(tabs.getByRole('button', { name: /^Manage/ })).toHaveClass(/active/);
 	await tabs.getByRole('button', { name: /^Manage/ }).click();
-	await expect(page.getByRole('dialog', { name: 'Manage' }).getByRole('link', { name: 'Downloads', exact: true })).toHaveAttribute('aria-current', 'page');
+	await expect(downloads).toHaveAttribute('aria-current', 'page');
 });
 
 test('phone: What\'s new rows fit and read at 360 and 390', async ({ page }) => {

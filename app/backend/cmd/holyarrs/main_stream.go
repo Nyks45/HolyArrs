@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"os"
 	"time"
 
 	"github.com/HolyArrs/holyarrs/app/backend/internal/core/database"
@@ -45,8 +44,19 @@ func newStreamer(
 			return ""
 		}
 	}
-	if configDir != "" && os.Getenv("HOLYARRS_CONFIG_IN_MEMORY") == "" {
-		go m.BootstrapDefaultsIfEmpty(context.Background())
-	}
 	return m
+}
+
+func startStreamPresets(ctx context.Context, m *stream.Manager) func() {
+	presetCtx, stopPresets := context.WithCancel(ctx)
+	presetsDone := make(chan struct{})
+	go func() {
+		defer close(presetsDone)
+		m.BootstrapDefaultsIfEmpty(presetCtx)
+	}()
+	return func() {
+		stopPresets()
+		<-presetsDone
+		m.Close()
+	}
 }

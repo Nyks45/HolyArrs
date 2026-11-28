@@ -586,20 +586,13 @@ func clockChecks(r *Report, now time.Time, tz string) {
 	r.add(s, StatusOK, text, "")
 }
 
-// readFolders lists the Library folders (path, kind).
-func readFolders(ctx context.Context, db database.Lister) ([][2]string, error) {
-	rows, err := db.QueryContext(ctx, "SELECT path, kind FROM library_folders WHERE stand_in = 0 ORDER BY kind, path")
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out [][2]string
-	for rows.Next() {
-		var p, k sql.NullString
-		if err := rows.Scan(&p, &k); err != nil {
-			return nil, err
-		}
-		out = append(out, [2]string{p.String, k.String})
-	}
-	return out, rows.Err()
+type doctorLibraryFolder struct {
+	Path         string   `db:"path"`
+	Kind         string   `db:"kind"`
+	LookOnly     bool     `db:"look_only"`
+	NewTitleTags []string `db:"new_title_tags,json"`
+}
+
+func readFolders(ctx context.Context, db database.Lister) ([]doctorLibraryFolder, error) {
+	return database.Select[doctorLibraryFolder](ctx, db, "library_folders", "stand_in = 0 ORDER BY kind, path")
 }

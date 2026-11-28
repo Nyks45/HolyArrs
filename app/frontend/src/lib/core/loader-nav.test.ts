@@ -3,7 +3,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // The loader node the page change shows; hidden when the page is idle.
 function fakeLoader() {
 	const cls = new Set<string>();
-	const node = { hidden: true, classList: { add: (c: string) => cls.add(c), remove: (...c: string[]) => c.forEach((x) => cls.delete(x)), contains: (c: string) => cls.has(c) } };
+	const attrs = new Map<string, string>();
+	const node = {
+		hidden: true,
+		classList: { add: (c: string) => cls.add(c), remove: (...c: string[]) => c.forEach((x) => cls.delete(x)), contains: (c: string) => cls.has(c) },
+		getAttribute: (name: string) => attrs.get(name) ?? null,
+		setAttribute: (name: string, value: string) => attrs.set(name, value),
+		removeAttribute: (name: string) => attrs.delete(name)
+	};
 	vi.stubGlobal('document', { getElementById: (id: string) => (id === 'hl' ? node : null) });
 	return node;
 }
@@ -25,7 +32,11 @@ describe('a page change that a page cancels', () => {
 		// A "Leave anyway?" box holds the page longer than the delay.
 		vi.advanceTimersByTime(NAV_DELAY_MS + 50);
 		expect(node.hidden).toBe(false);
+		expect(node.getAttribute('aria-hidden')).toBeNull();
 		cancel(new Error('navigation cancelled'));
+		await vi.advanceTimersByTimeAsync(0);
+		expect(node.hidden).toBe(false);
+		expect(node.getAttribute('aria-hidden')).toBe('true');
 		await vi.advanceTimersByTimeAsync(400);
 		expect(node.hidden).toBe(true);
 	});

@@ -6,6 +6,19 @@ import (
 	"testing"
 )
 
+func TestRootedClosesAfterMissingRoot(t *testing.T) {
+	existing := t.TempDir()
+	missing := filepath.Join(t.TempDir(), "not mounted")
+	r := newRooted([]string{existing, missing})
+	defer r.close()
+	if r.dir(missing) {
+		t.Fatal("missing root reported as a directory")
+	}
+	if !r.dir(existing) {
+		t.Fatal("existing root could not be opened")
+	}
+}
+
 // The folder browser and search stay inside the roots: a link out of a
 // root, or a path outside every root, is neither listed nor looked up.
 func TestRootedStaysInside(t *testing.T) {

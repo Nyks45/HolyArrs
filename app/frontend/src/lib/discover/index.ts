@@ -55,7 +55,7 @@ export { genreRowPath } from './explore-type.ts';
 export { GENRES } from './genres.ts';
 export { genresFor } from './genres.ts';
 export { hasServiceChips } from './popular.ts';
-export { headPath } from './explore-server.ts';
+export { headPath, poolRetryDelay } from './explore-server.ts';
 export { historyIndex } from './came-from.svelte.ts';
 export { installHeroAhead } from './hero-prefetch.ts';
 export { heroFallback } from './hero-fallback.ts';

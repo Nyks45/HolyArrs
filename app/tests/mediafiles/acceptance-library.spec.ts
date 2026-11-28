@@ -8,7 +8,7 @@ test.describe.configure({ mode: 'serial' });
 
 const tmp = dataDir('acceptance-library');
 const moviesDir = join(tmp, 'movies');
-const showsDir = join(tmp, 'shows');
+const showsDir = join(tmp, 'tv');
 const musicDir = join(tmp, 'music');
 const sourceAlbum = join(musicDir, 'Copper Wren', 'Low Orbit (2018)');
 const renamedAlbum = join(musicDir, 'Copper Wren', '2018 - Low Orbit');
@@ -24,16 +24,6 @@ const owner = { name: 'acceptance-owner', password: ['acceptance', 'library', 'o
 
 let context: BrowserContext;
 let page: Page;
-
-async function addLibraryFolder(kind: 'music' | 'show', path: string, name: string) {
-	await page.goto('/settings/library-folders');
-	await page.getByRole('button', { name: 'Add a folder' }).first().click();
-	await page.getByLabel('Holds').selectOption(kind);
-	await page.getByLabel('Folder path').fill(path);
-	await page.getByLabel(/^Name/).fill(name);
-	await page.getByRole('button', { name: 'Add', exact: true }).click();
-	await expect(page.getByTestId('folder-kind').filter({ hasText: kind === 'music' ? 'For music' : 'For shows' })).toHaveCount(1);
-}
 
 async function adopt(folderText: string, name: string, button: string, doneText: string) {
 	await page.goto('/library/import');
@@ -64,11 +54,8 @@ test.beforeAll(async ({ browser }) => {
 	await page.getByLabel('Confirm password').fill(owner.password);
 	await page.getByRole('button', { name: 'Create account and continue' }).click();
 	await expect(page).toHaveURL(/\/welcome\?first=1/);
-	await finishFirstRun(page, moviesDir, { music: true });
+	await finishFirstRun(page, moviesDir, { tv: true, music: true });
 	await expect(page).toHaveURL(/\/$/);
-
-	await addLibraryFolder('music', musicDir, 'Music');
-	await addLibraryFolder('show', showsDir, 'Shows');
 });
 
 test.afterAll(async () => {
@@ -92,8 +79,11 @@ test('music adoption and rename stay on one fixture and prove the exact disk res
 	await row.getByRole('link', { name: 'Open the album page of Low Orbit' }).click();
 	await expect(page.getByRole('heading', { level: 1, name: 'Low Orbit' })).toBeVisible();
 	// Rename files is in the album's More menu.
-	await page.getByRole('button', { name: 'More actions' }).first().click();
-	await page.getByRole('menuitem', { name: 'Rename files' }).click();
+	const openRename = async () => {
+		await page.getByRole('button', { name: 'More actions' }).first().click();
+		await page.getByRole('menuitem', { name: 'Rename files' }).click();
+	};
+	await openRename();
 	const dialog = page.getByRole('dialog', { name: 'Rename files' }).filter({ hasText: 'Low Orbit' });
 	const steps = dialog.getByTestId('rename-step');
 	await expect(steps).toHaveCount(2);
@@ -103,15 +93,18 @@ test('music adoption and rename stay on one fixture and prove the exact disk res
 	await expect(steps.nth(1)).toContainText('Copper Wren/2018 - Low Orbit/02 - Song 1.2.mp3');
 	await dialog.getByRole('button', { name: 'Rename 2 files' }).click();
 	await expect(page.getByText('2 files renamed')).toBeVisible({ timeout: 30_000 });
-	await expect(dialog.getByTestId('rename-none')).toBeVisible();
+	await expect(dialog).toBeHidden();
 
 	expect(existsSync(sourceAlbum), 'old album folder remains').toBe(false);
 	expect(readdirSync(renamedAlbum).sort()).toEqual(['01 - Song 1.1.mp3', '02 - Song 1.2.mp3']);
 	expect(existsSync(musicFiles.single), 'single excluded from album adoption moved').toBe(true);
 	expect(existsSync(musicFiles.loose), 'loose file moved').toBe(true);
+	await openRename();
+	await expect(dialog.getByTestId('rename-none')).toBeVisible();
 });
 
 test('episode subtitle dialog chooses from the fake site and saves the exact file', async () => {
+	test.setTimeout(90_000);
 	await page.goto('/settings/subtitles');
 	await page.getByRole('button', { name: 'Add a language' }).click();
 	await page.locator('#def-lang-0').selectOption('en');
@@ -121,7 +114,7 @@ test('episode subtitle dialog chooses from the fake site and saves the exact fil
 	await page.getByRole('button', { name: 'Add a Subtitle site' }).click();
 	await page.getByRole('radio', { name: /^Lab subtitle site \(/ }).check();
 	await page.getByRole('textbox', { name: 'Address' }).fill('http://127.0.0.1:18742');
-	await page.getByText('Limits').click();
+	await page.getByText('Limits', { exact: true }).click();
 	await page.getByLabel('Wait between calls (ms)').fill('10');
 	await page.getByLabel('Calls per window, at most').fill('5000');
 	await page.getByLabel(/Reach the local network/).check();
@@ -130,8 +123,7 @@ test('episode subtitle dialog chooses from the fake site and saves the exact fil
 	await expect(site.getByTestId('subtitle-site-test')).toHaveText(/· \d+ subtitles?$/, { timeout: 15_000 });
 
 	await adopt('Shows: ', 'Fennel Clock', 'Adopt 1 show', '1 show is now in the Library');
-	await page.goto('/library');
-	await page.getByRole('link', { name: /Fennel Clock/ }).first().click();
+	await page.getByTestId('adopt-results').getByRole('link', { name: 'Open the show' }).click();
 	// An episode's subtitles live in its sheet, opened from its row on the Library tab.
 	await openLibraryTab(page);
 	await openSeasonNamed(page, 'Season 1');

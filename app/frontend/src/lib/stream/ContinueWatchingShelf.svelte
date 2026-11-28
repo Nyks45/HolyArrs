@@ -6,6 +6,9 @@
 	import { ago } from '#lib/core/format.ts';
 	import { sized } from '#lib/core/tmdb-image.ts';
 	import { detailPath } from '#lib/metadata/index.ts';
+	import { message } from '#lib/core/api.ts';
+	import { toasts } from '#lib/core/toasts.svelte.ts';
+	import { SvelteSet } from 'svelte/reactivity';
 	import {
 		deleteWatchHistory,
 		formatDuration,
@@ -19,6 +22,8 @@
 
 	let items = $state<WatchEntry[]>([]);
 	let loaded = $state(false);
+	const removing = new SvelteSet<string>();
+	const removalErrors = new Map<string, number>();
 	let hoverPrefetchTimer: ReturnType<typeof setTimeout> | null = null;
 
 	const visibleItems = $derived(kind ? items.filter((e) => e.kind === kind) : items);
@@ -31,6 +36,7 @@
 	}
 
 	function scheduleHoverPrefetch(entry: WatchEntry) {
+		if (entry.kind === 'show' && entry.completed) return;
 		const tmdb = Number(entry.tmdb) || 0;
 		if (!tmdb && !entry.imdb && !entry.title) return;
 		clearHoverPrefetch();
@@ -56,7 +62,8 @@
 			if (e.season) qs.set('s', String(e.season));
 			if (e.episode) qs.set('e', String(e.episode));
 		}
-		qs.set('resume', e.completed ? '0' : '1');
+		qs.set('resume', e.completed && e.kind !== 'show' ? '0' : '1');
+		if (e.kind === 'show' && e.completed) qs.set('next', '1');
 		if (from) qs.set('from', from);
 		return to(`${base}?${qs.toString()}`);
 	}
@@ -64,9 +71,22 @@
 	async function removeEntry(e: WatchEntry, ev: MouseEvent) {
 		ev.preventDefault();
 		ev.stopPropagation();
-		if (!e.key) return;
-		items = items.filter((x) => x.key !== e.key);
-		await deleteWatchHistory(e.key).catch(() => {});
+		const key = e.key;
+		if (!key || removing.has(key)) return;
+		const previousError = removalErrors.get(key);
+		if (previousError !== undefined) {
+			toasts.dismiss(previousError);
+			removalErrors.delete(key);
+		}
+		removing.add(key);
+		try {
+			await deleteWatchHistory(key);
+			items = items.filter((x) => x.key !== key);
+		} catch (err) {
+			removalErrors.set(key, toasts.push(`Could not remove ${e.title} from Continue Watching`, 'fail', { body: message(err) }));
+		} finally {
+			removing.delete(key);
+		}
 	}
 
 	onMount(() => {
@@ -129,6 +149,7 @@
 								class="cw-tool-btn"
 								aria-label={`Remove ${entry.title} from continue watching`}
 								title="Remove"
+								disabled={removing.has(entry.key)}
 								onclick={(ev) => void removeEntry(entry, ev)}
 							>
 								<Icon name="x" size={14} />

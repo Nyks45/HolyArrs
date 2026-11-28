@@ -24,7 +24,7 @@ func TestNoOldPagesInTestsOrDocs(t *testing.T) {
 		}
 		_ = filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
 			if err != nil || d.IsDir() {
-				if err == nil && skipDir(d.Name()) && p != dir {
+				if err == nil && p != dir && (skipDir(d.Name()) || (base == "app/tests" && strings.HasPrefix(d.Name(), ".tmp"))) {
 					return filepath.SkipDir
 				}
 				return nil

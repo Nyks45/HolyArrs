@@ -71,7 +71,7 @@ func (h *Handlers) ExplorePageFor(ctx context.Context, r *http.Request, member i
 		// lists are cached (memory or SQLite), with no outside call.
 		in := engine.Input{Member: member, Kid: m.Kid, Switch: sw, Now: now, Services: m.Services, Region: m.Region}
 		if err == nil {
-			if full, ierr := h.Explore.Input(ctx, m, sw, now); ierr == nil {
+			if full, ierr := h.Explore.input(ctx, m, sw, now, true); ierr == nil {
 				in = full
 			}
 		}

@@ -409,6 +409,21 @@ test("import a made-up secrets file, then read Radarr with the saved key", async
   const me = (await (await page.request.get("/api/v1/auth/me")).json()) as {
     csrf: string;
   };
+  // Add offers saved keys for unread addresses. An earlier case may have
+  // already read this fixture, so clear its snapshot before saving the key.
+  const address = `http://127.0.0.1:${oldRadarrPort}`;
+  const reads = await page.request.get("/api/v1/migrate/snapshots");
+  expect(reads.ok()).toBe(true);
+  const { snapshots } = (await reads.json()) as {
+    snapshots: { id: number; kind: string; address: string }[];
+  };
+  for (const snapshot of snapshots ?? []) {
+    if (snapshot.kind !== "radarr" || snapshot.address !== address) continue;
+    const cleared = await page.request.delete(`/api/v1/migrate/snapshots/${snapshot.id}`, {
+      headers: { "X-CSRF-Token": me.csrf },
+    });
+    expect(cleared.ok()).toBe(true);
+  }
   const made = await page.request.post("/api/v1/auth/keys", {
     headers: { "X-CSRF-Token": me.csrf, "Content-Type": "application/json" },
     data: { label: "import", scopes: ["admin"] },

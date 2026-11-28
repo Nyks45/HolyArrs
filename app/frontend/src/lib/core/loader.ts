@@ -70,7 +70,7 @@ export function playLoader(line = '', holdMs = HOLD_MS): void {
 	clearTimeout(timer);
 	clearTimeout(navTimer);
 	node.classList.remove('out', 'nav', 'handoff', 'veil');
-	node.hidden = false;
+	showLoader(node);
 	full = true;
 	shownAt = performance.now();
 }
@@ -85,7 +85,7 @@ export function playHandoff(from: Rect | null, name: string): void {
 	clearTimeout(navTimer);
 	node.classList.remove('out', 'nav');
 	node.classList.add('handoff');
-	node.hidden = false;
+	showLoader(node);
 	if (!handoffWait)
 		handoffWait = new Promise<void>((done) => {
 			settle = () => {
@@ -124,7 +124,7 @@ export function showReconnecting(): void {
 	clearTimeout(timer);
 	clearTimeout(navTimer);
 	node.classList.remove('out', 'nav');
-	node.hidden = false;
+	showLoader(node);
 	full = true;
 	hold = 0;
 	say(t('core.loader.reconnecting'));
@@ -191,7 +191,7 @@ export function navStarted(): void {
 		clearTimeout(timer);
 		node.classList.remove('out');
 		node.classList.add('nav');
-		node.hidden = false;
+		showLoader(node);
 	}, NAV_DELAY_MS);
 }
 
@@ -219,9 +219,17 @@ function pageHold(): number {
 	return bootHold(nav?.type, location.pathname);
 }
 
+function showLoader(node: HTMLElement): void {
+	node.inert = false;
+	node.removeAttribute('aria-hidden');
+	node.hidden = false;
+}
+
 // The 280 ms matches the fade-out in the loader styles.
 function leave(node: HTMLElement): void {
 	const handoff = node.classList.contains('handoff');
+	node.inert = true;
+	node.setAttribute('aria-hidden', 'true');
 	node.classList.add('out');
 	if (handoff) arrive();
 	timer = setTimeout(() => {

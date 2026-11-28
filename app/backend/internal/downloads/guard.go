@@ -132,8 +132,12 @@ func (g *guardedEngine) run(ctx context.Context, call func() error) error {
 	if err != nil {
 		return err
 	}
+	// A panicking adapter still releases the outbound operation before the
+	// reader or loop supervisor recovers.
+	outcome := outbound.TransientFailure
+	defer func() { op.Finish(outcome) }()
 	err = call()
-	outcome := outbound.Success
+	outcome = outbound.Success
 	if ctx.Err() != nil {
 		outcome = outbound.Canceled
 	} else if err != nil {
@@ -156,6 +160,5 @@ func (g *guardedEngine) run(ctx context.Context, call func() error) error {
 			outcome = outbound.TerminalFailure
 		}
 	}
-	op.Finish(outcome)
 	return err
 }

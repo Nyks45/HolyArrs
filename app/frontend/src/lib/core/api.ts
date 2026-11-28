@@ -33,6 +33,7 @@ export const READ_WAIT = 20000;
 type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
 
 type Follower<T> = { res?: (v: T) => void; rej?: (e: unknown) => void; signal?: AbortSignal; stop?: () => void };
+type SharedRead = { p: Promise<unknown>; done: number; keep: number; callers: number; abort: AbortController };
 
 export interface EarlyAsks {
 	at: number;
@@ -110,6 +111,7 @@ export function createClient(fetchFn: FetchFn = (i, o) => fetch(i, o), early: ()
 	}
 
 	async function request<T>(path: string, opts: RequestOptions = {}, seen?: (res: Response) => void): Promise<T> {
+		opts.signal?.throwIfAborted();
 		const method = opts.method ?? 'GET';
 		// Titles and synopses come in the language the app is shown in.
 		const headers: Record<string, string> = { Accept: 'application/json', 'X-HolyArrs-Language': appLanguage() };
@@ -192,17 +194,18 @@ export function createClient(fetchFn: FetchFn = (i, o) => fetch(i, o), early: ()
 		return data as T;
 	}
 
-	const shared = new Map<string, { p: Promise<unknown>; done: number; keep: number }>();
+	const shared = new Map<string, SharedRead>();
 
-	function start(path: string, entry: { keep: number }): Promise<unknown> {
-		return Promise.resolve().then(() => request<unknown>(path, {}, (res) => (entry.keep = keepFor(res.headers.get('Cache-Control')))));
+	function start(path: string, entry: SharedRead): Promise<unknown> {
+		return Promise.resolve().then(() => request<unknown>(path, { signal: entry.abort.signal }, (res) => (entry.keep = keepFor(res.headers.get('Cache-Control')))));
 	}
 
 	function get<T>(path: string, signal?: AbortSignal): Promise<T> {
+		if (signal?.aborted) return Promise.reject(signal.reason);
 		const now = Date.now();
 		let hit = shared.get(path);
 		if (!hit || (hit.done && (!hit.keep || now - hit.done > hit.keep))) {
-			const entry = { p: Promise.resolve<unknown>(undefined), done: 0, keep: KEEP_MOMENT };
+			const entry: SharedRead = { p: Promise.resolve(undefined), done: 0, keep: KEEP_MOMENT, callers: 0, abort: new AbortController() };
 			entry.p = start(path, entry);
 			entry.p.then(
 				(v) => {
@@ -214,8 +217,14 @@ export function createClient(fetchFn: FetchFn = (i, o) => fetch(i, o), early: ()
 			shared.set(path, entry);
 			hit = entry;
 		}
-		if (signal?.aborted) return Promise.reject(signal.reason ?? new DOMException('Aborted', 'AbortError'));
-		return follow<T>(hit.p, signal);
+		const read = hit;
+		read.callers++;
+		return follow<T>(read.p, signal).finally(() => {
+			read.callers--;
+			if (read.done || read.callers) return;
+			if (shared.get(path) === read) shared.delete(path);
+			read.abort.abort();
+		});
 	}
 
 	function change<T>(path: string, opts: RequestOptions): Promise<T> {
@@ -254,8 +263,8 @@ export function createClient(fetchFn: FetchFn = (i, o) => fetch(i, o), early: ()
 			shared.clear();
 			dropEarly();
 		},
-		warm<T>(path: string, keep: number): Promise<T> {
-			const answer = get<T>(path);
+		warm<T>(path: string, keep: number, signal?: AbortSignal): Promise<T> {
+			const answer = get<T>(path, signal);
 			const hit = shared.get(path);
 			hit?.p.then(
 				() => {

@@ -11,6 +11,7 @@
 	import { clearOfArrows, flipTransform, growPlacement, GROW_MS, GROW_SCALE, GROW_WIDTH, rowArrows, SHRINK_MS, TRAILER_AFTER, type Growth, type Rect } from './grow.ts';
 	import { onDestroy, onMount, type Snippet } from 'svelte';
 	import { api, message } from '../core/api.ts';
+	import { session } from '../core/session.svelte.ts';
 	import { to } from '../core/paths.ts';
 	import { toasts } from '../core/toasts.svelte.ts';
 	import { proxied, sized } from '../core/tmdb-image.ts';
@@ -294,7 +295,7 @@
 	</a>
 	<div class="panel">
 		<div class="buttons">
-			{#if (kind === 'movie' || kind === 'show') && tmdb}
+			{#if !session.kid && (kind === 'movie' || kind === 'show') && tmdb}
 				<a class="play-btn" href={to(`/watch/${kind}/${encodeURIComponent(tmdb)}`)} aria-label="Watch {title}" title="Watch">
 					<Icon name="play" size={16} />
 				</a>

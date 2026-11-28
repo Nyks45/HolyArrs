@@ -79,7 +79,7 @@ func (h *Handlers) exploreOpened(w http.ResponseWriter, r *http.Request) {
 	webserver.WriteJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
-func (h *Handlers) enrichSimilar(ctx context.Context, kind, id string, existing []metadata.DiscoverItem) []metadata.DiscoverItem {
+func (h *Handlers) enrichSimilar(ctx context.Context, kind, id string, existing []metadata.DiscoverItem, cacheOnly bool) []metadata.DiscoverItem {
 	if len(existing) >= 16 || h.Explore == nil {
 		return existing
 	}
@@ -92,7 +92,11 @@ func (h *Handlers) enrichSimilar(ctx context.Context, kind, id string, existing 
 	}
 	sctx, cancel := context.WithTimeout(ctx, 1200*time.Millisecond)
 	defer cancel()
-	extra, err := h.LiveExplore(sctx).List(sctx, engine.Request{List: "similar", Kind: kind, Ref: id})
+	source := ExploreSource{E: h.Explore, CacheOnly: true}
+	if !cacheOnly {
+		source = h.LiveExplore(sctx)
+	}
+	extra, err := source.List(sctx, engine.Request{List: "similar", Kind: kind, Ref: id})
 	if err != nil || len(extra) == 0 {
 		return existing
 	}

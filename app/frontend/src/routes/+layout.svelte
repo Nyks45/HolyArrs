@@ -1,9 +1,6 @@
 <script lang="ts">
 	import { t, startLang, langPack } from '#lib/core/i18n/i18n.svelte.ts';
-	import { resolve } from '$app/paths';
 	import { personName } from '#lib/core/plain.ts';
-	import { setBase } from '#lib/core/paths.ts';
-	setBase(resolve('/(home)'));
 	import { to, appPath } from '#lib/core/paths.ts';
 	import '../app.css';
 	import { onMount, tick, type Snippet } from 'svelte';

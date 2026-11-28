@@ -528,6 +528,7 @@ delay_ms
 delay_profiles
 deleteFiles
 delete_files
+delete_keys
 deleted_at
 delivery
 deluge
@@ -623,6 +624,7 @@ dry
 dry_run
 duplicates
 duration
+duration_mismatch
 duration_sec
 each_limit
 early_release_grace_hours
@@ -735,6 +737,7 @@ fans
 fast_start
 fd
 feature_details
+featured
 feed
 feed_check_minutes
 fell_back
@@ -1429,6 +1432,7 @@ only_tagged_sources
 op
 openSubsonicExtensions
 open_files
+opened_at
 opens
 opensubtitles
 options
@@ -1492,6 +1496,7 @@ pairs
 parameters
 params
 parent
+parent_genres
 parent_imdb_id
 parent_title
 parent_tmdb_id
@@ -1708,6 +1713,7 @@ recordings
 redirect_uris
 redirect_url
 redirect_urls
+reencode
 ref
 refresh_token
 refreshed_at
@@ -1826,6 +1832,7 @@ rule_occupancy
 rules
 running
 runtime
+runtime_min
 runtime_minutes
 s
 sabnzbd
@@ -1892,6 +1899,7 @@ secret
 secret_set
 secrets_set
 section
+section_title
 secure_url
 security
 seed
@@ -2346,6 +2354,7 @@ upload_payload_rate
 uploaded
 uploader
 upsert
+upserts
 upspeed
 uptime_s
 uri

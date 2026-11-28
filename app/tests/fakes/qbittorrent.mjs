@@ -30,7 +30,7 @@ export function startQbittorrentFake() {
 					if (form.get('hash') && form.get('hash') !== t.hash) continue;
 					for (const k of ['progress', 'dlspeed', 'eta']) if (form.get(k)) t[k] = Number(form.get(k));
 					for (const k of ['state', 'save_path']) if (form.get(k)) t[k] = form.get(k);
-					if (form.get('files')) t.files = (form.get('files') ?? '').split('|').map((name) => ({ name, size: Number(form.get('filesize') ?? 1000), progress: 1 }));
+					if (form.get('files')) t.files = (form.get('files') ?? '').split('|').map((name) => ({ name, size: Number(form.get('filesize') ?? 0), progress: 1 }));
 				}
 				return send(res, 200, { ok: true });
 			}

@@ -11,7 +11,9 @@ test('no CSP violations on Explore, More info, a trailer and a title page', asyn
 		document.addEventListener('securitypolicyviolation', (e) => console.error('Refused to (CSP) ' + e.violatedDirective + ' ' + e.blockedURI));
 	});
 	const res = await page.goto('/');
-	expect(res?.headers()['content-security-policy']).toContain("frame-src https://www.youtube-nocookie.com");
+	const frame = res?.headers()['content-security-policy']?.split(';')
+		.map((directive) => directive.trim()).find((directive) => directive.startsWith('frame-src '));
+	expect(frame?.split(/\s+/)).toContain('https://www.youtube-nocookie.com');
 	const o = newOwner();
 	await reachSetupAccount(page);
 	await page.getByLabel('Username').fill(o.name);

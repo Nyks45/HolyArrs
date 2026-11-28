@@ -293,13 +293,20 @@ func (h *Handlers) browseItems(ctx context.Context, src ExploreSource, c engine.
 			return KeepItems(merged, h.KidItems(ctx, max, ItemRefs(merged), 0)), nil
 		}
 	}
-	var lists [][]engine.Item
-	for _, q := range c.Requests(sw, kid) {
-		items, err := src.List(ctx, q)
+	requests := c.Requests(sw, kid)
+	lists := make([][]engine.Item, len(requests))
+	errs := make([]error, len(requests))
+	var group sync.WaitGroup
+	for i, q := range requests {
+		group.Go(func() {
+			lists[i], errs[i] = src.List(ctx, q)
+		})
+	}
+	group.Wait()
+	for _, err := range errs {
 		if err != nil {
 			return nil, err
 		}
-		lists = append(lists, items)
 	}
 	merged := engine.MergeTop(lists, 80)
 	if max == "" {

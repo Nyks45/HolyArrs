@@ -755,7 +755,8 @@ func Gate(m *http.ServeMux) http.Handler {
 			writeJSON(w, http.StatusForbidden, map[string]string{"error": "confirm your local password again before using this route", "code": "reauth"})
 			return
 		}
-		if !who.Has(need) {
+		kidStreaming := need == webserver.NeedSignedIn && KidMax(r) != "" && streamingRoute(pattern)
+		if !who.Has(need) || kidStreaming {
 			if r.Method == http.MethodGet && !strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/live" && ArrSide(r.URL.Path) == "" {
 				http.Redirect(w, r, "/", http.StatusSeeOther)
 				return

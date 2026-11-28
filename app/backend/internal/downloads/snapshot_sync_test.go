@@ -24,7 +24,6 @@ type fakeClient struct {
 	jobs    map[string]Job
 	lists   int
 	gets    int
-	panicN  int // how many of the next List calls panic
 	listErr error
 }
 
@@ -46,10 +45,6 @@ func (f *fakeClient) List(_ context.Context, category string) ([]Job, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.lists++
-	if f.panicN > 0 {
-		f.panicN--
-		panic("fake client fell over")
-	}
 	if f.listErr != nil {
 		return nil, f.listErr
 	}
@@ -257,25 +252,36 @@ func TestSync_RunPanicLeavesOnePoller(t *testing.T) {
 	}
 }
 
+type panickingReader struct {
+	SnapshotManager
+	next atomic.Bool
+}
+
+func (p *panickingReader) Reader(ctx context.Context, d domain.Downloader) (Engine, uint64, error) {
+	if p.next.Swap(false) {
+		panic("fake reader fell over")
+	}
+	return p.SnapshotManager.Reader(ctx, d)
+}
+
 // After a poller panic the process must live on, the Manager must fall back to its own guarded list for that client, and the poller must restart and make the client fresh again.
 func TestSync_PollerPanicDegradesAndRecovers(t *testing.T) {
 	fastTimers(t)
 	r := newRig(t, own(0.2))
+	reader := &panickingReader{SnapshotManager: r.m}
+	r.s.Manager = reader
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { r.s.Around(ctx, r.m.Run); close(done) }()
+	t.Cleanup(func() { cancel(); <-done })
 	waitUntil(t, "a fresh read", func() bool { return r.s.Store.Current(r.dlID).Fresh })
-	r.client.mu.Lock()
-	r.client.panicN = 1
-	r.client.mu.Unlock()
+	reader.next.Store(true)
 	waitUntil(t, "the Manager's fallback list", func() bool { return r.s.Store.Current(r.dlID).Fallback })
 	waitUntil(t, "fresh again after the restart", func() bool {
 		c := r.s.Store.Current(r.dlID)
 		return c.Fresh && c.Running
 	})
 	waitUntil(t, "the fallback to clear", func() bool { return !r.s.Store.Current(r.dlID).Fallback })
-	cancel()
-	<-done
 }
 
 // Safe mode never runs the loop, so the reader must make no call, Kick must do nothing, and the Manager must keep its own reads.

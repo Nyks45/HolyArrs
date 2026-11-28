@@ -280,6 +280,25 @@ describe('a read that never answers (#447)', () => {
 		await expect(p).rejects.toMatchObject({ name: 'AbortError' });
 	});
 
+	it('only aborts the network request after its last reader leaves', async () => {
+		const first = new AbortController();
+		const last = new AbortController();
+		const f = vi.fn((_u: string, o?: RequestInit) =>
+			new Promise<Response>((_, reject) => o?.signal?.addEventListener('abort', () => reject(o.signal?.reason))));
+		const c = createClient(f, () => undefined);
+		const a = c.get('/shared', first.signal);
+		const b = c.get('/shared', last.signal);
+		await Promise.resolve();
+		const outgoing = f.mock.calls[0]?.[1]?.signal;
+		expect(outgoing?.aborted).toBe(false);
+		first.abort();
+		await expect(a).rejects.toMatchObject({ name: 'AbortError' });
+		expect(outgoing?.aborted).toBe(false);
+		last.abort();
+		await expect(b).rejects.toMatchObject({ name: 'AbortError' });
+		expect(outgoing?.aborted).toBe(true);
+	});
+
 	it('ends a reply whose body stalls after the headers, and the next read asks again', async () => {
 		vi.useFakeTimers();
 		try {

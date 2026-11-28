@@ -34,6 +34,12 @@ export interface TailAnswer {
 	rows: ServerRow[];
 }
 
+/** A cold background build can take minutes. Poll less often as it warms. */
+export function poolRetryDelay(attempt: number): number | undefined {
+	if (attempt >= 10) return undefined;
+	return Math.min(30_000, 4_000 * 2 ** attempt);
+}
+
 export interface HeadQuery {
 	type: ExploreType;
 	services?: number[];

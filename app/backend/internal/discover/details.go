@@ -341,7 +341,7 @@ func (h *Handlers) metadataDetails(w http.ResponseWriter, r *http.Request) {
 		webserver.Internal(w, "discover", err)
 		return
 	}
-	rawSimilar := h.enrichSimilar(r.Context(), kind, id, e.Details.Similar)
+	rawSimilar := h.enrichSimilar(r.Context(), kind, id, e.Details.Similar, cached)
 	similar, err := h.JoinItems(r.Context(), h.KidItems(r.Context(), max, rawSimilar, 0), me, len(rawSimilar))
 	if err != nil {
 		webserver.Internal(w, "discover", err)

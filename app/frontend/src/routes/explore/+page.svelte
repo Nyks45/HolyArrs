@@ -26,7 +26,7 @@
 	import { EAGER_ROWS, stableRows } from '#lib/ui/row-window.ts';
 	import { artistSheets } from '#lib/requests/index.ts';
 	import { libraryTitles, ownedLibrary, partOff, partOn } from '#lib/mediafiles/index.ts';
-	import { anchorDelta, canReturn, putOffsets, readAnchor, readOffsets, type ExploreReturn, headPath, serverRow, tailPath, type HeadAnswer, type TailAnswer, markTransitions, dedupeTop, filterRows, parseType, searchAddress, typeHref, enoughCards, genreRowPath, genreCardHref, genreRowAfter, GENRE_ROW_MAX, ROW_MIN, type GenreRowCard, type ExploreType, TopServicesRow, ExploreHero, ExploreFilterBar, SubcategorySheet, ExploreSubcategoryView, fetchSubcategories, type CategorySummary, createExploreHub, heroFallback, CategoryStrip, GenreBanner, leaveOut, newHref, newServicesPath, type NewServicesAnswer, whyShown } from '#lib/discover/index.ts';
+	import { anchorDelta, canReturn, putOffsets, readAnchor, readOffsets, type ExploreReturn, headPath, poolRetryDelay, serverRow, tailPath, type HeadAnswer, type TailAnswer, markTransitions, dedupeTop, filterRows, parseType, searchAddress, typeHref, enoughCards, genreRowPath, genreCardHref, genreRowAfter, GENRE_ROW_MAX, ROW_MIN, type GenreRowCard, type ExploreType, TopServicesRow, ExploreHero, ExploreFilterBar, SubcategorySheet, ExploreSubcategoryView, fetchSubcategories, type CategorySummary, createExploreHub, heroFallback, CategoryStrip, GenreBanner, leaveOut, newHref, newServicesPath, type NewServicesAnswer, whyShown } from '#lib/discover/index.ts';
 	import { detailPath, remember } from '#lib/metadata/index.ts';
 	import { QuickAsk } from '#lib/requests/index.ts';
 	import { MusicTrendingRows, musicCardHref } from '#lib/music/index.ts';
@@ -316,7 +316,7 @@
 	/** The head rows' order as first shown for this query; a rebuilt pool never moves them. */
 	let headOrder: string[] = [];
 	let poll: ReturnType<typeof setTimeout> | undefined;
-	/** Reads the head; while the server builds the pool it asks again every 5 s (at most 2 minutes). */
+	/** Reads the head and checks again while the pool is building. */
 	async function loadHead(tries = 0) {
 		if (type === 'music' || type === 'anime') return;
 		const n = ++headAsk;
@@ -338,7 +338,8 @@
 			failed = false;
 			okOnce = true;
 			heroWait = !a.building && hero.length === 0 && head.length > 0 && tries < HERO_TRIES ? tries + 1 : 0;
-			if (a.building && tries < 24) poll = setTimeout(() => void loadHead(tries + 1), 5000);
+			const retry = a.building ? poolRetryDelay(tries) : undefined;
+			if (retry !== undefined) poll = setTimeout(() => void loadHead(tries + 1), retry);
 			else if (heroWait) poll = setTimeout(() => void loadHead(tries + 1), 3000);
 		} catch {
 			if (n === headAsk) {
@@ -440,10 +441,10 @@
 	async function load() {
 		busy = true;
 		try {
-			const o = await ownedLibrary();
+			const o = await ownedLibrary(api, gone.signal);
 			titles = o.titles;
 			// The genre banner reads Library genres; an answer without them borrows the full list.
-			if (o.light && type !== 'music' && type !== 'anime' && !o.titles.some((t) => t.genres?.length)) titles = await libraryTitles();
+			if (o.light && type !== 'music' && type !== 'anime' && !o.titles.some((t) => t.genres?.length)) titles = await libraryTitles(api, gone.signal);
 		} catch {
 			/* Owned marks wait for the Library. */
 		}
@@ -666,7 +667,7 @@
 			{:else if heroWait && !genreView.genreOn && !hubView.hubOn}
 				<div class="hero-wait" data-testid="hero-placeholder" aria-hidden="true"><Skeleton shape="block" /></div>
 			{/if}
-			{#if !genreView.genreOn && !hubView.hubOn}<ContinueWatchingShelf from={to('/explore')} kind={type === 'movies' ? 'movie' : type === 'shows' ? 'show' : ''} />{/if}
+			{#if !session.kid && !genreView.genreOn && !hubView.hubOn}<ContinueWatchingShelf from={to('/explore')} kind={type === 'movies' ? 'movie' : type === 'shows' ? 'show' : ''} />{/if}
 			{#if bannerView.bannerOn && bannerView.favourite && !hubView.hubOn}
 				<GenreBanner
 					layout={bannerView.bannerLayout === 2 ? 2 : 1}
@@ -755,7 +756,7 @@
 					</div>
 				{/if}
 			{/each}
-			{#if !genreView.genreOn && (!hubView.hubOn || type === 'anime')}<AddonCatalogShelves {type} />{/if}
+			{#if !session.kid && !genreView.genreOn && (!hubView.hubOn || type === 'anime')}<AddonCatalogShelves {type} />{/if}
 			{#if tailMore && !genreView.genreOn && !hubView.hubOn}<div class="sentinel" bind:this={sentinel} aria-hidden="true"></div>{/if}
 		{/if}
 		</PageLoader>

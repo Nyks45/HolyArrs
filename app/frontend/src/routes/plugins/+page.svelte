@@ -21,7 +21,7 @@
 	import { PluginInfo, PluginSettings, AddSheet, DevActions, NoLockCard, NoNetLockCard, ApproveAccess, wheelSideways, fitChips, tagRoom, arrowKeys, tint, LanguagesSection, languageCard, LANGUAGE_PACKS_VERSION, LANGUAGE_PACKS_ICON } from '#lib/plugins/index.ts';
 	import { PluginsModeBar, StreamingSettings } from '#lib/stream/index.ts';
 	import { listLanguages, packList } from '#lib/core/i18n/language-packs.svelte.ts';
-	import { abilities, newAbilities, noLockNotice, categories, categoryLabel, categoryOf, developers, findPlugins, hasUpdate, inTab, notices, pluginAbout, pluginState, pluginBadge as badge, showsNoLockCard, showsNoNetLockCard, showsNoLockTag, shownName, shownVersion, sortPlugins, stateLabel, foldersMissing, isNew, freshUpdate, trendingIds, shortCount, shortDate as shortDay, numDate as numDay, pluginIcon, devPicture, isProject, brokenPics as broken, settingsPage, type Plugin, type PluginOverview, type PluginSort, type PluginTab } from '#lib/plugins/index.ts';
+	import { abilities, newAbilities, noLockNotice, categories, categoryLabel, categoryOf, developers, findPlugins, hasUpdate, inTab, notices, pluginAbout, pluginState, pluginBadge as badge, showsNoLockCard, showsNoNetLockCard, showsNoLockTag, shownName, shownVersion, sortPlugins, stateLabel, foldersMissing, isNew, freshUpdate, trendingIds, shortCount, shortDate as shortDay, numDate as numDay, pluginIcon, devPicture, isProject, brokenPics as broken, settingsPage, readPluginLayout, savePluginLayout, type PluginLayout, type Plugin, type PluginOverview, type PluginSort, type PluginTab } from '#lib/plugins/index.ts';
 	import Avatar from '#lib/ui/Avatar.svelte';
 	import { DlFind } from '#lib/downloads/index.ts';
 	import { barTools, barLead, pluginScope } from '#lib/core/search-field.svelte.ts';
@@ -39,24 +39,10 @@
 	let openId = $state('');
 	let panelOpen = $state(false);
 	let modalOpen = $state(false);
-	// The view: List, Cards or Large, kept in this browser. An old Compact pick opens as Cards.
-	type View = 'list' | 'cards' | 'large';
-	function readView(): View {
-		try {
-			const v = localStorage.getItem('plugins.view');
-			return v === 'list' || v === 'large' ? v : 'cards';
-		} catch {
-			return 'cards';
-		}
-	}
-	let view = $state<View>(readView());
-	function setView(v: View) {
+	let view = $state<PluginLayout>(readPluginLayout());
+	function setView(v: PluginLayout) {
 		view = v;
-		try {
-			localStorage.setItem('plugins.view', v);
-		} catch {
-			/* private window: the pick lasts this visit */
-		}
+		savePluginLayout(v);
 	}
 	// The List view uses the table look (V1).
 	const lvv = 1 as number;
@@ -301,7 +287,7 @@
 </script>
 
 <svelte:window bind:innerWidth={vw} onhashchange={onHash} />
-<svelte:head><title>{t('plugins.title')} Ã‚Â· HolyArrs</title></svelte:head>
+<svelte:head><title>{t('plugins.title')} · HolyArrs</title></svelte:head>
 
 <h1 class="sr-only">{t('plugins.title')}</h1>
 
@@ -802,7 +788,7 @@
 	.tag.new { background: color-mix(in srgb, var(--accent) 16%, var(--surface-2)); color: var(--text); }
 	.tag.hot { background: color-mix(in srgb, var(--wait) 18%, var(--surface-2)); color: var(--text); }
 	.dls { color: var(--text-muted); white-space: nowrap; }
-	.ver .dls::before { content: 'Ã‚Â·'; margin: 0 5px; }
+	.ver .dls::before { content: '·'; margin: 0 5px; }
 	.chip.fresh { background: color-mix(in srgb, var(--ok) 18%, var(--surface-2)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--ok) 40%, var(--line)); }
 	.lrow .get { background: var(--surface-1); box-shadow: 0 0 0 1px var(--line-strong), 0 1px 2px rgb(0 0 0 / 0.12); white-space: nowrap; }
 	.get { white-space: nowrap; }

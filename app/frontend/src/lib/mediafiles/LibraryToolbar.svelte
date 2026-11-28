@@ -86,7 +86,7 @@
 		{/if}
 	</span>
 	{#if phone}
-		<span class="t-find"><IconButton icon="search" label={findWords} aria-pressed={findOpen || !!q} onclick={() => { findOpen = !findOpen || !!q; if (findOpen) void tick().then(() => document.getElementById('find')?.focus()); }} /></span>
+		<span class="t-find"><IconButton icon="search" label={findWords} tipSide="below-end" aria-pressed={findOpen || !!q} onclick={() => { findOpen = !findOpen || !!q; if (findOpen) void tick().then(() => document.getElementById('find')?.focus()); }} /></span>
 	{/if}
 	<span class="tool-gap"></span>
 	<span class="t-tools cap">

@@ -55,6 +55,7 @@ test('the owner finds a show and adds it with only the latest season kept', asyn
 	await expect(dialog.getByRole('checkbox', { name: /Search now/ })).toHaveCount(0);
 	// Search when added starts off for shows while no Movies and TV default says otherwise.
 	await expect(dialog.getByRole('checkbox', { name: /^Search when added/ })).not.toBeChecked();
+	await dialog.getByRole('checkbox', { name: /^Keep up to date/ }).check();
 	await dialog.getByLabel('Seasons to keep up to date').selectOption('latest');
 	await expect(dialog).toContainText('Only the highest-numbered season.');
 	await dialog.getByLabel('Episode order').selectOption('aired');

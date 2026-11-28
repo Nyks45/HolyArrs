@@ -211,7 +211,6 @@ test('AC6: 2,000-row list scrolls smoothly and draws fewer than 100 rows', async
 	console.log(`AC6 p95 frame ${res.p95.toFixed(1)} ms over ${res.frames} frames, max row nodes ${res.maxRows}, scrolled ${res.scrolled}/${res.height}px`);
 	expect(res.scrolled, 'the list scrolled').toBeGreaterThan(20_000);
 	expect(res.maxRows, 'row nodes').toBeLessThan(100);
-	expect(res.p95, 'p95 frame time').toBeLessThan(33);
 	// Keyboard: the arrow keys walk past the drawn window and the row stays focused and on screen.
 	await p.setViewportSize({ width: 1280, height: 800 });
 	await p.locator('[data-testid="dl-listbox"]').evaluate((b) => (b.scrollTop = 0));
@@ -224,6 +223,7 @@ test('AC6: 2,000-row list scrolls smoothly and draws fewer than 100 rows', async
 	expect(nodes, 'row nodes after the keyboard walk').toBeLessThan(100);
 	await ctx.close();
 	await fetch(`${qbit}/set?count=0`);
+	expect(res.p95, 'p95 frame time').toBeLessThan(33);
 });
 
 // 883 torrents HolyArrs did not add: all of them load at once (up to 2,000;

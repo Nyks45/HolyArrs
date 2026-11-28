@@ -17,8 +17,8 @@ export interface OwnedItem {
 // How long, in ms, a loaded Library list is reused.
 export const LIBRARY_KEEP = 60_000;
 
-export async function libraryTitles(client: Client = api): Promise<TitleView[]> {
-	return (await client.warm<{ titles?: TitleView[] }>('/titles', LIBRARY_KEEP)).titles ?? [];
+export async function libraryTitles(client: Client = api, signal?: AbortSignal): Promise<TitleView[]> {
+	return (await client.warm<{ titles?: TitleView[] }>('/titles', LIBRARY_KEEP, signal)).titles ?? [];
 }
 
 // The Library page's list: every title with what the grid draws, sorts and filters by; a title's own page reads the rest.
@@ -77,12 +77,12 @@ export function stubTitle(it: OwnedItem): TitleView {
 }
 
 // Falls back to the full list on servers without the light route.
-export async function ownedLibrary(client: Client = api): Promise<{ titles: TitleView[]; light: boolean }> {
+export async function ownedLibrary(client: Client = api, signal?: AbortSignal): Promise<{ titles: TitleView[]; light: boolean }> {
 	try {
-		const r = await client.warm<{ items?: OwnedItem[] }>('/titles/owned', LIBRARY_KEEP);
+		const r = await client.warm<{ items?: OwnedItem[] }>('/titles/owned', LIBRARY_KEEP, signal);
 		return { titles: (r.items ?? []).map(stubTitle), light: true };
 	} catch (e) {
-		if (e instanceof ApiError && e.status === 404) return { titles: await libraryTitles(client), light: false };
+		if (e instanceof ApiError && e.status === 404) return { titles: await libraryTitles(client, signal), light: false };
 		throw e;
 	}
 }

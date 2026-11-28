@@ -532,6 +532,8 @@
 	.follows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; min-width: 0; }
 	.follows li { display: flex; align-items: center; gap: 10px; min-height: 44px; border-top: 1px solid var(--line); }
 	.follows li a, .follows .wl-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.follows li a { line-height: max(24px, 1.4em); }
+	@media (pointer: coarse) { .follows li a { line-height: max(44px, 1.4em); } }
 	.follows .xs { flex: none; }
 	@media (prefers-reduced-motion: reduce) { .box { transition: none; } }
 	@media (max-width: 600px) {

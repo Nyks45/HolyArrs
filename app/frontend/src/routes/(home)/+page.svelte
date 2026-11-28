@@ -159,9 +159,12 @@
 		return { kind: type === 'home_soon' ? 'coming' : 'new_season', text: serverWords(c.line) };
 	}
 
+	const lifetime = new AbortController();
+	const read = <T>(path: string) => api.get<T>(path, lifetime.signal);
+
 	async function loadHome() {
 		try {
-			home = await api.get<HomeAnswer>('/home');
+			home = await read<HomeAnswer>('/home');
 			failed = false;
 		} catch {
 			failed = true;
@@ -174,25 +177,27 @@
 		// The first visit keeps the loading screen until everything Home shows is there, pictures decoded, for 30 s at most; after that Home shows and the rest fills in as it arrives. With the metadata server down there is nothing to wait for: Home shows at once and fills in when it is back.
 		const homeRead = loadHome();
 		const art = (artReady ??= loadTileArt());
-		const picksRead = homeRead.then(() => (home?.rows?.includes('welcome') ? loadPicks() : undefined));
-		const ready = Promise.all([homeRead, checkMetadata()]).then(([, up]) => (up ? Promise.all([art, picksRead]).then(decoded) : undefined));
+		const picksRead = homeRead.then(() => (!gone && home?.rows?.includes('welcome') ? loadPicks() : undefined));
+		const ready = Promise.all([homeRead, checkMetadata()]).then(([, up]) => (up && !gone ? Promise.all([art, picksRead]).then(() => gone ? undefined : decoded()) : undefined));
 		const first = Promise.race([ready, new Promise<void>((r) => {
 			const w = setTimeout(r, FIRST_WAIT);
 			endWait = () => (clearTimeout(w), r());
 		})]).then(() => {
-			if (home) loaded = true;
+			if (!gone && home) loaded = true;
 		});
 		await afterHandoff();
+		if (gone) return;
 		const [, fo, dl, he, ch, as] = await Promise.allSettled([
 			first,
-			manager ? api.get<{ library_folders: LibraryFolder[] }>('/library-folders') : Promise.resolve(null),
+			manager ? read<{ library_folders: LibraryFolder[] }>('/library-folders') : Promise.resolve(null),
 			// Members may only read the Library and their own asks; the rest needs manage_library.
-			manager ? api.get<{ downloads: DownloadRow[] }>(homeDownloadsURL) : Promise.resolve(null),
-			manager ? api.get<Health>('/health') : Promise.resolve(null),
+			manager ? read<{ downloads: DownloadRow[] }>(homeDownloadsURL) : Promise.resolve(null),
+			manager ? read<Health>('/health') : Promise.resolve(null),
 			// The checks need manage_library only; people without Settings get Status links instead of Fix.
-			manager ? api.get<HealthChecks>('/health/checks') : Promise.resolve(null),
-			canAsk ? api.get<{ asks: Ask[] }>('/asks') : Promise.resolve(null)
+			manager ? read<HealthChecks>('/health/checks') : Promise.resolve(null),
+			canAsk ? read<{ asks: Ask[] }>('/asks') : Promise.resolve(null)
 		]);
+		if (gone) return;
 		if (fo.status === 'fulfilled' && fo.value) folders = fo.value.library_folders;
 		if (dl.status === 'fulfilled' && dl.value) downloads = dl.value.downloads ?? [];
 		if (he.status === 'fulfilled' && he.value) health = he.value;
@@ -246,7 +251,7 @@
 		picksTried = true;
 		const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 		await untilFull(
-			() => api.get<HeadAnswer>(headPath({ type: 'all', tz })).then((a) => ({ building: !!a.building, rows: welcomeRows(a.head ?? []) })),
+			() => read<HeadAnswer>(headPath({ type: 'all', tz })).then((a) => ({ building: !!a.building, rows: welcomeRows(a.head ?? []) })),
 			(r) => r.rows.length > 0,
 			(r) => (picks = r.rows)
 		);
@@ -256,7 +261,7 @@
 	let artReady: Promise<void> | undefined;
 	function loadTileArt(): Promise<void> {
 		return untilFull(
-			() => api.get<NewAnswer>(newPath('all', 0)).then((a) => {
+			() => read<NewAnswer>(newPath('all', 0)).then((a) => {
 				const pop = (a.hero ?? []).map((h) => h.backdrop).filter((b): b is string => !!b).slice(0, 3);
 				const soon = (a.rail ?? []).flatMap((d) => d.items).filter((i) => i.upcoming && i.poster).map((i) => i.poster as string);
 				// Coming this week on an empty Library: New & Popular's releases from today to six days on (already within the Kid limit).
@@ -344,6 +349,7 @@
 		const offs = [live.on('title', soonLoad), live.on('import', soonLoad), live.on('resync', soonLoad), live.on('health', soonLoad), live.on('ask', soonLoad), live.on('ask_removed', soonLoad), live.on('download', onDownload)];
 		return () => {
 			gone = true;
+			lifetime.abort();
 			endWait();
 			clearTimeout(timer);
 			clearInterval(clock);
@@ -353,7 +359,9 @@
 	// Home cards from running plugins: plain data drawn here, none when no plugin adds one.
 	let pluginCards = $state<PluginCard[]>([]);
 	$effect(() => {
-		void homeCards().then((c) => (pluginCards = c));
+		void homeCards(lifetime.signal).then((c) => {
+			if (!gone) pluginCards = c;
+		});
 	});
 </script>
 
@@ -372,8 +380,8 @@
 				{#if failed && !home}{:else if overview.shown === 'system'}{#if disk.sysNote}<span class="dot {attentionView.worst}" aria-hidden="true"></span>{disk.sysNote}{/if}{:else}{news}{/if}
 			</p>
 			<div class="acts">
-				<span class="wide-only"><Button variant="secondary" icon="clock" href={to('/watch/history')}>Watch history</Button><Button variant="secondary" icon="search" href={to('/search')}>{t('home.search')}</Button><Button variant="secondary" icon="compass" href={to('/explore')}>{t('home.explore')}</Button></span>
-				<span class="phone-only"><IconButton icon="clock" label="Watch history" variant="tinted" size="lg" href={to('/watch/history')} tooltip={false} /><IconButton icon="search" label={t('home.search')} variant="tinted" size="lg" href={to('/search')} tooltip={false} /><IconButton icon="compass" label={t('home.explore')} variant="tinted" size="lg" href={to('/explore')} tooltip={false} /></span>
+				<span class="wide-only">{#if !kid}<Button variant="secondary" icon="clock" href={to('/watch/history')}>Watch history</Button>{/if}<Button variant="secondary" icon="search" href={to('/search')}>{t('home.search')}</Button><Button variant="secondary" icon="compass" href={to('/explore')}>{t('home.explore')}</Button></span>
+				<span class="phone-only">{#if !kid}<IconButton icon="clock" label="Watch history" variant="tinted" size="lg" href={to('/watch/history')} tooltip={false} />{/if}<IconButton icon="search" label={t('home.search')} variant="tinted" size="lg" href={to('/search')} tooltip={false} /><IconButton icon="compass" label={t('home.explore')} variant="tinted" size="lg" href={to('/explore')} tooltip={false} /></span>
 			</div>
 		</div>
 	</div>
@@ -469,7 +477,7 @@
 		{/snippet}
 
 		<PageLoader loading={!loaded} label={t('home.loadingHome')} onretry={retry}>
-		<ContinueWatchingShelf from={to('/')} />
+		{#if !kid}<ContinueWatchingShelf from={to('/')} />{/if}
 		{#if joinedOn}<JoinedWelcome name={profile.displayName || session.s.name} kinds={joinedKinds} />{/if}
 		{#if welcomeOn && (owner || !joinedOn)}{@render welcomeCard()}{/if}
 		<HomeOverview {overview} {disk} {admin} {settled} {attentionView} {uncheckedParts} {retrying} {retry} {approver} {kid} {uncheckedAsks} {downloading} {mineOpen} {mineDeclined} {fetchingAll} {home} {uncheckedDl} {now} {uncheckedHealth} {health} {picTile} {tileArt} />

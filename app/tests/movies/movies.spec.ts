@@ -50,6 +50,7 @@ test('add by tmdb: and imdb: id; the last Release gate is remembered, the rest s
 	// Search when added is remembered: the last add turned it off.
 	await expect(dialog.getByLabel('Search when added')).not.toBeChecked();
 	await dialog.getByLabel('Release gate').selectOption('released');
+	await dialog.getByRole('checkbox', { name: /^Keep up to date/ }).check();
 	await dialog.getByRole('button', { name: 'Add to Library' }).click();
 	await expect(page).toHaveURL(/\/library\/\d+/);
 

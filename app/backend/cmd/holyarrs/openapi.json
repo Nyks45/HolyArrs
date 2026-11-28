@@ -17449,6 +17449,32 @@
         "x-holyarrs-scope": "read"
       }
     },
+    "/api/v1/explore/hub": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Get the hero and shelves for a curated Explore hub",
+        "x-holyarrs-part": "media",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "read"
+      }
+    },
+    "/api/v1/explore/hubs": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "List curated Explore hubs",
+        "x-holyarrs-part": "media",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "read"
+      }
+    },
     "/api/v1/explore/music": {
       "get": {
         "description": "Returns the Explore → Music page for the signed-in person, 6 rows a page. The first page (no cursor) carries the hero (the newest studio album from an artist in the Library, else the top album chart's first) with hero_alts (more picks for the Spotlight), then the day's rows: new_from (studio albums and EPs of Library artists out in the last 90 days, then upcoming), genres, your_asks (this person's music asks with their state), top_albums, mix, because (similar artists from the metadata server, not in the Library), near_taste, rising, together, since_have, genre_shelf and ready-made list rows. The rows are ordered once a day per person and region and kept, so later pages continue the same plan. Without music in the Library (cold) the charts and popular rows come first. Cards may carry a note (their own reason line). Each row has id, type, title, reason, shape (square albums, round artists) and items; rows below their minimum are left out. Paging: when more rows are left, next is a signed cursor; send it back as ?cursor= to get the next 6 rows. Later pages carry only v2, v7, rows, next and total; a cursor that is expired, was made for another person or region, or is not valid answers 400. A household with 12 rows or fewer gets them all in one page with no next. The region query (a two-letter country code, else worldwide) picks the charts; send it again with each cursor. A Kid limit answers kid=true and no rows, since music has no ratings. Each person may ask 240 times a minute, shared with Explore rows. Not found while the Music part is off.",
@@ -17608,6 +17634,19 @@
         "x-holyarrs-scope": "read"
       }
     },
+    "/api/v1/explore/opened": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Record a recently opened title for the current user",
+        "x-holyarrs-part": "media",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "write"
+      }
+    },
     "/api/v1/explore/row-stats": {
       "get": {
         "description": "Owner and admins. For the last 30 days: how often each Explore row was shown, had a card opened and had a request started, summed over everyone, busiest first. Counts stay on this server and never say who did what.",
@@ -17692,6 +17731,19 @@
         "x-holyarrs-part": "media",
         "x-holyarrs-permission": "signed_in",
         "x-holyarrs-scope": "write"
+      }
+    },
+    "/api/v1/explore/subcategories": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "List Explore subcategories matching filters",
+        "x-holyarrs-part": "media",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "read"
       }
     },
     "/api/v1/explore/tail": {
@@ -31514,6 +31566,1014 @@
         "x-holyarrs-part": "core",
         "x-holyarrs-permission": "users",
         "x-holyarrs-scope": "control"
+      }
+    },
+    "/api/v1/stream/history": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "List the current user's watch history and Continue Watching entries",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "admin"
+      },
+      "put": {
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Save the current user's playback progress",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "write"
+      }
+    },
+    "/api/v1/stream/history/batch": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Apply a batch of watch-history changes for the current user",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "write"
+      }
+    },
+    "/api/v1/stream/history/title/{kind}/{tmdb}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "tmdb",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Get the current user's latest progress and episode history for a title",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "admin"
+      }
+    },
+    "/api/v1/stream/history/{key}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Request succeeded with no response body"
+          },
+          "500": {
+            "description": "Watch history could not be saved"
+          },
+          "503": {
+            "description": "Watch history is unavailable"
+          }
+        },
+        "summary": "Remove a watch-history entry for the current user",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "write"
+      }
+    },
+    "/api/v1/stream/search": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Find and rank playable sources for a title",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "write"
+      }
+    },
+    "/api/v1/stream/sessions": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "List playback sessions",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "admin"
+      }
+    },
+    "/api/v1/stream/sources": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "List enabled search sources and playback capabilities",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "admin"
+      }
+    },
+    "/api/v1/stream/start": {
+      "post": {
+        "responses": {
+          "201": {
+            "description": "Resource created"
+          }
+        },
+        "summary": "Create a playback session from a selected source",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "write"
+      }
+    },
+    "/api/v1/stream/subtitles/autosync": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Align a subtitle with the media",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "write"
+      }
+    },
+    "/api/v1/stream/subtitles/fetch": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Fetch a selected subtitle",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "write"
+      }
+    },
+    "/api/v1/stream/subtitles/search": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Search enabled subtitle providers",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "write"
+      }
+    },
+    "/api/v1/stream/subtitles/upload": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Upload a subtitle for playback",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "write"
+      }
+    },
+    "/api/v1/stream/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Request succeeded with no response body"
+          }
+        },
+        "summary": "Stop a playback session",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "write"
+      },
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Get playback session state",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "admin"
+      }
+    },
+    "/api/v1/stream/{id}/file": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Select the media file in a playback session",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "write"
+      }
+    },
+    "/api/v1/stream/{id}/hls": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Start an HLS rendition for a playback session",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "write"
+      }
+    },
+    "/api/v1/stream/{id}/hls/{token}/{gen}/{file}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "gen",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "file",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Serve the token-authorized HLS playlist or segment",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "public",
+        "x-holyarrs-scope": "admin"
+      }
+    },
+    "/api/v1/stream/{id}/keep": {
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Change whether to keep the session's downloaded media",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "write"
+      }
+    },
+    "/api/v1/stream/{id}/media/{token}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          },
+          "206": {
+            "description": "Requested byte range"
+          }
+        },
+        "summary": "Serve token-authorized playback media with byte-range support",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "public",
+        "x-holyarrs-scope": "admin"
+      }
+    },
+    "/api/v1/stream/{id}/mpv": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Launch the session in the server's MPV player",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "write"
+      }
+    },
+    "/api/v1/stream/{id}/sub/{token}/{idx}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "idx",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Serve a token-authorized subtitle track as WebVTT",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "public",
+        "x-holyarrs-scope": "admin"
+      }
+    },
+    "/api/v1/streaming/addons": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "List configured streaming add-ons",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "admin"
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "Resource created"
+          }
+        },
+        "summary": "Install a streaming add-on from its manifest",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "settings",
+        "x-holyarrs-scope": "write"
+      }
+    },
+    "/api/v1/streaming/addons/catalogs": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "List catalogs offered by configured streaming add-ons",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "admin"
+      }
+    },
+    "/api/v1/streaming/addons/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Request succeeded with no response body"
+          }
+        },
+        "summary": "Remove a streaming add-on",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "settings",
+        "x-holyarrs-scope": "write"
+      },
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Update a streaming add-on",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "settings",
+        "x-holyarrs-scope": "write"
+      }
+    },
+    "/api/v1/streaming/addons/{id}/catalog/{type}/{catalog}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "type",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "catalog",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Get a catalog from a streaming add-on",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "admin"
+      }
+    },
+    "/api/v1/streaming/addons/{id}/refresh": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Refresh a streaming add-on's manifest",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "settings",
+        "x-holyarrs-scope": "write"
+      }
+    },
+    "/api/v1/streaming/debrid": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Read debrid provider status",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "admin"
+      }
+    },
+    "/api/v1/streaming/debrid/{provider}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Request succeeded with no response body"
+          }
+        },
+        "summary": "Clear a debrid provider connection",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "settings",
+        "x-holyarrs-scope": "write"
+      },
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Configure a debrid provider",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "settings",
+        "x-holyarrs-scope": "write"
+      }
+    },
+    "/api/v1/streaming/plugins": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "List configured streaming plugin repositories",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "admin"
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "Resource created"
+          }
+        },
+        "summary": "Add a streaming plugin repository",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "settings",
+        "x-holyarrs-scope": "write"
+      }
+    },
+    "/api/v1/streaming/plugins/custom": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Save a custom streaming plugin",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "settings",
+        "x-holyarrs-scope": "write"
+      }
+    },
+    "/api/v1/streaming/plugins/custom/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Request succeeded with no response body"
+          }
+        },
+        "summary": "Remove a custom streaming plugin",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "settings",
+        "x-holyarrs-scope": "write"
+      },
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Get a custom streaming plugin",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "settings",
+        "x-holyarrs-scope": "admin"
+      }
+    },
+    "/api/v1/streaming/plugins/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Request succeeded with no response body"
+          }
+        },
+        "summary": "Remove a streaming plugin repository",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "settings",
+        "x-holyarrs-scope": "write"
+      },
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Update a streaming plugin repository",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "settings",
+        "x-holyarrs-scope": "write"
+      }
+    },
+    "/api/v1/streaming/plugins/{id}/refresh": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Refresh a streaming plugin repository",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "settings",
+        "x-holyarrs-scope": "write"
+      }
+    },
+    "/api/v1/streaming/prefs": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Read streaming preferences",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "admin"
+      },
+      "put": {
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Save streaming preferences",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "settings",
+        "x-holyarrs-scope": "write"
+      }
+    },
+    "/api/v1/streaming/presets": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "List available streaming presets",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "admin"
+      }
+    },
+    "/api/v1/streaming/presets/setup": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Apply selected streaming presets",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "settings",
+        "x-holyarrs-scope": "write"
+      }
+    },
+    "/api/v1/streaming/proxy/poster": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Serve a poster through the image proxy",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "admin"
+      }
+    },
+    "/api/v1/streaming/proxy/{token}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          },
+          "206": {
+            "description": "Requested byte range"
+          }
+        },
+        "summary": "Proxy token-authorized media with byte-range support",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "public",
+        "x-holyarrs-scope": "admin"
+      }
+    },
+    "/api/v1/streaming/proxy/{token}/hls": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Proxy a token-authorized HLS playlist",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "public",
+        "x-holyarrs-scope": "admin"
+      }
+    },
+    "/api/v1/streaming/skip": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Get known skip segments for an episode",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "admin"
+      }
+    },
+    "/api/v1/streaming/sync": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Read playback sync status",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "admin"
+      }
+    },
+    "/api/v1/streaming/sync/pull": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Import playback history from connected services",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "write"
+      }
+    },
+    "/api/v1/streaming/sync/scrobble": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Send a playback scrobble to connected services",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "write"
+      }
+    },
+    "/api/v1/streaming/sync/simkl": {
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Request succeeded with no response body"
+          }
+        },
+        "summary": "Disconnect Simkl",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "settings",
+        "x-holyarrs-scope": "write"
+      }
+    },
+    "/api/v1/streaming/sync/simkl/pin": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Start pairing with Simkl",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "settings",
+        "x-holyarrs-scope": "write"
+      }
+    },
+    "/api/v1/streaming/sync/simkl/poll": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Request succeeded"
+          }
+        },
+        "summary": "Check whether a Simkl pairing completed",
+        "x-holyarrs-part": "core",
+        "x-holyarrs-permission": "settings",
+        "x-holyarrs-scope": "write"
       }
     },
     "/api/v1/subtitle-sites": {

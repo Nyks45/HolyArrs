@@ -392,3 +392,22 @@ export function pluginBadge(p: Plugin): string {
 	if (p.test) return t('plugins.testBadge');
 	return pluginState(p) === 'off' ? t('plugins.stateOff') : stateLabel(p);
 }
+
+export type PluginLayout = 'list' | 'cards' | 'large';
+
+export function readPluginLayout(): PluginLayout {
+	try {
+		const view = localStorage.getItem('plugins.view');
+		return view === 'list' || view === 'large' ? view : 'cards';
+	} catch {
+		return 'cards';
+	}
+}
+
+export function savePluginLayout(view: PluginLayout): void {
+	try {
+		localStorage.setItem('plugins.view', view);
+	} catch {
+		/* Private window: the pick lasts this visit. */
+	}
+}

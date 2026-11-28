@@ -40,14 +40,14 @@ import (
 	"github.com/HolyArrs/holyarrs/app/backend/internal/migrate"
 
 	"github.com/HolyArrs/holyarrs/app/backend/internal/core/database"
-	"github.com/HolyArrs/holyarrs/app/backend/internal/sources"
-	"github.com/HolyArrs/holyarrs/app/backend/internal/subtitles"
 	"github.com/HolyArrs/holyarrs/app/backend/internal/core/files"
 	"github.com/HolyArrs/holyarrs/app/backend/internal/core/jobs"
 	"github.com/HolyArrs/holyarrs/app/backend/internal/core/logs"
 	"github.com/HolyArrs/holyarrs/app/backend/internal/core/secrets"
 	"github.com/HolyArrs/holyarrs/app/backend/internal/core/startup"
 	"github.com/HolyArrs/holyarrs/app/backend/internal/core/webserver"
+	"github.com/HolyArrs/holyarrs/app/backend/internal/sources"
+	"github.com/HolyArrs/holyarrs/app/backend/internal/subtitles"
 )
 
 // serve runs HolyArrs until ctx ends or a restart is asked for.
@@ -701,7 +701,7 @@ func serve(ctx context.Context, c config, o runOpts) error {
 	defer pe.StopAll()
 	langs := newLanguages(c, pe, func() bool { return accounts.HasOwner(ctx, s.Read()) })
 	streamer := newStreamer(s, vault, c.ConfigDir, func() string { return ln.Addr().String() }, subs, ol.TraktAuth, md)
-	defer streamer.Close()
+	defer startStreamPresets(ctx, streamer)()
 	a := buildHandlers(services{Plugins: pe, PluginHooks: phooks, Languages: langs, Bridges: bridges, Packages: pkgs, Library: lib, Lists: ol, Store: s, Queue: q, Live: hub, Metadata: md, Version: version, Auth: au, Backups: bm, Restart: restart,
 		Secrets: vault, TraktBase: os.Getenv("HOLYARRS_TRAKT_URL"), MetadataUp: metadataUp(hosted), MetadataModes: hosted.Modes, MetadataTest: hosted.TestKey, MetadataEnvKey: hosted.OwnKey, ServiceTop: hosted.Service.ServiceTop, TrailerPick: func(ctx context.Context, kind, id, lang string) (string, error) {
 			t, err := hosted.Service.TrailerPick(ctx, kind, id, lang)

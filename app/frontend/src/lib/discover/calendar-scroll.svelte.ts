@@ -351,23 +351,17 @@ export function createCalendarScroll(ctx: any) {
 	// Near the end, the next six weeks load.
 	function more() {
 		if (ctx.fetching || ctx.end >= ctx.latest) return;
-		// Nothing shows under the filters: the end stays in view, so six weeks at a time would load again and again (and the count under the empty page would keep changing). Ask once to the end.
-		if (ctx.filteredOut) return void (ctx.end = ctx.latest);
 		const to = addDays(ctx.end, 7 * ctx.REACH);
 		ctx.end = to > ctx.latest ? ctx.latest : to;
 	}
-	function endless(node: HTMLElement, busy: boolean) {
-		const near = () => node.getBoundingClientRect().top < innerHeight + 900;
-		const io = new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && more(), { rootMargin: '0px 0px 900px 0px' });
+	function endless(node: HTMLElement) {
+		// One advance per intersection. An end marker that stays on screen
+		// after the load must wait for a new intersection or an explicit click.
+		const io = new IntersectionObserver((entries) => {
+			if (ctx.shown.length && entries.some((entry) => entry.isIntersecting)) more();
+		}, { rootMargin: '0px 0px 900px 0px' });
 		io.observe(node);
-		return {
-			// When a load ends with the end still near, ask for the next weeks.
-			update(now: boolean) {
-				if (!now && busy && near()) void tick().then(more);
-				busy = now;
-			},
-			destroy: () => io.disconnect()
-		};
+		return { destroy: () => io.disconnect() };
 	}
 
 	return {

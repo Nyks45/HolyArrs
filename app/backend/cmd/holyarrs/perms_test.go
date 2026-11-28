@@ -20,6 +20,7 @@ import (
 	"github.com/HolyArrs/holyarrs/app/backend/internal/core/secrets"
 	"github.com/HolyArrs/holyarrs/app/backend/internal/core/webserver"
 	"github.com/HolyArrs/holyarrs/app/backend/internal/metadata"
+	"github.com/HolyArrs/holyarrs/app/backend/internal/stream"
 )
 
 // TestEveryRouteHasAPermission reads every route the program registers and
@@ -84,8 +85,10 @@ func TestMemberIsRefusedEveryStaffRoute(t *testing.T) {
 		t.Fatal(err)
 	}
 	au := accounts.New(s, accounts.Options{Vault: v})
+	streamer := stream.NewManager(s, v, dir, nil)
+	t.Cleanup(streamer.Close)
 	srv := httptest.NewServer(buildHandlers(services{Store: s, Metadata: metadata.Lab(), Version: "test", Auth: au, Secrets: v, Live: webserver.NewLiveHub(webserver.LiveOptions{}),
-		Backups: &backups.Manager{Store: s, Dir: dir, Version: "test"}, Restart: func() {}}).Handler())
+		Backups: &backups.Manager{Store: s, Dir: dir, Version: "test"}, Streamer: streamer, Restart: func() {}}).Handler())
 	t.Cleanup(srv.Close)
 
 	signed := func(method, path, body string, c *http.Client, csrf string) (int, string) {

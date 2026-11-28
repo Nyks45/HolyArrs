@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import PageLoader from '#lib/ui/PageLoader.svelte';
 	import LoadError from '#lib/ui/LoadError.svelte';
@@ -8,6 +9,9 @@
 	import { message } from '#lib/core/api.ts';
 	import { ago, dateTime } from '#lib/core/format.ts';
 	import { to } from '#lib/core/paths.ts';
+	import { t } from '#lib/core/i18n/i18n.svelte.ts';
+	import { session } from '#lib/core/session.svelte.ts';
+	import { toasts } from '#lib/core/toasts.svelte.ts';
 	import { sized } from '#lib/core/tmdb-image.ts';
 	import { detailPath } from '#lib/metadata/index.ts';
 	import {
@@ -23,6 +27,8 @@
 	let items = $state<WatchEntry[]>([]);
 	let filterKind = $state<'all' | 'in_progress' | 'finished' | 'movie' | 'show'>('all');
 	let search = $state('');
+	const removing = new SvelteSet<string>();
+	const removalErrors = new Map<string, number>();
 
 	const filtered = $derived.by(() => {
 		const q = search.trim().toLowerCase();
@@ -65,13 +71,26 @@
 	}
 
 	async function removeEntry(e: WatchEntry) {
-		if (!e.key) return;
-		items = items.filter((x) => x.key !== e.key);
-		await deleteWatchHistory(e.key).catch(() => {});
+		const key = e.key;
+		if (!key || removing.has(key)) return;
+		const previousError = removalErrors.get(key);
+		if (previousError !== undefined) {
+			toasts.dismiss(previousError);
+			removalErrors.delete(key);
+		}
+		removing.add(key);
+		try {
+			await deleteWatchHistory(key);
+			items = items.filter((x) => x.key !== key);
+		} catch (err) {
+			removalErrors.set(key, toasts.push(t('plugins.removeFailed', { name: e.title }), 'fail', { body: message(err) }));
+		} finally {
+			removing.delete(key);
+		}
 	}
 
 	onMount(() => {
-		void load();
+		if (!session.kid) void load();
 	});
 </script>
 
@@ -79,6 +98,9 @@
 	<title>Watch History · HolyArrs</title>
 </svelte:head>
 
+{#if session.kid}
+	<EmptyState icon="alert" title="Watch History" text={t('server.accounts.your-account-may-not-do-this')} action={{ label: t('home.home'), href: to('/') }} />
+{:else}
 <div class="wh-page" data-testid="watch-history-page">
 	<PageHeader title="Watch History" subtitle="Resume any title right where you left off with your remembered source and subtitles." />
 
@@ -196,7 +218,7 @@
 									<Icon name="info" size={14} />
 									<span>Details</span>
 								</a>
-								<button type="button" class="wh-btn wh-btn-danger" onclick={() => void removeEntry(entry)} aria-label="Remove" title="Remove from history">
+								<button type="button" class="wh-btn wh-btn-danger" onclick={() => void removeEntry(entry)} disabled={removing.has(entry.key ?? '')} aria-label="Remove" title="Remove from history">
 									<Icon name="trash" size={14} />
 								</button>
 							</div>
@@ -207,6 +229,7 @@
 		</PageLoader>
 	{/if}
 </div>
+{/if}
 
 <style>
 	.wh-page { display: flex; flex-direction: column; gap: 20px; max-width: 1100px; }

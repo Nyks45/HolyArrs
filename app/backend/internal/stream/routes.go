@@ -115,10 +115,6 @@ func (h *Handlers) search(w http.ResponseWriter, r *http.Request) {
 		tmdbStr = strconv.Itoa(in.TMDB)
 	}
 	imdbID := strings.TrimSpace(in.IMDb)
-	if imdbID == "" && tmdbStr != "" && h.Mgr.ResolveIMDb != nil {
-		imdbID = strings.TrimSpace(h.Mgr.ResolveIMDb(r.Context(), kind, tmdbStr))
-		in.StreamSearchReq.IMDb = imdbID
-	}
 	prefs := h.Mgr.Prefs.Get()
 	if strings.TrimSpace(in.PreferredQuality) != "" {
 		prefs.PreferredQuality = strings.TrimSpace(in.PreferredQuality)
@@ -143,6 +139,10 @@ func (h *Handlers) search(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+	}
+	if !in.LocalOnly && imdbID == "" && tmdbStr != "" && h.Mgr.ResolveIMDb != nil {
+		imdbID = strings.TrimSpace(h.Mgr.ResolveIMDb(r.Context(), kind, tmdbStr))
+		in.StreamSearchReq.IMDb = imdbID
 	}
 	mc := NewSearchMatchContext(kind, in.Query, in.OriginalTitle, in.Year, in.Season, in.Episode, in.Genres, in.OriginalLanguage, in.OriginCountry, in.Anime)
 	mc.TMDB = tmdbStr
@@ -611,8 +611,13 @@ func (h *Handlers) saveHistory(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) deleteHistory(w http.ResponseWriter, r *http.Request) {
-	if h.Mgr.History != nil {
-		_ = h.Mgr.History.Delete(callerID(r), r.PathValue("key"))
+	if h.Mgr.History == nil {
+		webserver.Fail(w, http.StatusServiceUnavailable, "watch history is unavailable")
+		return
+	}
+	if err := h.Mgr.History.Delete(callerID(r), r.PathValue("key")); err != nil {
+		webserver.Internal(w, "stream history", err)
+		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

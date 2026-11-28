@@ -37,6 +37,7 @@ test.beforeAll(async ({ browser }) => {
 
 test('add Tidal Atlas with a second 4K Version', async () => {
 	const dialog = await addFromSearch(page, 'tidal atlas', 'Tidal Atlas', 'show');
+	await dialog.getByRole('checkbox', { name: /^Keep up to date/ }).check();
 	await dialog.getByLabel('Seasons to keep up to date').selectOption('all');
 	await dialog.getByLabel('Also keep a second Version').check();
 	await expect(dialog.getByLabel('Version name')).toHaveValue('4K');
@@ -60,7 +61,7 @@ test('Search now on the season fills each Version with its own pack; History nam
 	await openShow(page);
 	const s1 = await openSeason(page);
 	await s1.getByRole('button', { name: 'Get the missing episodes of season 1' }).click();
-	await expect(page.getByRole('status')).toContainText('Searching for season 1');
+	await expect(page.getByRole('status').filter({ hasText: 'Searching for Tidal Atlas Season 1' })).toBeVisible();
 	// The season rows are read when opened: reload until the first episode is no longer missing.
 	await expect(async () => {
 		await page.reload();

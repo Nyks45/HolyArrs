@@ -139,7 +139,7 @@
 	const nextEpisodeTarget = $derived(findNextEpisodeTarget(kind, season, episode, curSeasonEps, regularSeasons));
 	const backdropUrl = $derived(details?.backdrop ? sized(details.backdrop, 'backdrop') : activeSaved?.backdrop ? sized(activeSaved.backdrop, 'backdrop') : '');
 	const headerTitle = $derived(details?.name || activeSaved?.title || 'Watch');
-	const headerSub = $derived(kind === 'show' ? `S${String(season).padStart(2, '0')}E${String(episode).padStart(2, '0')}${curEpObj?.name ? ` · ${curEpObj.name}` : ''}` : '');
+	const headerSub = $derived(kind === 'show' && !loadingPage ? `S${String(season).padStart(2, '0')}E${String(episode).padStart(2, '0')}${curEpObj?.name ? ` · ${curEpObj.name}` : ''}` : '');
 	const isLocalEventHls = $derived(pipelineMode === 'hls' && usingLocalHls);
 	const currentPos = $derived(isScrubbing ? scrubValue : pendingSeekTarget !== null ? pendingSeekTarget : pipelineMode === 'hls' ? seekOffset + videoTime : videoTime);
 	const totalDuration = $derived(resolveTotalDuration({ probeDuration: session?.probe?.duration_sec, videoDuration, knownDuration: knownDurationSec, savedDuration: activeSaved?.duration_sec, metadataRuntimeMin: curEpObj?.runtime || details?.runtime, isLocalEventHls, seekOffset, currentPos }));
@@ -284,6 +284,7 @@
 				const eDef = initialEpisode > 0 ? initialEpisode : hist.latest?.episode && hist.latest.episode > 0 ? hist.latest.episode : 1;
 				season = sDef; drawerSeason = sDef; episode = eDef;
 				await loadSeasonEpisodes(sDef);
+				if (destroyed) return;
 			}
 			const sv = kind === 'show' ? (historyEpisodes.find((h) => (h.season ?? 0) === season && (h.episode ?? 0) === episode) ?? null) : historyLatest;
 			applySavedPrefs(sv); void fetchSkips(); await runSearch();

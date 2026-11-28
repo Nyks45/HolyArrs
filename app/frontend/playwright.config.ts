@@ -42,6 +42,7 @@ export default defineConfig({
 		{ name: 'musicplaceholder', testMatch: '**/music/music-placeholder.spec.ts', use: { ...devices['Desktop Chrome'] }, dependencies: ['setup'] },
 		{ name: 'phone', testMatch: '**/whole-app/phone.spec.ts', use: { ...devices['Pixel 7'] }, dependencies: ['desktop'] },
 		{ name: 'accounts', testMatch: '**/accounts/accounts.spec.ts', use: { ...devices['Desktop Chrome'] }, dependencies: ['setup'] },
+		{ name: 'watchhistory', testMatch: '**/whole-app/watch-history.spec.ts', use: { ...devices['Desktop Chrome'] }, dependencies: ['setup'] },
 		{ name: 'plexwatchlist', testMatch: '**/mediaservers/plex-watchlist.spec.ts', use: { ...devices['Desktop Chrome'] }, dependencies: ['setup'] },
 		// Open in Jellyfin: a Library movie the fake Jellyfin has gets a button to its details page at the browser address; a phone.
 		{ name: 'openin', testMatch: '**/mediaservers/open-in.spec.ts', use: { ...devices['Desktop Chrome'] }, dependencies: ['setup'] },
@@ -105,6 +106,7 @@ export default defineConfig({
 		{ name: 'exploremem', testMatch: '**/discover/explore-memory.spec.ts', use: { ...devices['Desktop Chrome'] }, dependencies: ['desktop'] },
 		{ name: 'rowarrows', testMatch: '**/discover/row-arrows.spec.ts', use: { ...devices['Desktop Chrome'] }, dependencies: ['setup'] },
 		{ name: 'communitybrowse', testMatch: '**/discover/community-browse.spec.ts', use: { ...devices['Desktop Chrome'] }, dependencies: ['setup'] },
+		{ name: 'categorytransitions', testMatch: '**/discover/category-transitions.spec.ts', use: { ...devices['Desktop Chrome'] }, dependencies: ['setup'] },
 		// Explore's hero on the first visit: a placeholder, then the hero without a reload.
 		{ name: 'herofirst', testMatch: '**/discover/hero-first-load.spec.ts', use: { ...devices['Desktop Chrome'] }, dependencies: ['setup'] },
 		{ name: 'appframe', testMatch: '**/whole-app/appframe.spec.ts', use: { ...devices['Desktop Chrome'] }, dependencies: ['setup'] },

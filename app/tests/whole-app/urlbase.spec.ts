@@ -43,6 +43,15 @@ test('the app works under /holyarrs behind a proxy', async ({ page }) => {
 	await finishFirstRun(page, movies);
 	await expect(page).toHaveURL(`${root}/`);
 
+	// Continue Watching can be opened in a fresh tab, before the shell loads.
+	await page.route('**/api/v1/metadata/show/800001/seasons/1', (route) => route.fulfill({
+		json: { episodes: [{ number: 1, air_day: '2000-01-01' }, { number: 2, air_day: '2999-01-01' }] }
+	}));
+	const episodeMetadata = page.waitForRequest('**/api/v1/metadata/show/800001/seasons/1');
+	await page.goto(`${root}/watch/show/800001?s=1&e=1&next=1`, { waitUntil: 'domcontentloaded' });
+	expect(new URL((await episodeMetadata).url()).pathname).toBe('/holyarrs/api/v1/metadata/show/800001/seasons/1');
+	await expect(page).toHaveURL(`${root}/title/show/800001`);
+
 	await page.goto(`${root}/settings`);
 	await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
 	// Settings home: open the Server card, then its This app capsule.

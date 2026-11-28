@@ -25,8 +25,8 @@ export function cardLink(link: string | undefined): string | undefined {
 	return link;
 }
 
-export async function homeCards(): Promise<PluginCard[]> {
-	const r = await api.get<{ widgets?: PluginCard[] }>('/plugin-widgets').catch(() => null);
+export async function homeCards(signal?: AbortSignal): Promise<PluginCard[]> {
+	const r = await api.get<{ widgets?: PluginCard[] }>('/plugin-widgets', signal).catch(() => null);
 	return r?.widgets ?? [];
 }
 

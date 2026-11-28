@@ -2,6 +2,8 @@
 	import { page } from '$app/state';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
 	import { to } from '#lib/core/paths.ts';
+	import { session } from '#lib/core/session.svelte.ts';
+	import { t } from '#lib/core/i18n/i18n.svelte.ts';
 	import { WatchPlayer } from '#lib/stream/index.ts';
 
 	const kind = $derived(page.params.kind ?? '');
@@ -14,7 +16,9 @@
 	const backHref = $derived(page.url.searchParams.get('from') ?? '');
 </script>
 
-{#if !validKind || !tmdb}
+{#if session.kid}
+	<EmptyState icon="alert" title={t('discover.titlePage.thisTitleIsNot')} action={{ label: t('home.home'), href: to('/') }} />
+{:else if !validKind || !tmdb}
 	<EmptyState
 		icon="alert"
 		title="Stream not found"

@@ -1,7 +1,13 @@
-import { headPath, serverRow, tailPath } from './explore-server.ts';
+import { headPath, poolRetryDelay, serverRow, tailPath } from './explore-server.ts';
 import { describe, expect, it } from 'vitest';
 
 describe('server-built Explore', () => {
+	it('keeps checking a cold pool past a three-minute warm-up with bounded requests', () => {
+		const delays = Array.from({ length: 10 }, (_, attempt) => poolRetryDelay(attempt) ?? 0);
+		expect(delays.slice(0, 4)).toEqual([4000, 8000, 16000, 30000]);
+		expect(delays.reduce((elapsed, delay) => elapsed + delay, 0)).toBeGreaterThan(180_000);
+		expect(poolRetryDelay(10)).toBeUndefined();
+	});
 	it('builds the head and tail paths', () => {
 		expect(headPath({ type: 'movies', services: [8, 9], region: 'US' })).toBe(
 			'/explore/head?type=movies&services=8%7C9&region=US'

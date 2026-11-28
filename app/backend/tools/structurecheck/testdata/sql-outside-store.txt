@@ -54,7 +54,6 @@ app/backend/internal/downloads/snapshot_sync.go
 app/backend/internal/downloads/store_queue.go
 app/backend/internal/downloads/torrent_log.go
 app/backend/internal/health/count_install.go
-app/backend/internal/health/doctor.go
 app/backend/internal/health/health.go
 app/backend/internal/health/routes_schedules.go
 app/backend/internal/health/routes_settings_status.go

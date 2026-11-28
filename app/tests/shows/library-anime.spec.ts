@@ -81,7 +81,7 @@ test('Anime: a Release named by running number 13 is matched to S02E01, picked, 
 	if (await searchOnAdd.isChecked()) await searchOnAdd.uncheck();
 	await dialog.getByRole('button', { name: 'Add to Library' }).click();
 	await expect(dialog).toBeHidden();
-	await expect(page.getByRole('status')).toContainText(`${show} added`);
+	await expect(page.getByRole('status').filter({ hasText: `${show} added` })).toBeVisible();
 	await expect(page).toHaveURL(/\/library\/\d+/);
 	const id = Number(/\/library\/(\d+)/.exec(page.url())![1]);
 
@@ -119,7 +119,7 @@ test('Anime: a Release named by running number 13 is matched to S02E01, picked, 
 	// Pick it: the fake qBittorrent gets exactly that Release.
 	await row(want).getByRole('button', { name: 'Pick', exact: true }).click();
 	await expect(sheet).toBeHidden();
-	await expect(page.getByRole('status')).toContainText("Sent to Downloader");
+	await expect(page.getByRole('status').filter({ hasText: 'Sent to Downloader' })).toBeVisible();
 	const hash = animeReleaseHash(want);
 	await expect.poll(async () => ((await (await fetch(`${qbit}/state`)).json()) as { added: string[] }).added, { timeout: 20_000 }).toContain(hash);
 

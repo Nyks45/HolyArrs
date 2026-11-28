@@ -413,7 +413,7 @@ export function buildWatchEntryPayload(args: {
 		position_sec: args.pos,
 		duration_sec: args.dur,
 		progress_pct: pct,
-		completed: args.completedOverride ?? (args.dur > 60 && (pct >= 92 || args.dur - args.pos <= 90)),
+		completed: args.completedOverride ?? (args.dur > 60 && (pct >= 92 || (pct >= 90 && args.dur - args.pos <= 90))),
 		source_id: c?.source_id ?? args.session?.source_id ?? args.saved?.source_id ?? 0,
 		source_name: c?.provider ?? c?.source_name ?? args.session?.source_name ?? args.saved?.source_name ?? '',
 		release_title: c?.release_name ?? c?.title ?? args.session?.release_title ?? args.saved?.release_title ?? '',
@@ -488,8 +488,10 @@ export async function resolveUploadedSub(file: File, sessionId: string): Promise
 }
 
 export function matchPlayerHotkey(e: KeyboardEvent, isShow: boolean): PlayerHotkeyAction | null {
-	const target = e.target as HTMLElement | null;
+	const target = e.target instanceof HTMLElement ? e.target : null;
+	if (e.defaultPrevented) return null;
 	if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) return null;
+	if (e.key === ' ' && target?.closest('button, a[href], summary, [role="button"], [role="menuitem"]')) return null;
 	switch (e.key.toLowerCase()) {
 		case ' ':
 		case 'k':

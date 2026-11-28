@@ -95,6 +95,7 @@ async function addList(name: string, kind: 'tmdb_list' | 'trakt_list', ref: stri
 	await expect(form.getByLabel('Seasons to keep up to date')).toBeVisible();
 	await form.getByLabel('Which list').fill(ref);
 	await form.getByLabel('Quality').selectOption({ label: '4K' });
+	await form.getByRole('checkbox', { name: /^Keep up to date/ }).check();
 	await form.getByLabel('Seasons to keep up to date').selectOption(seasons);
 	if (searchOnAdd) await form.getByRole('checkbox', { name: /^Search when added/ }).check();
 	await form.getByRole('button', { name: 'Save', exact: true }).click();

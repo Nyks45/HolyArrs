@@ -172,13 +172,14 @@ test("the Calendar shows this week's episode, and the movies and shows filter", 
 test('Settings > Alerts: one Alert per pack, or one per episode', async () => {
 	await page.goto('/settings/alerts');
 	const card = page.getByTestId('pack-alerts');
+	const status = page.getByRole('status');
 	await expect(card.getByRole('radio', { name: /One Alert for the pack/ })).toBeChecked();
 	await card.getByRole('radio', { name: /One Alert per episode/ }).check();
-	await expect(page.getByText('One Alert per episode')).toBeVisible();
+	await expect(status.getByText('One Alert per episode', { exact: true })).toBeVisible();
 	await page.reload();
 	await expect(card.getByRole('radio', { name: /One Alert per episode/ })).toBeChecked();
 	await card.getByRole('radio', { name: /One Alert for the pack/ }).check();
-	await expect(page.getByText('One Alert per pack')).toBeVisible();
+	await expect(status.getByText('One Alert per pack', { exact: true })).toBeVisible();
 	await axe(page, 'alerts with packs');
 });
 

@@ -13,7 +13,7 @@ const screenshotDir = process.env.HOLYARRS_OPTIONAL_UI_SCREENSHOTS;
 // without them the spec is skipped, with the reason, instead of failing to load.
 test.skip(!process.env.HOLYARRS_OPTIONAL_UI_URL || !configDir || !libraryDir || !screenshotDir, 'needs a prepared optional-downloaders run: HOLYARRS_OPTIONAL_UI_URL, _CONFIG, _LIBRARY and _SCREENSHOTS');
 
-const owner = { name: 'optional-ui-owner', password: `pw-${crypto.randomUUID()}` };
+const owner = { name: 'optionaluiowner', password: `pw-${crypto.randomUUID()}` };
 const savedSecrets = new Map<Kind, string>();
 
 const kinds: { kind: Kind; label: string; username: boolean; secretLabel: 'Password' | 'API key' | 'Secret token'; category: string }[] = [
@@ -35,7 +35,9 @@ async function seriousA11y(page: Page, label: string) {
 	await page.evaluate(() => Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => undefined))));
 	const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
 	const bad = result.violations.filter((violation) => violation.impact === 'serious' || violation.impact === 'critical');
-	expect(bad.map((violation) => `${violation.id}: ${violation.nodes.slice(0, 3).map((node) => node.target.join(' ')).join(', ')}`), label).toEqual([]);
+	expect.soft(bad.flatMap((violation) => violation.nodes.map((node) => ({
+		rule: violation.id, target: node.target.join(' '), details: node.failureSummary
+	}))), label).toEqual([]);
 }
 
 async function signIn(page: Page) {
@@ -85,14 +87,22 @@ async function choose(page: Page, label: string) {
 	await page.getByRole('radio', { name: new RegExp(`^${label}`) }).check();
 }
 
+async function useQbittorrentPassword(page: Page) {
+	await page.getByRole('radiogroup', { name: 'Sign in with' }).getByRole('radio', { name: 'Username and password' }).check();
+}
+
 async function verifyFieldMatrix(page: Page) {
 	await openAdd(page);
 	for (const item of kinds) {
 		await choose(page, item.label);
+		if (item.kind === 'qbittorrent') {
+			await expect(page.getByRole('radio', { name: 'API key', exact: true })).toBeChecked();
+			await expect(page.getByTestId('dl-secret')).toHaveAccessibleName('API key');
+			await expect(page.getByLabel('Username')).toHaveCount(0);
+			await useQbittorrentPassword(page);
+		}
 		await expect(page.getByLabel('Username')).toHaveCount(item.username ? 1 : 0);
-		await expect(page.getByLabel('API key', { exact: true })).toHaveCount(item.secretLabel === 'API key' ? 1 : 0);
-		await expect(page.getByLabel('Password', { exact: true })).toHaveCount(item.secretLabel === 'Password' ? 1 : 0);
-		await expect(page.getByLabel('Secret token', { exact: true })).toHaveCount(item.secretLabel === 'Secret token' ? 1 : 0);
+		await expect(page.getByTestId('dl-secret')).toHaveAccessibleName(item.secretLabel);
 		if (item.kind === 'deluge') await expect(page.getByText(/connected to a daemon with the Label plugin on/)).toBeVisible();
 		if (item.kind === 'rtorrent') await expect(page.getByText(/plugins\/httprpc\/action\.php/)).toBeVisible();
 		if (item.kind === 'aria2') {
@@ -103,12 +113,17 @@ async function verifyFieldMatrix(page: Page) {
 	}
 	await noSidewaysScroll(page);
 	await seriousA11y(page, 'desktop add form');
+	await page.screenshot({ path: join(screenshotDir!, 'desktop-chooser.png'), fullPage: true });
 	await page.getByRole('button', { name: 'Cancel' }).click();
 }
 
 async function addDownloader(page: Page, item: (typeof kinds)[number]) {
 	await openAdd(page);
 	await choose(page, item.label);
+	if (item.kind === 'qbittorrent') {
+		await useQbittorrentPassword(page);
+		await page.getByText('More options', { exact: true }).click();
+	}
 	const secret = `secret-${crypto.randomUUID()}`;
 	savedSecrets.set(item.kind, secret);
 	await page.getByLabel('Name', { exact: true }).fill(`UI ${item.label}`);
@@ -141,6 +156,7 @@ async function editWithMaskedSecret(page: Page, item: (typeof kinds)[number], pr
 	const secretInput = page.getByLabel(item.secretLabel, { exact: true });
 	const masked = await secretInput.inputValue();
 	if (!masked || masked === savedSecrets.get(item.kind)) throw new Error('stored secret was not masked in the edit form');
+	if (item.kind === 'qbittorrent') await page.getByText('More options', { exact: true }).click();
 	await page.getByLabel('Priority', { exact: true }).fill(String(priority));
 	const responsePromise = page.waitForResponse((response) => response.request().method() === 'PUT' && /\/api\/v1\/downloaders\/\d+$/.test(new URL(response.url()).pathname));
 	await page.locator('form.sc-form').first().getByRole('button', { name: 'Save', exact: true }).click();
@@ -149,7 +165,7 @@ async function editWithMaskedSecret(page: Page, item: (typeof kinds)[number], pr
 	const body = (await response.json()) as { priority: number; secret: string };
 	expect(body.priority).toBe(priority);
 	if (!body.secret || body.secret === savedSecrets.get(item.kind)) throw new Error('masked edit did not preserve the stored secret');
-	await expect(row).toContainText(`priority ${priority}`);
+	await expect(row).toContainText(`Priority ${priority}`);
 }
 
 async function verifyStoredAPI(page: Page) {
@@ -207,8 +223,7 @@ async function verifyUncertainSendRecovery(page: Page) {
 	const warning = row.getByTestId('downloader-attempts');
 	await expect(warning.getByRole('heading', { name: 'Check whether this download arrived' })).toBeVisible();
 	await expect(warning).toContainText(`Release ${releaseID} · Slot ${slotID}`);
-	await expect(warning).toContainText('does not cancel anything in NZBGet');
-	await expect(warning).toContainText('stops HolyArrs from retrying this exact Release and Slot');
+	await expect(warning).toContainText("HolyArrs won't retry this Release. The download in NZBGet stays.");
 	await expect(warning.getByRole('button', { name: 'Give up on it' })).toBeVisible();
 	await expect(warning.getByRole('button', { name: /retry/i })).toHaveCount(0);
 
@@ -241,13 +256,15 @@ async function phoneCheck(browser: Browser) {
 	const page = await context.newPage();
 	await signIn(page);
 	await page.goto('/settings/downloaders');
-	await expect(page.getByTestId('downloader')).toHaveCount(5);
+	await expect(page.getByTestId('downloader')).toHaveCount(kinds.length);
 	await noSidewaysScroll(page);
 	await seriousA11y(page, 'phone downloader list');
 	await page.screenshot({ path: join(screenshotDir!, 'phone-downloaders.png'), fullPage: true });
 	await openAdd(page);
 	for (const item of kinds) await expect(page.getByRole('radio', { name: new RegExp(`^${item.label}`) })).toBeVisible();
 	await noSidewaysScroll(page);
+	await seriousA11y(page, 'phone add form');
+	await page.screenshot({ path: join(screenshotDir!, 'phone-chooser.png'), fullPage: true });
 	await context.close();
 }
 

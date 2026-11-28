@@ -33,10 +33,9 @@ var showGenres = map[string]string{
 func (h *Handlers) plainSearch(w http.ResponseWriter, r *http.Request) {
 	q := ParsePlainWords(r.URL.Query().Get("q"))
 	out := map[string]any{
-		"query":      q,
-		"titles":     []TitleView{},
-		"more":       []ItemView{},
-		"categories": []engine.CategorySummary{},
+		"query":  q,
+		"titles": []TitleView{},
+		"more":   []ItemView{},
 	}
 	if q.Text == "" {
 		webserver.WriteJSON(w, http.StatusOK, out)

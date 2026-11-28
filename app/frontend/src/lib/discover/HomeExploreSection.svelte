@@ -6,7 +6,7 @@
 	import { to } from '#lib/core/paths.ts';
 	import { session } from '#lib/core/session.svelte.ts';
 	import type { TitleView } from '#lib/core/types.ts';
-	import { libraryTitles } from '#lib/mediafiles/index.ts';
+	import { ownedLibrary } from '#lib/mediafiles/index.ts';
 	import { QuickAsk } from '#lib/requests/index.ts';
 	import Icon from '#lib/ui/Icon.svelte';
 	import IconButton from '#lib/ui/IconButton.svelte';
@@ -16,7 +16,7 @@
 	import { contextLine } from '#lib/ui/grow-lines.ts';
 	import { cardAction, cardTmdb, ownedIndex, ownedMark, ownedTitle, type ExploreCard, type ExploreRow } from '#lib/ui/title-cards.ts';
 	import { audienceOf } from '#lib/ui/title-status.ts';
-	import { headPath, serverRow, type HeadAnswer } from './explore-server.ts';
+	import { headPath, poolRetryDelay, serverRow, type HeadAnswer } from './explore-server.ts';
 	import { typeHref } from './explore-type.ts';
 	import { categoryTitleHref, fetchSubcategories, type CategorySummary } from './subcategories.ts';
 
@@ -62,9 +62,10 @@
 				.map(serverRow)
 				.filter((r) => r.type !== 'top_services' && r.cards.length > 0);
 			rows = nextRows;
-			if (ans.building && tries < 5) {
+			const retry = ans.building ? poolRetryDelay(tries) : undefined;
+			if (retry !== undefined) {
 				clearTimeout(timer);
-				timer = setTimeout(() => void loadHomeExplore(tries + 1, signal), 4000);
+				timer = setTimeout(() => void loadHomeExplore(tries + 1, signal), retry);
 			}
 		} catch {
 			/* Home stays clean even if Explore is warming up. */
@@ -79,8 +80,8 @@
 		void fetchSubcategories('all', '', '', ac.signal).then((list) => {
 			subcats = list.slice(0, 12);
 		}).catch(() => {});
-		void libraryTitles().then((list) => {
-			titles = list;
+		void ownedLibrary(api, ac.signal).then((list) => {
+			titles = list.titles;
 		}).catch(() => {});
 		return () => {
 			clearTimeout(timer);

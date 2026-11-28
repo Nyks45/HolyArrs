@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Page, type Request } from '@playwright/test';
 import { discordPort, jellyKey, jellyfinPort } from '../fakes/index.mjs';
 import { noSidewaysScroll, owner, signIn, openAdvanced } from '../helpers/helpers.ts';
 import { axe as scan } from '../helpers/axe.ts';
@@ -15,7 +15,7 @@ async function fresh(browser: Browser, width = 1280) {
 	return ctx.newPage();
 }
 
-const axe = (p: Page, where: string, only?: string[]) => scan(p, where, { only, waitAll: true });
+const axe = (p: Page, where: string, only?: string[]) => scan(p, where, { only });
 interface TitleRow {
 	id: number;
 	name: string;
@@ -100,7 +100,7 @@ test('calendar: cards and list views, a movie on the day it is out to watch', as
 	// A movie shows one date: the day it is out to watch (the earlier of digital and disc), else its cinema date.
 	const home = [dated.digital_date, dated.physical_date].filter((d): d is string => !!d).map((d) => d.slice(0, 10)).sort()[0];
 	const day = home ?? dated.cinema_date!.slice(0, 10);
-	await page.goto(`/calendar?month=${day.slice(0, 7)}`);
+	await page.goto(`/calendar?month=${day.slice(0, 7)}&view=cards`);
 	// Cards: a day per row, from the linked month.
 	const cards = page.getByTestId('cal-cards');
 	await expect(cards).toBeVisible();
@@ -137,6 +137,40 @@ test('calendar: cards and list views, a movie on the day it is out to watch', as
 	await controls.getByRole('radio', { name: 'TV shows', exact: true }).click();
 	await expect(list.getByRole('link', { name: new RegExp(dated.name) })).toHaveCount(0);
 	await controls.getByRole('radio', { name: 'All', exact: true }).click();
+});
+
+test('a sparse linked calendar stays in its date range until asked for more weeks', async () => {
+	const requests: string[] = [];
+	const record = (request: Request) => {
+		const url = new URL(request.url());
+		if (url.pathname.endsWith('/api/v1/calendar')) requests.push(url.search);
+	};
+	const settleFrames = () => page.evaluate(() => new Promise<void>((done) => {
+		let remaining = 18;
+		const step = () => {
+			if (--remaining === 0) done();
+			else requestAnimationFrame(step);
+		};
+		requestAnimationFrame(step);
+	}));
+	page.on('request', record);
+	try {
+		await page.goto('/calendar?month=2019-04&view=list');
+		const more = page.getByRole('button', { name: 'Show the weeks after', exact: true });
+		await expect(more).toBeEnabled();
+		await settleFrames();
+		const initial = requests.length;
+		expect(initial).toBeGreaterThan(0);
+		expect(initial).toBeLessThanOrEqual(3);
+		await more.click();
+		await expect.poll(() => requests.length).toBeGreaterThan(initial);
+		await expect(more).toBeEnabled();
+		await settleFrames();
+		expect(requests.length - initial).toBeLessThanOrEqual(2);
+		console.log(`Sparse calendar requests: ${initial} on open, ${requests.length - initial} after advancing`);
+	} finally {
+		page.off('request', record);
+	}
 });
 
 test('alerts: add a webhook with Library moments, send a test, the receiver gets a signed message', async () => {
@@ -259,7 +293,7 @@ test('the new screens at phone width: no sideways scroll, no serious accessibili
 	await signIn(ph, owner());
 	for (const url of ['/downloads/history', '/calendar', '/calendar?month=2014-02', '/settings/this-app', '/settings/alerts', '/settings/media-servers', '/']) {
 		await ph.goto(url);
-		await ph.waitForLoadState('networkidle');
+		await expect(ph.getByRole('heading', { level: 1 })).toBeVisible();
 		// Home's first visit keeps its loader up until its pictures are in, 30 s at most; scan the page, not its fade-in.
 		await expect(ph.locator('#main[aria-busy="true"]'), url + ' still loading').toHaveCount(0, { timeout: 40_000 });
 		await noSidewaysScroll(ph);

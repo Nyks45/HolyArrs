@@ -82,9 +82,9 @@ test('the artist page searches every missing album, or one', async () => {
 	await page.getByTestId('artist-tabs').getByRole('tab', { name: 'Library' }).click();
 	const lib = page.getByTestId('artist-library');
 	await lib.getByRole('button', { name: 'Get all missing' }).click();
-	await expect(page.getByRole('status')).toContainText('Searching for all missing tracks');
+	await expect(page.getByRole('status').filter({ hasText: 'Searching for all missing tracks' })).toBeVisible();
 	await lib.getByRole('button', { name: 'Get the missing tracks of Night Ferry', exact: true }).click();
-	await expect(page.getByRole('status')).toContainText('Searching for Night Ferry');
+	await expect(page.getByRole('status').filter({ hasText: 'Searching for Night Ferry' })).toBeVisible();
 	await axe(page, 'artist page with Search now');
 });
 
@@ -94,12 +94,23 @@ test('Settings > Search has the music choices', async () => {
 	await openAdvanced(page.locator('#music-search'));
 	await page.getByLabel('Tracks an album Release may lack').fill('1');
 	await page.getByRole('button', { name: 'Save' }).click();
-	await expect(page.getByRole('status')).toContainText('Search settings saved');
+	const saved = page.getByRole('status').filter({ hasText: 'Search settings saved' });
+	await expect(saved).toBeVisible();
+	await page.addInitScript(() => {
+		const fade = new MutationObserver(() => {
+			const loader = document.getElementById('hl');
+			if (!loader?.classList.contains('out')) return;
+			document.documentElement.dataset.loaderFadeAria = loader.getAttribute('aria-hidden') ?? 'missing';
+			fade.disconnect();
+		});
+		fade.observe(document, { subtree: true, attributes: true, attributeFilter: ['class'] });
+	});
 	await page.reload();
 	await expect(page.getByLabel('Tracks an album Release may lack')).toHaveValue('1');
+	await expect(page.locator('html')).toHaveAttribute('data-loader-fade-aria', 'true');
 	await page.getByLabel('Tracks an album Release may lack').fill('0');
 	await page.getByRole('button', { name: 'Save' }).click();
-	await expect(page.getByRole('status')).toContainText('Search settings saved');
+	await expect(saved).toBeVisible();
 	await axe(page, 'search settings with music');
 });
 

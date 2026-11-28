@@ -86,3 +86,15 @@ test('an R title is not available, and asking for it is refused in plain words',
 	expect(answer.status).toBe(403);
 	expect(answer.body.error).toBe('This account can ask only for titles rated up to PG.');
 });
+
+test('built-in playback and its links respect the Kid account limit', async () => {
+	await kai.goto('/title/movie/900002');
+	await expect(kai.getByRole('heading', { name: 'Paper Harbour', exact: true }).first()).toBeVisible();
+	await expect(kai.getByTestId('hero-stream')).toHaveCount(0);
+	await kai.goto('/watch/movie/900002');
+	await expect(kai.getByRole('heading', { name: 'This title is not available on this account.' })).toBeVisible();
+	await kai.goto('/watch/history');
+	await expect(kai.getByText('your account may not do this; ask the owner')).toBeVisible();
+	const history = await kai.request.get('/api/v1/stream/history');
+	expect(history.status()).toBe(403);
+});

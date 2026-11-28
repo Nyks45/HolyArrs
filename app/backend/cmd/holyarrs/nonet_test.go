@@ -11,6 +11,7 @@ import (
 	"github.com/HolyArrs/holyarrs/app/backend/internal/metadata"
 	"github.com/HolyArrs/holyarrs/app/backend/internal/metadata/youtube"
 	"github.com/HolyArrs/holyarrs/app/backend/internal/music"
+	"github.com/HolyArrs/holyarrs/app/backend/internal/plugins"
 )
 
 // TestMain keeps the update check off the real network: the release feed
@@ -21,6 +22,7 @@ import (
 // (fakeReader stands in). A full run fails when a
 // registered route was never served to a test request.
 func TestMain(m *testing.M) {
+	plugins.RunSandboxHelper()
 	_ = os.Setenv("HOLYARRS_RELEASE_FEED", "http://127.0.0.1:1/no-network-in-tests")
 	_ = os.Setenv("HOLYARRS_DEEZER_URL", "off") // no artist pictures from the real Deezer
 	startup.RegisterHeldFeatures()

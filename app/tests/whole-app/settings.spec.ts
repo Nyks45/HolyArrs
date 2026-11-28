@@ -17,11 +17,11 @@ test.afterAll(async () => {
 	await page.context().close();
 });
 
-test('Settings home: five group cards; a card opens its group with a row of capsules, Back returns', async () => {
+test('Settings home: a group card opens its section links and Back returns', async () => {
 	await page.goto('/settings');
 	await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
 	await expect(page.getByTestId('settings-group').getByRole('heading', { level: 2 })).toHaveText([
-		'Library', 'Downloads', 'People', 'Linked apps', 'Server'
+		'Library', 'Downloads', 'Streaming', 'People', 'Linked apps', 'Server'
 	]);
 	await expect(page.getByTestId('settings-group').filter({ hasText: 'Downloads' })).toContainText('How titles arrive');
 	await page.getByTestId('settings-group').filter({ hasText: 'Downloads' }).click();

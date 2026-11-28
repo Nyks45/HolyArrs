@@ -1,6 +1,16 @@
 package accounts
 
-import "github.com/HolyArrs/holyarrs/app/backend/internal/core/webserver"
+import (
+	"strings"
+
+	"github.com/HolyArrs/holyarrs/app/backend/internal/core/webserver"
+)
+
+// Streaming sources do not carry a verified maturity rating.
+func streamingRoute(pattern string) bool {
+	_, path, _ := strings.Cut(pattern, " ")
+	return strings.HasPrefix(path, "/api/v1/stream/") || strings.HasPrefix(path, "/api/v1/streaming/")
+}
 
 func init() {
 	streamSignedIn := []string{

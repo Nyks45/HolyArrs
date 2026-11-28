@@ -54,9 +54,10 @@ test('a finished album is placed track by track; a track whose file cannot be pl
 	await expect(r.locator('[data-col="status"]')).toContainText('Review', { timeout: 30_000 });
 	await open();
 	// The choices are in the same panel; the panel stays open for the last test.
-	const card = details().getByTestId('decision').filter({ hasText: 'Harbour Songs' });
+	const card = details().getByTestId('decision').filter({ hasText: 'Track 04' });
 	// The row above names the album, so the card in its details names only the track.
-	await expect(card.getByTestId('decision-reason')).toContainText('The file for track 04 could not be placed');
+	await expect(card).toContainText('Track 04');
+	await expect(card.getByTestId('decision-reason')).toContainText('The file is not present yet');
 	await card.getByTestId('decision-why').click();
 	await expect(card.getByTestId('decision-why-box')).toContainText('The import could not finish on its own.');
 	// The main choice is a link to the album's Releases; Search again and the rest are under More.
@@ -74,7 +75,7 @@ test('stuck tracks on a phone', async ({ browser }) => {
 	await phone.goto('/downloads?show=problems.decide');
 	await phone.getByTestId('dl-list').locator('li').filter({ hasText: 'Tin Lanterns – Harbour Songs (2019)' }).getByTestId('dl-line').click();
 	const sheet = phone.getByTestId('dl-panel');
-	await expect(sheet.getByTestId('decision').filter({ hasText: 'Harbour Songs' })).toBeVisible();
+	await expect(sheet.getByTestId('decision').filter({ hasText: 'Track 04' })).toBeVisible();
 	await noSidewaysScroll(phone);
 	await axe(phone, 'needs a decision with a track on a phone');
 	await phone.goto('/downloads');
@@ -84,7 +85,7 @@ test('stuck tracks on a phone', async ({ browser }) => {
 });
 
 test('Stop looking for one track settles it; the rest of the album stays in the library', async () => {
-	const card = details().getByTestId('decision').filter({ hasText: 'Harbour Songs' });
+	const card = details().getByTestId('decision').filter({ hasText: 'Track 04' });
 	await card.getByRole('button', { name: /^More/ }).click();
 	await page.getByRole('menuitem', { name: 'Stop looking', exact: true }).click();
 	await page.getByTestId('ask-yes').click();

@@ -79,15 +79,17 @@ export function createColumns(ctx: ColumnsContext) {
 		ro.observe(el);
 		return () => ro.disconnect();
 	});
-	// Desktop and phone rows differ in height, so read it from a drawn row.
+	// Measure when the list's geometry changes. Scrolling moves padding
+	// between its ends without changing its full height.
 	$effect(() => {
-		void shownRows;
-		void phone;
-		if (!windowed || !ulEl) return;
-		tick().then(() => {
-			const h = ulEl?.querySelector<HTMLElement>('.drow')?.offsetHeight;
-			if (h && h !== rowH) rowH = h;
+		const rows = ulEl;
+		if (!windowed || !rows) return;
+		const observer = new ResizeObserver(() => {
+			const h = rows.querySelector<HTMLElement>('.drow')?.offsetHeight;
+			if (h) rowH = h;
 		});
+		observer.observe(rows, { box: 'border-box' });
+		return () => observer.disconnect();
 	});
 	/** Scrolls a row that is not drawn into the window, so it can be focused. */
 	function reveal(i: number) {

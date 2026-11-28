@@ -152,7 +152,7 @@ test('deleting one track with its file moves it to the holding folder; the album
 });
 
 test('the Calendar lists album release days under Music', async () => {
-	await page.goto('/calendar?titles=music&month=2019-04');
+	await page.goto('/calendar?titles=music&month=2019-04&view=cards');
 	const entry = page.getByTestId('cal-cards').getByRole('link', { name: 'Harbour Songs' }).first();
 	await expect(entry).toBeVisible();
 	await expect(entry).toHaveAttribute('href', /\/library\/\d+\/albums\/\d+$/);

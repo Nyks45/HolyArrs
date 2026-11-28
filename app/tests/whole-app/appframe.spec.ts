@@ -33,6 +33,15 @@ async function phone(p: Page, path: string) {
 test('signed-in devices: see them and sign the others out', async ({ browser }) => {
 	const other = await (await browser.newContext()).newPage();
 	await signIn(other, owner());
+	const followsPath = '**/api/v1/my/follows';
+	await page.route(followsPath, (route) => route.fulfill({
+		json: {
+			follows: [
+				{ title_id: 25, kind: 'movie', name: 'Cinder Waltz', year: 2012, unfollow: '/titles/25/follow' },
+				{ title_id: 1, kind: 'movie', name: 'Driftwood Moon', year: 2024, unfollow: '/titles/1/follow' }
+			]
+		}
+	}));
 	await page.goto('/account');
 	const list = page.getByTestId('sessions');
 	// Earlier tests left sessions too: at least this one and the other.
@@ -43,8 +52,12 @@ test('signed-in devices: see them and sign the others out', async ({ browser }) 
 	await expect(list.getByTestId('session')).toHaveCount(1);
 	await other.goto('/library');
 	await expect(other).toHaveURL(/\/login/);
+	const followed = page.getByTestId('follows').getByRole('link', { name: 'Cinder Waltz (2012)' });
+	await expect(followed).toBeVisible();
+	expect((await followed.boundingBox())!.height).toBeGreaterThanOrEqual(24);
 	await axe(page, '/account');
 	await phone(page, '/account');
+	await page.unroute(followsPath);
 	await other.context().close();
 });
 
@@ -150,7 +163,7 @@ test('the API page: key, scopes, base address, examples and every route', async 
 	await expect(page.getByTestId('api-base')).toHaveText(/^http:\/\/127\.0\.0\.1:\d+\/api\/v1$/);
 	await expect(page.getByTestId('api-scopes')).toContainText('control');
 	expect(await page.getByTestId('api-op').count()).toBeGreaterThan(150);
-	await page.getByTestId('more-options').getByText('Reference').click();
+	await page.getByTestId('more-options').getByText('Reference', { exact: true }).click();
 	await page.getByLabel('Find a route').fill('schedules');
 	await expect(page.getByTestId('api-op').first()).toContainText('/api/v1/schedules');
 	await page.getByTestId('api-op').first().getByRole('button').click();

@@ -11,6 +11,37 @@ import (
 	"time"
 )
 
+func TestStreamSearchResolvesMetadataOnlyForUncachedRemoteSearch(t *testing.T) {
+	m := NewManager(nil, nil, t.TempDir(), nil)
+	t.Cleanup(m.Close)
+	calls := 0
+	m.ResolveIMDb = func(context.Context, string, string) string {
+		calls++
+		return "tt0903747"
+	}
+	h := &Handlers{Mgr: m}
+	req := func(body string) {
+		t.Helper()
+		w := httptest.NewRecorder()
+		h.search(w, httptest.NewRequest(http.MethodPost, "/api/v1/stream/search", strings.NewReader(body)))
+		if w.Code != http.StatusOK {
+			t.Fatalf("search returned HTTP %d: %s", w.Code, w.Body.String())
+		}
+	}
+	req(`{"kind":"show","tmdb":1396,"season":1,"episode":1,"local_only":true}`)
+	key := SearchCacheKey("show", "1396", "", 1, 1, "", "full")
+	m.SearchCache.Set(key, CachedSearchResult{})
+	req(`{"kind":"show","tmdb":1396,"season":1,"episode":1}`)
+	if calls != 0 {
+		t.Fatalf("metadata lookups during local or cached search: %d", calls)
+	}
+	m.SearchCache.InvalidateAll()
+	req(`{"kind":"show","tmdb":1396,"season":1,"episode":1}`)
+	if calls != 1 {
+		t.Fatalf("metadata lookups for uncached remote search: %d", calls)
+	}
+}
+
 func TestSearchCacheHitExpiryAndInvalidate(t *testing.T) {
 	c := NewSearchCache()
 	k1 := SearchCacheKey("show", "1396", "TT0903747", 1, 1, " Breaking Bad ", "Fast")

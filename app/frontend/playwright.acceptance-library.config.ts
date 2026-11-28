@@ -18,7 +18,7 @@ export default defineConfig({
 	},
 	webServer: {
 		command: 'node ../tests/setups/acceptance-library-server.mjs',
-		url: `http://127.0.0.1:${appPort}/healthz`,
+		url: `http://127.0.0.1:${appPort}/readyz`,
 		reuseExistingServer: false,
 		timeout: 240_000,
 		stdout: 'pipe',

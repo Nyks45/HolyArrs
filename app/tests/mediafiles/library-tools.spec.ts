@@ -1,6 +1,7 @@
 import { expect, test, type APIResponse, type Page } from '@playwright/test';
 import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
+import type { TitleView } from '../../frontend/src/lib/core/types.ts';
 import { libraryTool, libraryView, noSidewaysScroll, owner, signIn, titleAction } from '../helpers/helpers.ts';
 import { tmp } from '../helpers/data-folder.ts';
 
@@ -16,16 +17,40 @@ test('Library tools open to their own page', async ({ page }) => {
 
 test('Library and title pages load TMDB pictures only through the artwork cache', async ({ page }) => {
 	const outside: string[] = [];
-	page.on('request', (r) => { if (/^https?:\/\/[^/]*tmdb\.org\//.test(r.url())) outside.push(`${new URL(page.url()).pathname}: ${r.url()}`); });
+	page.on('request', (r) => {
+		const url = new URL(r.url());
+		if (url.hostname === 'tmdb.org' || url.hostname.endsWith('.tmdb.org')) outside.push(`${new URL(page.url()).pathname}: ${r.url()}`);
+	});
 	await signIn(page, owner());
-	const { titles } = (await (await page.request.get('/api/v1/titles')).json()) as { titles: { id: number; kind: string }[] };
+	const { titles } = (await (await page.request.get('/api/v1/titles')).json()) as { titles: Pick<TitleView, 'id' | 'kind' | 'ids'>[] };
+	// TMDB-linked Library titles render the shared metadata detail page.
+	// Give that page a direct TMDB image to exercise the browser's rewrite.
+	const movie = titles.find((title) => title.kind === 'movie' && title.ids?.tmdb);
+	if (!movie?.ids?.tmdb) throw new Error('Library fixture needs a TMDB-linked movie');
+	const titlePath = `/library/${movie.id}`;
+	const filename = 'audit-library-logo.png';
+	const logo = `https://image.tmdb.org/t/p/w500/${filename}`;
+	const picture = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
+	await page.route(`**/api/v1/metadata/movie/${movie.ids.tmdb}`, async (route) => {
+		const response = await route.fetch();
+		await route.fulfill({ response, json: { ...(await response.json()), logo } });
+	});
+	const cachedImage = `**/api/v1/artwork/tmdb/*/${filename}`;
+	await page.route(cachedImage, (route) => route.fulfill({ body: picture, contentType: 'image/png' }));
 	const paths = ['/library?kind=movie&layout=table', '/library?kind=movie&layout=grid', '/library?kind=show&layout=overview'];
 	for (const t of titles.filter((x) => x.kind === 'movie' || x.kind === 'show')) paths.push(`/library/${t.id}`, `/library/${t.id}?tab=library`);
 	// Every Library title adds two pages, so the time grows with the e2e Library.
 	test.setTimeout(30_000 + paths.length * 3_000);
 	for (const p of paths) {
-		await page.goto(p);
-		await page.waitForLoadState('networkidle');
+		if (p === titlePath) {
+			await Promise.all([page.waitForRequest(cachedImage, { timeout: 12_000 }), page.goto(p, { waitUntil: 'domcontentloaded' })]);
+		} else {
+			await page.goto(p, { waitUntil: 'domcontentloaded' });
+		}
+		await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+		const sources = await page.locator('main img, main source').evaluateAll((images) =>
+			images.flatMap((image) => ['src', 'srcset'].map((name) => image.getAttribute(name) ?? '')));
+		expect(sources.filter((src) => /https?:\/\/[^/]*tmdb\.org\//.test(src)), p).toEqual([]);
 	}
 	expect(outside).toEqual([]);
 });

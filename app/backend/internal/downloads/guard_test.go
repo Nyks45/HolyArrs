@@ -41,6 +41,22 @@ func TestDownloaderGuardCountsLogicalCallsWithoutReplayingAdd(t *testing.T) {
 	}
 }
 
+func TestDownloaderGuardFinishesPanickedOperations(t *testing.T) {
+	r := outbound.New([]byte("isolated-test-registry-key"), outbound.Options{Threshold: 1})
+	g := &guardedEngine{target: outbound.Target{Kind: "downloader"}, begin: r.Begin}
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Error("the reader supervisor must still receive the adapter panic")
+			}
+		}()
+		_ = g.run(context.Background(), func() error { panic("test downloader panic") })
+	}()
+	if len(r.States()) != 1 {
+		t.Fatal("the panicked operation was not recorded as a failure")
+	}
+}
+
 func TestDownloaderGuardDoesNotTripForSignInOrCancellation(t *testing.T) {
 	for _, cause := range []error{ErrAuth, ErrNotFound, ErrCategory, context.Canceled} {
 		r := outbound.New([]byte("isolated-test-registry-key"), outbound.Options{Threshold: 1})

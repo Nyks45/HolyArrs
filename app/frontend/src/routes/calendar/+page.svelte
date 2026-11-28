@@ -300,7 +300,6 @@
 		set pastHead(v) { pastHead = v; },
 		get view() { return view; },
 		set view(v) { view = v; },
-		get filteredOut() { return filteredOut; },
 	};
 	const scroller = createCalendarScroll(scrollerCtx);
 
@@ -540,9 +539,9 @@
 					{#if filteredOut}
 						<!-- The filters hide every date in these weeks: say so, and offer them all. -->
 						<div class="filtered-out" data-testid="cal-filtered-out">
-							<EmptyState compact icon="calendar" title={follows === 'mine' ? t('discover.calendar.nothingYouFollow') : t('discover.calendar.nothingAnyoneFollows')} text={end < latest || fetching ? t('discover.calendar.lookingFurther') : soonCount === 1 ? t('discover.calendar.soonOne') : soonCount ? t('discover.calendar.soonOther', { n: soonCount }) : t('discover.calendar.soonNone')} action={{ label: t('discover.calendar.showWholeLibrary'), onclick: clearFilters }} />
+							<EmptyState compact icon="calendar" title={follows === 'mine' ? t('discover.calendar.nothingYouFollow') : t('discover.calendar.nothingAnyoneFollows')} text={fetching ? t('discover.calendar.lookingFurther') : end < latest ? t('discover.calendar.noDatesFrom', { rangeName }) : soonCount === 1 ? t('discover.calendar.soonOne') : soonCount ? t('discover.calendar.soonOther', { n: soonCount }) : t('discover.calendar.soonNone')} action={{ label: t('discover.calendar.showWholeLibrary'), onclick: clearFilters }} />
 						</div>
-										{:else if view === 'cards'}
+					{:else if view === 'cards'}
 						<ComingSoon entries={shown} today={todayKey} onlater={scroller.more} mode={follows} {look} onfollow={flipFollow} />
 					{:else if agenda.length === 0}
 						<EmptyState compact icon="calendar" title={t('discover.calendar.noDatesFrom', { rangeName })} />
@@ -551,8 +550,11 @@
 					{/if}
 				</div>
 			{/key}
-			<!-- Reaching the end loads the next weeks, up to a year. -->
-			<div class="endless" use:scroller.endless={fetching} aria-hidden="true"></div>
+			<!-- A short list can fit on screen even after loading another range. -->
+			<div class="endless" use:scroller.endless aria-hidden="true"></div>
+			{#if end < latest && (view === 'list' || shown.length > 0 || filteredOut)}
+				<div class="more-note"><Button variant="plain" disabled={fetching} onclick={scroller.more}>{t('discover.calEmpty.showWeeksAfter')}</Button></div>
+			{/if}
 			{#if fetching}<p class="more-note" role="status">{t('discover.calendar.loadingTheNextWeeks')}</p>{/if}
 		</div>
 		<aside class="side" aria-label={t('discover.calendar.pickADay2')} inert={monthHidden} aria-hidden={monthHidden}>{@render mini()}</aside>

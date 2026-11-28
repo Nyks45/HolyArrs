@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	buildWatchEntryPayload,
 	canSeekInLocalHlsBuffer,
 	extractRegularSeasons,
 	formatSyncDelta,
@@ -15,6 +16,22 @@ import {
 } from './player-media.ts';
 import type { TitleDetails } from '#lib/metadata/index.ts';
 import type { StreamCandidate, StreamSubCandidate } from './stream-api.ts';
+
+it.each([
+	{ pos: 60, dur: 120, completed: false },
+	{ pos: 102, dur: 120, completed: false },
+	{ pos: 110, dur: 120, completed: true },
+	{ pos: 5500, dur: 6000, completed: false },
+	{ pos: 5520, dur: 6000, completed: true }
+])('saves completion correctly at $pos of $dur seconds', ({ pos, dur, completed }) => {
+	const entry = buildWatchEntryPayload({
+		kind: 'movie', title: 'Fixture', tmdb: '9', imdbId: '', year: 0,
+		poster: '', backdrop: '', season: 0, episode: 0, episodeName: '',
+		pos, dur, activeCandidate: null, session: null, saved: null,
+		browserQuality: 'original', audioIdx: 0, playbackRate: 1, subPref: { mode: 'off' }
+	});
+	expect(entry?.completed).toBe(completed);
+});
 
 function cand(over: Partial<StreamCandidate>): StreamCandidate {
 	return {

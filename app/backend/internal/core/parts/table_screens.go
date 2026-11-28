@@ -240,6 +240,7 @@ func register() {
 		startup.RegisterPart(p.part, p.label)
 	}
 	startup.RegisterOwners(startup.RouteOwners, routeOwners)
+	startup.RegisterOwners(startup.RouteOwners, streamingRouteOwners)
 	startup.RegisterOwners(startup.ScreenOwners, screenOwners)
 	startup.RegisterOwners(startup.LoopOwners, loopOwners)
 	startup.RegisterOwners(startup.JobOwners, jobOwners)

@@ -36,10 +36,9 @@
 	.app-tile.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--surface-2)); }
 	.app-tile.on:has(input:focus-visible) { box-shadow: inset 0 0 0 1px var(--accent), var(--focus-ring); }
 	.app-tile:has(input:focus-visible) { box-shadow: var(--focus-ring); }
-	.badge { flex: none; width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; font-size: 12px; font-weight: 700; color: #fff; background: hsl(var(--h) 55% 42%); }
+	.badge { flex: none; width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; font-size: 12px; font-weight: 700; color: #fff; background: hsl(var(--h) 55% 30%); }
 	.words { display: grid; min-width: 0; line-height: 1.25; }
 	.words b { overflow-wrap: break-word; }
-	.app-tile.on .words b { color: var(--accent-text); }
 	.hint { font-size: 12px; color: var(--text-2); }
 	.hit { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
 	@media (max-width: 420px) {

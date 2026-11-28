@@ -4,10 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -17,10 +19,37 @@ import (
 	engine "github.com/HolyArrs/holyarrs/app/backend/internal/suggest"
 )
 
+func TestBrowseLoadsMovieAndShowListsConcurrently(t *testing.T) {
+	ready := make(chan struct{})
+	var started atomic.Int32
+	p := &fakeDiscoverProvider{
+		Static: &metadata.Static{},
+		listFn: func(kind, _ string, _ url.Values) ([]metadata.DiscoverItem, error) {
+			if started.Add(1) == 2 {
+				close(ready)
+			}
+			select {
+			case <-ready:
+			case <-time.After(3 * time.Second):
+				return nil, errors.New("the other catalog lookup did not start")
+			}
+			return []metadata.DiscoverItem{{TMDBID: "123", Kind: kind, Name: kind}}, nil
+		},
+	}
+	_, h, _ := subcategoryRig(t, p)
+	cat, _ := engine.CategoryByID("drama")
+	ctx := context.Background()
+	items, err := h.browseItems(ctx, h.LiveExplore(ctx), cat, "all", false, "")
+	if err != nil || len(items) != 2 {
+		t.Fatalf("browse got %v, %v", items, err)
+	}
+}
+
 type fakeDiscoverProvider struct {
 	*metadata.Static
-	details map[string]metadata.Details
-	listFn  func(kind, path string, q url.Values) ([]metadata.DiscoverItem, error)
+	details      map[string]metadata.Details
+	detailsCalls atomic.Int32
+	listFn       func(kind, path string, q url.Values) ([]metadata.DiscoverItem, error)
 }
 
 func (f *fakeDiscoverProvider) Discover(_ context.Context, _, _, _, _ string) ([]metadata.DiscoverItem, error) {
@@ -28,6 +57,7 @@ func (f *fakeDiscoverProvider) Discover(_ context.Context, _, _, _, _ string) ([
 }
 
 func (f *fakeDiscoverProvider) Details(_ context.Context, kind, id string) (metadata.Details, error) {
+	f.detailsCalls.Add(1)
 	if d, ok := f.details[kind+":"+id]; ok {
 		return d, nil
 	}
@@ -150,9 +180,16 @@ func TestSubcategoriesAndOpenedRoutes(t *testing.T) {
 	_ = badPost.Body.Close()
 
 	// enrichSimilar tops up thin TMDB similar lists up to 20 items while deduping self.
-	sim := h.enrichSimilar(context.Background(), "show", "256711", []metadata.DiscoverItem{{TMDBID: "901", Kind: "show", Name: "Similar A"}})
+	existing := []metadata.DiscoverItem{{TMDBID: "901", Kind: "show", Name: "Similar A"}}
+	if got := h.enrichSimilar(context.Background(), "show", "256711", existing, true); len(got) != 1 {
+		t.Fatalf("a kept page without a cached list should use its own items, got %+v", got)
+	}
+	sim := h.enrichSimilar(context.Background(), "show", "256711", existing, false)
 	if len(sim) != 2 || sim[1].TMDBID != "902" {
 		t.Fatalf("expected deduplicated enriched similar items, got %+v", sim)
+	}
+	if got := h.enrichSimilar(context.Background(), "show", "256711", existing, true); len(got) != 2 {
+		t.Fatalf("a kept page should use cached recommendations, got %+v", got)
 	}
 }
 
@@ -188,6 +225,18 @@ func TestExploreInputIncludesWatchAndViewSignalsWithKidGuard(t *testing.T) {
 	adult, err := h.Explore.LoadMember(context.Background(), 1)
 	if err != nil {
 		t.Fatal(err)
+	}
+	h.ServiceTopCache = &ServiceTopCache{}
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/explore/head?type=all", nil)
+	cold, building, err := h.ExplorePageFor(req.Context(), req, adult.ID, "all")
+	if err != nil || !building {
+		t.Fatalf("a cold head should answer while its background pool builds, got building=%t, err=%v", building, err)
+	}
+	if fp.detailsCalls.Load() != 0 {
+		t.Fatalf("building the cold head made %d provider calls", fp.detailsCalls.Load())
+	}
+	if cold.Seeds != 2 {
+		t.Fatalf("expected two local watch signals on the cold head, got %d", cold.Seeds)
 	}
 	adultIn, err := h.Explore.Input(context.Background(), adult, "all", now)
 	if err != nil {

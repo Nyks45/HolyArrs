@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/HolyArrs/holyarrs/app/backend/internal/mediafiles"
-
 	"github.com/HolyArrs/holyarrs/app/backend/internal/core/database"
 	domain "github.com/HolyArrs/holyarrs/app/backend/internal/core/model"
+	"github.com/HolyArrs/holyarrs/app/backend/internal/importer"
+	"github.com/HolyArrs/holyarrs/app/backend/internal/mediafiles"
 )
 
 // Step says where an approved ask is right now, from the server's own
@@ -115,6 +115,9 @@ func stepOf(ctx context.Context, db *sql.DB, v View) (Step, bool) {
 			continue
 		}
 		st := mediafiles.SlotState(state)
+		if st == mediafiles.SlotNeedsADecision && importer.FilesPending(why) && !importer.FolderMissing(why) {
+			st = mediafiles.SlotImporting
+		}
 		seen[st] = true
 		slotIDs = append(slotIDs, id)
 		if part > 0 {

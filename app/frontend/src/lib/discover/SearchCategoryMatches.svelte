@@ -22,36 +22,43 @@
 	let activeId = $state('');
 	let activeName = $state('');
 	let cards = $state<ExploreCard[]>([]);
-	let loadingItems = $state(false);
+	let searchingCategories = $state(false);
+	let pendingId = $state('');
+	let previewError = $state('');
+	let previewRequest: AbortController | undefined;
 	let seq = 0;
 
 	$effect(() => {
 		const raw = query.trim();
 		const sc = scope;
+		const mySeq = ++seq;
+		pendingId = '';
+		previewError = '';
 		if (onlyLib || raw.length < 2 || sc === 'music' || sc === 'people') {
+			searchingCategories = false;
 			categories = [];
 			activeId = '';
 			activeName = '';
 			cards = [];
-			loadingItems = false;
 			onmatches?.(false);
 			return;
 		}
-		const mySeq = ++seq;
+		searchingCategories = true;
 		const ac = new AbortController();
 		const timer = setTimeout(() => {
 			void fetchCategorySearch(raw, sc, ac.signal).then(
 				(res) => {
 					if (mySeq !== seq) return;
+					searchingCategories = false;
 					categories = res.categories ?? [];
 					activeId = res.category_id ?? '';
 					activeName = res.category_name ?? '';
 					cards = (res.category_items ?? []).map((d) => ({ ...discoverCard(d, `scat-${activeId || 'hit'}`), wide: d.backdrop ?? null }));
-					loadingItems = false;
 					onmatches?.(categories.length > 0 || cards.length > 0);
 				},
 				() => {
 					if (mySeq !== seq) return;
+					searchingCategories = false;
 					categories = [];
 					cards = [];
 					onmatches?.(false);
@@ -61,22 +68,27 @@
 		return () => {
 			clearTimeout(timer);
 			ac.abort();
+			previewRequest?.abort();
 		};
 	});
 
 	async function previewCategory(c: CategorySummary) {
-		activeId = c.id;
-		activeName = c.name;
-		loadingItems = true;
+		previewRequest?.abort();
+		const request = new AbortController();
+		previewRequest = request;
+		pendingId = c.id;
+		previewError = '';
 		try {
-			const res = await fetchCategoryBrowse(c.id, scope);
-			if (activeId !== c.id) return;
+			const res = await fetchCategoryBrowse(c.id, scope, request.signal);
+			if (request.signal.aborted) return;
+			activeId = c.id;
+			activeName = c.name;
 			cards = (res.items ?? []).slice(0, 24).map((d) => ({ ...discoverCard(d, `scat-${c.id}`), wide: d.backdrop ?? null }));
 			onmatches?.(true);
 		} catch {
-			/* Keep existing chips visible even if item preview fails. */
+			if (!request.signal.aborted) previewError = `Could not load ${c.name}. Try again.`;
 		} finally {
-			if (activeId === c.id) loadingItems = false;
+			if (previewRequest === request) pendingId = '';
 		}
 	}
 
@@ -96,6 +108,9 @@
 							type="button"
 							class="cat-chip"
 							class:active={activeId === c.id}
+							aria-pressed={activeId === c.id}
+							aria-busy={pendingId === c.id}
+							disabled={searchingCategories}
 							onclick={() => void previewCategory(c)}
 						>
 							<span>{c.name}</span>
@@ -111,7 +126,7 @@
 			</div>
 		{/if}
 
-		{#if cards.length > 0 && !loadingItems}
+		{#if cards.length > 0}
 			<div class="cat-shelf">
 				<Shelf
 					title={activeName ? `${activeName} picks` : 'Category picks'}
@@ -143,6 +158,7 @@
 				</Shelf>
 			</div>
 		{/if}
+		{#if previewError}<p class="cat-error" role="status">{previewError}</p>{/if}
 	</section>
 {/if}
 
@@ -162,6 +178,8 @@
 	}
 	.cat-chip:hover { border-color: var(--text-faint); background: var(--surface-3); }
 	.cat-chip.active { background: var(--text); color: var(--bg); border-color: var(--text); }
+	.cat-chip[aria-busy='true'] { opacity: 0.65; }
+	.cat-error { color: var(--text-muted); font: var(--t-footnote); }
 	.cat-chip.open-link { color: var(--accent-text); background: color-mix(in srgb, var(--surface-2) 70%, transparent); }
 	.cat-shelf { display: contents; }
 	@media (min-width: 768px) { .cat-shelf { --shelf-gap: 5px; } }

@@ -101,9 +101,6 @@ type Input struct {
 	DownloaderID *int64 `json:"downloader_id"`
 }
 
-// queryErr is the error behind ErrQuery.
-type queryErr struct{}
-
 // Add stores a new Source and sends its key and proxy password to the vault.
 // The then callbacks run in the same transaction with the new id.
 func Add(ctx context.Context, s *database.Store, v *secrets.Vault, in Input, by domain.Actor, then ...func(tx *sql.Tx, id int64) error) (domain.Source, error) {
@@ -793,9 +790,3 @@ func nameUsed(tx *sql.Tx, name string, id int64) error {
 	}
 	return nil
 }
-
-func (queryErr) Error() string {
-	return "leave the query (?apikey=...) out of the address; put the key in the key field"
-}
-
-func (queryErr) Is(t error) bool { return t == ErrURL }

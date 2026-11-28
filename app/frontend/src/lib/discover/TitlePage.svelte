@@ -178,7 +178,7 @@
 		watchLatest = null;
 		watchEpisodes = [];
 		if (k !== 'movie' && k !== 'show') return;
-		if (!id) return;
+		if (!id || session.kid) return;
 		let alive = true;
 		void getTitleWatchHistory(k, id).then(
 			(res) => {
@@ -261,7 +261,7 @@
 		void api.post('/explore/opened', { kind, tmdb_id: tmdb, name: details.name, year: details.year ?? 0 }).catch(() => {});
 	});
 	$effect(() => {
-		if (!details?.name || (kind !== 'movie' && kind !== 'show')) return;
+		if (session.kid || !details?.name || (kind !== 'movie' && kind !== 'show')) return;
 		const ss = kind === 'show' ? (resumeTarget?.season ?? seasons.find((s) => s.number > 0)?.number ?? 1) : 0;
 		const ee = kind === 'show' ? (resumeTarget?.episode ?? 1) : 0;
 		const req = { query: details.name, kind: kind as 'movie' | 'show', year: details.year || 0, season: ss, episode: ee, imdb: details.imdb ?? showExt?.imdb ?? '', tmdb: Number(tmdb) || 0, original_title: details.original_title, genres: details.genres, original_language: details.original_language, origin_country: details.origin_country, runtime_min: details.runtime || 0 };
@@ -553,7 +553,7 @@
 						<ActionButton icon="wish" label={d.ask ? t('discover.titlePage.askForToo', { name: d.name }) : t('discover.titlePage.askFor', { name: d.name })} caption={d.ask ? t('discover.titlePage.requestToo') : t('discover.titlePage.request')} primary onclick={() => askShow?.open(d.show as LookupShow)} />
 					{/if}
 				{/if}
-				{#if d.kind === 'show' && resumeTarget}
+				{#if !session.kid && d.kind === 'show' && resumeTarget}
 					{@const seTag = `S${String(resumeTarget.season).padStart(2, '0')} E${String(resumeTarget.episode).padStart(2, '0')}`}
 					{#if resumeTarget.kind === 'resume'}
 						<ActionButton icon="play" primary label={`Resume ${d.name} ${seTag}`} caption={`Resume ${seTag} · ${formatDuration(resumeTarget.positionSec)}`} href={watchHref(true, resumeTarget.season, resumeTarget.episode)} data-testid="hero-resume" />
@@ -565,7 +565,7 @@
 						<ActionButton icon="play" pill label={`Watch ${d.name} ${seTag}`} caption={`Watch ${seTag}`} href={watchHref(false, resumeTarget.season, resumeTarget.episode)} data-testid="hero-stream" />
 						<ActionButton icon="source" pill label={`Pick stream source for ${d.name}`} caption="Sources" href={watchHref(false, resumeTarget.season, resumeTarget.episode, 'sources')} data-testid="hero-sources" />
 					{/if}
-				{:else if d.kind === 'movie'}
+				{:else if !session.kid && d.kind === 'movie'}
 					{#if watchLatest && !watchLatest.completed && watchLatest.position_sec > 10}
 						<ActionButton icon="play" primary label={`Resume ${d.name}`} caption={`Resume · ${formatDuration(watchLatest.position_sec)}`} href={watchHref(true)} data-testid="hero-resume" />
 						<ActionButton icon="source" pill label={`Pick stream source for ${d.name}`} caption="Sources" href={watchHref(false, undefined, undefined, 'sources')} data-testid="hero-stream" />
@@ -650,7 +650,7 @@
 		</div>
 		{@render trailers()}
 		{#if d.kind === 'show'}
-			<SeasonFolds tmdb={d.tmdb} {seasons} fallback={d.backdrop} showMeta={{ name: d.name, year: d.year, imdb: d.imdb ?? showExt?.imdb ?? '', original_title: d.original_title, genres: d.genres, original_language: d.original_language, origin_country: d.origin_country }} {defaultSeason} activeTarget={resumeTarget} progress={watchEpisodesByKey} onstream={(s, e) => void goto(watchHref(true, s, e))} onstreamSources={(s, e) => void goto(watchHref(false, s, e, 'sources'))} onToggleWatched={toggleEpisodeWatched} onMarkSeasonWatched={markSeasonWatched} />
+			<SeasonFolds tmdb={d.tmdb} {seasons} fallback={d.backdrop} showMeta={{ name: d.name, year: d.year, imdb: d.imdb ?? showExt?.imdb ?? '', original_title: d.original_title, genres: d.genres, original_language: d.original_language, origin_country: d.origin_country }} {defaultSeason} activeTarget={session.kid ? undefined : resumeTarget} progress={watchEpisodesByKey} onstream={session.kid ? undefined : (s, e) => void goto(watchHref(true, s, e))} onstreamSources={session.kid ? undefined : (s, e) => void goto(watchHref(false, s, e, 'sources'))} onToggleWatched={session.kid ? undefined : toggleEpisodeWatched} onMarkSeasonWatched={session.kid ? undefined : markSeasonWatched} />
 		{/if}
 		{@render castRow()}
 		<PluginCards cards={pluginSections} testid="title-plugin-sections" />

@@ -7,6 +7,7 @@
 	import { shortSynopsis } from './synopsis.ts';
 	import type { Snippet } from 'svelte';
 	import { api } from '../core/api.ts';
+	import { session } from '../core/session.svelte.ts';
 	import { to } from '../core/paths.ts';
 	import { heroPictures } from '../core/trailer/trailer.ts';
 	import { proxied, sized } from '../core/tmdb-image.ts';
@@ -91,6 +92,7 @@
 			</div>
 		{/snippet}
 		{#snippet actions()}
+			{#if !session.kid}
 			<a
 				class="watch"
 				href={watchHref}
@@ -103,6 +105,7 @@
 				<Icon name="play" size={16} />
 				<span>Watch Now</span>
 			</a>
+			{/if}
 			{#if href}<a class="info" {href} onfocus={(e) => e.currentTarget.scrollIntoView({ block: 'nearest', behavior: 'instant' })}>{t('discover.exploreHero.moreInfo')}</a>{/if}
 			{#if action}{@render action()}{/if}
 		{/snippet}

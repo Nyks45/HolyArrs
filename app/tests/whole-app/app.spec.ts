@@ -301,6 +301,7 @@ test('search, add a movie, and the Library updates live', async ({ browser }) =>
 	await expect(watcher.getByRole('heading', { name: 'Nothing here yet' })).toBeVisible();
 
 	const dialog = await addFromSearch(page, 'Driftwood Moon', 'Driftwood Moon');
+	await dialog.getByRole('checkbox', { name: /^Keep up to date/ }).check();
 	await dialog.getByLabel('Search when added').uncheck();
 	await dialog.getByRole('button', { name: 'Add to Library' }).click();
 	await expect(page).toHaveURL(/\/library\/\d+/);

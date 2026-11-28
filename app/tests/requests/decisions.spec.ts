@@ -740,9 +740,13 @@ test('a member sees their request downloading, then added to the Library', async
 	// Every card text odile's page shows on the way: none may hold a percent.
 	const seen: string[] = [];
 	const look = async () => {
-		const text = (await card.count()) ? await card.innerText().catch(() => '') : '';
-		if (text) seen.push(text);
-		return (await card.count()) ? ((await card.getByTestId('ask-step').textContent().catch(() => '')) ?? '').trim() : 'gone';
+		const [current] = await card.evaluateAll((cards) => cards.map((element) => ({
+			text: (element as HTMLElement).innerText,
+			step: element.querySelector('[data-testid="ask-step"]')?.textContent?.trim() ?? ''
+		})));
+		if (!current) return 'gone';
+		seen.push(current.text);
+		return current.step;
 	};
 	await expect.poll(look, { timeout: 45_000, intervals: [250] }).toBe('Downloading now');
 
@@ -755,11 +759,11 @@ test('a member sees their request downloading, then added to the Library', async
 	const dl = join(dirname(fileURLToPath(import.meta.url)), '..', '.tmp', 'downloads');
 	rmSync(join(dl, name), { recursive: true, force: true });
 	mkdirSync(join(dl, name), { recursive: true });
-	// Big enough for the import's fake checks: 1 MB a minute of a 101-minute movie on disk
-	// (sparse, so quick), and a listed size near the Release's own.
+	// The sparse fixture and the client's listing agree once the copy completes.
+	const fileSize = 3_900_000_000;
 	writeFileSync(join(dl, name, `${name}.mkv`), '');
-	truncateSync(join(dl, name, `${name}.mkv`), 120 << 20);
-	const done = await fetch(`${qbit}/set?hash=${hash}&progress=1&state=stalledUP&save_path=${encodeURIComponent(dl)}&files=${encodeURIComponent(`${name}/${name}.mkv`)}&filesize=${3_900_000_000}`);
+	truncateSync(join(dl, name, `${name}.mkv`), fileSize);
+	const done = await fetch(`${qbit}/set?hash=${hash}&progress=1&state=stalledUP&save_path=${encodeURIComponent(dl)}&files=${encodeURIComponent(`${name}/${name}.mkv`)}&filesize=${fileSize}`);
 	expect(done.ok).toBe(true);
 	await expect.poll(look, { timeout: 45_000, intervals: [250] }).toMatch(/^(Adding it to the Library|gone)$/);
 	await odile.getByRole('button', { name: /^Ready/ }).click();

@@ -342,6 +342,37 @@ func TestHistoryStorePersistenceAndContinueWatching(t *testing.T) {
 	}
 }
 
+func TestDeleteHistoryFailedWriteLeavesEntry(t *testing.T) {
+	dir := t.TempDir()
+	hs := NewHistoryStore(dir)
+	item, err := hs.Upsert(0, WatchEntry{Kind: "movie", TMDB: "27205", Title: "Fixture"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := hs.path
+	hs.path = filepath.Join(path, "watch-history.json")
+	h := &Handlers{Mgr: &Manager{History: hs}}
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/stream/history/"+item.Key, nil)
+	req.SetPathValue("key", item.Key)
+	failed := httptest.NewRecorder()
+	h.deleteHistory(failed, req)
+	if failed.Code != http.StatusInternalServerError {
+		t.Fatalf("failed write returned %d", failed.Code)
+	}
+	if items, _ := hs.List(0, 50); len(items) != 1 || items[0].Key != item.Key {
+		t.Fatalf("failed write changed watch history: %+v", items)
+	}
+	hs.path = path
+	retried := httptest.NewRecorder()
+	h.deleteHistory(retried, req)
+	if retried.Code != http.StatusNoContent {
+		t.Fatalf("retry returned %d", retried.Code)
+	}
+	if items, _ := NewHistoryStore(dir).List(0, 50); len(items) != 0 {
+		t.Fatalf("deleted entry was still on disk: %+v", items)
+	}
+}
+
 func TestShiftWebVTT(t *testing.T) {
 	src := strings.Join([]string{
 		"WEBVTT",

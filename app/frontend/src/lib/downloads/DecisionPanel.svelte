@@ -193,7 +193,11 @@
 	{@const mins = retryMinutes(d.retry_at, now)}
 	<div class="dec" data-testid="decision">
 		<p class="line">
-			{#if showName}<span class="one">{decisionName(d)}</span>{/if}
+			{#if showName}
+				<span class="one">{decisionName(d)}</span>
+			{:else if d.episode}
+				<span class="one">{d.episode.label}{d.episode.name ? ` ${d.episode.name}` : ''}</span>
+			{/if}
 			<span class="why" data-testid="decision-reason">{reasonLine(d)}</span>
 			<span class="sub">· {d.version} · {ago(d.since)}</span>
 			{#if mins !== null}<span class="sub" data-testid="decision-retry">· {t('downloads.dp.retryIn', { count: mins })}</span>{/if}

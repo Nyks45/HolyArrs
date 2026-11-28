@@ -171,6 +171,10 @@ func (e *Explore) LoadMember(ctx context.Context, id int64) (ExploreMember, erro
 
 // exploreInput reads the member's signals from the Library and the asks.
 func (e *Explore) Input(ctx context.Context, m ExploreMember, sw string, now time.Time) (engine.Input, error) {
+	return e.input(ctx, m, sw, now, false)
+}
+
+func (e *Explore) input(ctx context.Context, m ExploreMember, sw string, now time.Time, cacheOnly bool) (engine.Input, error) {
 	in := engine.Input{Member: m.ID, Kid: m.Kid, Switch: sw, Now: now, Owned: map[string]bool{},
 		OwnedPeople: map[string]int{}, OwnedDecadeGenre: map[string]int{}, Services: m.Services, Region: m.Region}
 	db := e.Store().Read()
@@ -274,15 +278,15 @@ func (e *Explore) Input(ctx context.Context, m ExploreMember, sw string, now tim
 			return in, err
 		}
 	}
-	activity := e.collectActivitySignals(ctx, m, now, libByKey, &in)
+	activity := e.collectActivitySignals(ctx, m, now, libByKey, &in, cacheOnly)
 	in.Seeds = engine.SeedsWithActivity(m.ID, m.Kid, lib, asks, activity, now)
 	return in, nil
 }
 
-func (e *Explore) collectActivitySignals(ctx context.Context, m ExploreMember, now time.Time, libByKey map[string]engine.LibTitle, in *engine.Input) []engine.ActivitySeed {
+func (e *Explore) collectActivitySignals(ctx context.Context, m ExploreMember, now time.Time, libByKey map[string]engine.LibTitle, in *engine.Input, cacheOnly bool) []engine.ActivitySeed {
 	var disc metadata.Discoverer
 	var discOK bool
-	if e.Metadata != nil && !e.lookupsOff() && !e.hold.held(now) {
+	if !cacheOnly && e.Metadata != nil && !e.lookupsOff() && !e.hold.held(now) {
 		if mp := e.Metadata(); mp != nil {
 			disc, discOK = metadata.DiscovererFor(ctx, mp)
 		}

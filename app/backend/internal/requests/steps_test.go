@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"testing"
+
+	"github.com/HolyArrs/holyarrs/app/backend/internal/importer"
 )
 
 // an approved ask says where it is from the server's records: the
@@ -61,6 +63,10 @@ func TestAskSteps(t *testing.T) {
 		if s := step(false); s == nil || s.Kind != c.want {
 			t.Fatalf("slot %s: step %+v, want %s", c.state, s, c.want)
 		}
+	}
+	exec("UPDATE slots SET state = 'needs_a_decision', last_reason = ? WHERE "+slot, importer.CopyingWhy, *got.TitleID)
+	if s := step(false); s == nil || s.Kind != "importing" {
+		t.Fatalf("copy waits for an automatic import retry, step %+v", s)
 	}
 	exec("UPDATE slots SET state = 'in_library' WHERE "+slot, *got.TitleID)
 	if s := step(true); s != nil {

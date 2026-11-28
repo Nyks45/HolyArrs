@@ -15,9 +15,9 @@ let kim: Page;
 const kimPw = `e2e-${Math.random().toString(36).slice(2)}-kim`;
 const kimDiscord = '123456789012345678';
 
-async function posts(): Promise<string[]> {
+async function posts(): Promise<{ content?: string; embeds?: { title?: string; description?: string }[] }[]> {
 	const r = await fetch(`http://127.0.0.1:${discordPort}/posts`);
-	return ((await r.json()) as { content: string }[]).map((p) => p.content);
+	return r.json();
 }
 
 test.beforeAll(async ({ browser }) => {
@@ -43,7 +43,7 @@ test('the owner adds a Discord Alert and sends a test', async () => {
 	await expect(own.locator('body')).not.toContainText('stand-in');
 	await row.getByRole('button', { name: 'Send a test' }).click();
 	await expect(row.getByTestId('alert-result')).toContainText('Last sent');
-	expect((await posts()).some((c) => c.includes('HolyArrs test'))).toBe(true);
+	expect((await posts()).some((p) => p.embeds?.some((e) => e.title?.includes('HolyArrs test')))).toBe(true);
 	await noSidewaysScroll(own);
 });
 
@@ -120,7 +120,9 @@ test('a member asks for a movie from a phone and sees it on the Requests page', 
 	await kim.locator('nav.tabbar').getByRole('link', { name: 'Requests' }).click();
 	await expect(ask.getByTestId('ask-state')).toHaveText('Requested');
 	await noSidewaysScroll(kim);
-	expect((await posts()).some((c) => c.includes('kim asked for Copper Lighthouse'))).toBe(true);
+	expect((await posts()).some((p) => p.embeds?.some((e) =>
+		[e.title, e.description].some((text) => text?.includes('kim asked for Copper Lighthouse'))
+	))).toBe(true);
 });
 
 test('the owner approves from a phone: the movie is added and kim is told', async () => {
@@ -151,7 +153,9 @@ test('the owner approves from a phone: the movie is added and kim is told', asyn
 	// Undo waits at the bottom for a few seconds, then the answer is sent.
 	await expect(own.getByRole('status').filter({ hasText: 'Copper Lighthouse approved' }).getByRole('button', { name: 'Undo' })).toBeVisible();
 	await expect(own.getByRole('button', { name: /^Waiting 0/ })).toBeVisible();
-	await expect.poll(async () => (await posts()).some((c) => c.startsWith(`<@${kimDiscord}> **Approved: Copper Lighthouse`)), { timeout: 20_000 }).toBe(true);
+	await expect.poll(async () => (await posts()).some((p) =>
+		p.content?.includes(`<@${kimDiscord}>`) && p.embeds?.some((e) => e.title?.startsWith('Approved: Copper Lighthouse'))
+	), { timeout: 20_000 }).toBe(true);
 
 	// Processing holds it; its window says it is being got for kim.
 	await own.getByRole('button', { name: /^Processing/ }).click();

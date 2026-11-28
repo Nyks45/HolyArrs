@@ -402,6 +402,7 @@
   "DELETE /api/v1/users/{id}",
   "DELETE /api/v1/users/{id}/media-link/{kind}",
   "DELETE /api/v1/users/{id}/sessions/{sid}",
+  "DELETE /lidarr/",
   "DELETE /radarr/",
   "DELETE /sonarr/",
   "GET /",
@@ -527,6 +528,7 @@
   "GET /mcp",
   "GET /oauth/authorize",
   "GET /plex-done",
+  "GET /lidarr/",
   "GET /radarr/",
   "GET /sonarr/",
   "POST /api/v1/alerts",
@@ -693,6 +695,7 @@
   "POST /mcp",
   "POST /oauth/register",
   "POST /oauth/token",
+  "POST /lidarr/",
   "POST /radarr/",
   "POST /sonarr/",
   "PUT /api/v1/account/avatar",
@@ -762,6 +765,7 @@
   "PUT /api/v1/subtitle-sites/{id}",
   "PUT /api/v1/users/{id}",
   "PUT /api/v1/users/{id}/media-link",
+  "PUT /lidarr/",
   "PUT /radarr/",
   "PUT /sonarr/"
  ]

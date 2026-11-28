@@ -662,10 +662,10 @@
 	.own-badge { margin-left: 6px; display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: var(--fail); color: #fff; font-size: 11px; }
 	/* Every separator is one fixed 21px lead before its item, and the row is pulled 21px left and clipped there, so a line that wraps never starts with a lone dot. */
 	/* Links out sit under the facts line as small chips; the whole chip is the link, 44px tall on touch phones. */
-	.out-links li { padding: 0; min-height: 28px; color: var(--text-muted); font-size: 12px; }
+	.tagchips.out-links li { padding: 0; min-height: 28px; color: var(--text-muted); font-size: 12px; }
 	.out-links a { display: inline-flex; align-items: center; min-height: inherit; padding: 0 12px; color: inherit; text-decoration: none; }
-	.out-links li:hover { color: var(--text); border-color: var(--text-faint); }
-	@media (max-width: 767px) and (pointer: coarse) { .out-links li { min-height: 44px; } }
+	.tagchips.out-links li:hover { color: var(--text); border-color: var(--text-faint); }
+	@media (max-width: 767px) and (pointer: coarse) { .tagchips.out-links li { min-height: 44px; } }
 	.tagchips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
 	.tagchips li { display: inline-flex; align-items: center; min-height: 30px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--text); font: 500 13px/1 var(--font-ui); }
 </style>

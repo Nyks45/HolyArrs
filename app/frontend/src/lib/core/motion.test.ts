@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { canViewTransition, navigateWithTransition, pressScale, reducedMotion, safeTransitionName, staggerDelay } from './motion.ts';
+import { canViewTransition, geckoEngine, navigateWithTransition, pressScale, reducedMotion, safeTransitionName, staggerDelay } from './motion.ts';
 
 describe('motion', () => {
 	it('staggers 30ms per item and stops after 8', () => {
@@ -35,7 +35,14 @@ describe('motion', () => {
 		expect(canViewTransition(undefined, false)).toBe(false);
 		expect(canViewTransition({}, false)).toBe(false);
 		expect(canViewTransition({ startViewTransition: () => undefined }, true)).toBe(false);
-		expect(canViewTransition({ startViewTransition: () => undefined }, false)).toBe(true);
+		expect(canViewTransition({ startViewTransition: () => undefined }, false, false)).toBe(true);
+		expect(canViewTransition({ startViewTransition: () => undefined }, false, true)).toBe(false);
+	});
+	it('recognises Gecko browsers but not Chromium or Safari', () => {
+		expect(geckoEngine('Mozilla/5.0 (X11; Linux x86_64; rv:160.0) Gecko/20100101 Firefox/160.0')).toBe(true);
+		expect(geckoEngine('Mozilla/5.0 (X11; Linux x86_64; rv:160.0) Gecko/20100101 Zen/1.24.3b')).toBe(true);
+		expect(geckoEngine('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36')).toBe(false);
+		expect(geckoEngine('Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15')).toBe(false);
 	});
 	it('skips the transition without support or on same-page changes', async () => {
 		const nav = { complete: Promise.resolve(), from: { url: new URL('http://x/a') }, to: { url: new URL('http://x/a?k=1') } };

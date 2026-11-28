@@ -191,8 +191,13 @@ export const viewTransitionName: Action<HTMLElement, string | undefined | null> 
 	return { update: set, destroy: () => set(null) };
 };
 
-export function canViewTransition(doc: TransitionDoc | undefined = defaultDoc(), reduce = reducedMotion()): boolean {
-	return !reduce && typeof doc?.startViewTransition === 'function';
+// Gecko (Firefox, Zen, LibreWolf) can draw both pages stacked and stretched during a page-wide transition, so those browsers switch at once.
+export function geckoEngine(ua: string = typeof navigator === 'undefined' ? '' : navigator.userAgent): boolean {
+	return /\bGecko\/\d/.test(ua) && /\b(Firefox|Zen|LibreWolf|Waterfox|Floorp)\//.test(ua) && !/like Gecko/.test(ua);
+}
+
+export function canViewTransition(doc: TransitionDoc | undefined = defaultDoc(), reduce = reducedMotion(), gecko = geckoEngine()): boolean {
+	return !reduce && !gecko && typeof doc?.startViewTransition === 'function';
 }
 
 // Skips same-page and settings tab moves, where a page-wide transition would feel wrong.

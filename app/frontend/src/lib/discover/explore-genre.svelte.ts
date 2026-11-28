@@ -83,6 +83,8 @@ export function createExploreGenre(ctx: any) {
 		if (id !== null) rememberSpot();
 		if (id === null) url.searchParams.delete('genre');
 		else url.searchParams.set('genre', String(id));
+		// A genre page replaces an open subcategory.
+		url.searchParams.delete('cat');
 		genreLoaded = null;
 		void goto(url, { shallow: true, reset: false });
 		scrollTo({ top: 0, behavior: 'instant' });

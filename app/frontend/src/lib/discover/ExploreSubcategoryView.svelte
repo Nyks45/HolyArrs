@@ -8,11 +8,12 @@
 	import { cardAction, cardTmdb, discoverCard, ownedMark, ownedTitle, type ExploreCard, type OwnedIndex } from '#lib/ui/title-cards.ts';
 	import { type Audience } from '#lib/ui/title-status.ts';
 	import type { ExploreType } from './explore-type.ts';
-	import { categoryTitleHref, fetchCategoryBrowse, type CategorySummary } from './subcategories.ts';
+	import { categoryTitleHref, fetchCategoryBrowse, type CategoryBrowseAnswer, type CategorySummary } from './subcategories.ts';
 
 	let {
 		catId,
 		type,
+		hub = null,
 		categories = [],
 		owned,
 		manage = false,
@@ -25,6 +26,7 @@
 	}: {
 		catId: string;
 		type: ExploreType;
+		hub?: { id: string; name: string } | null;
 		categories?: CategorySummary[];
 		owned: OwnedIndex;
 		manage?: boolean;
@@ -45,16 +47,26 @@
 	);
 	let cards = $state<ExploreCard[]>([]);
 	let askSeq = 0;
+	// Later pages load as the grid's end comes near.
+	let page = $state(1);
+	let more = $state(false);
+	let loadingMore = $state(false);
+	let sentinel = $state<HTMLElement>();
+	const hubId = $derived(hub?.id ?? '');
+	const toCards = (id: string, items: CategoryBrowseAnswer['items']) => (items ?? []).map((d) => ({ ...discoverCard(d, `cat-${id}`), wide: d.backdrop ?? null }));
 
 	async function loadCat(id: string, t: ExploreType, signal?: AbortSignal) {
 		const seq = ++askSeq;
 		loading = true;
 		failed = false;
+		page = 1;
+		more = false;
 		try {
-			const res = await fetchCategoryBrowse(id, t, signal);
+			const res = await fetchCategoryBrowse(id, t, signal, { hub: hubId });
 			if (seq !== askSeq) return;
 			loaded = { id, type: t, name: res.name };
-			cards = (res.items ?? []).map((d) => ({ ...discoverCard(d, `cat-${id}`), wide: d.backdrop ?? null }));
+			cards = toCards(id, res.items);
+			more = !!res.more;
 		} catch {
 			if (seq === askSeq) {
 				failed = true;
@@ -65,9 +77,36 @@
 		}
 	}
 
+	async function loadMore() {
+		if (loadingMore || !more || loading || page >= 25) return;
+		const seq = askSeq, id = catId, next = page + 1;
+		loadingMore = true;
+		try {
+			const res = await fetchCategoryBrowse(id, type, undefined, { hub: hubId, page: next });
+			if (seq !== askSeq) return;
+			const seen = new Set(cards.map((c) => c.key));
+			const fresh = toCards(id, res.items).filter((c) => !seen.has(c.key));
+			cards = [...cards, ...fresh];
+			page = next;
+			more = !!res.more && fresh.length > 0;
+		} catch {
+			if (seq === askSeq) more = false;
+		} finally {
+			loadingMore = false;
+		}
+	}
+	$effect(() => {
+		const el = sentinel;
+		if (!el) return;
+		const io = new IntersectionObserver((entries) => { if (entries.some((e) => e.isIntersecting)) void loadMore(); }, { rootMargin: '900px 0px' });
+		io.observe(el);
+		return () => io.disconnect();
+	});
+
 	$effect(() => {
 		const id = catId;
 		const t = type;
+		void hubId;
 		if (!id) return;
 		const ac = new AbortController();
 		void loadCat(id, t, ac.signal);
@@ -84,9 +123,9 @@
 				<span>Explore</span>
 			</button>
 			<div class="cat-title">
-				<h2>{name}</h2>
+				<h2>{name}{#if hub}<span class="cat-hub"> · {hub.name}</span>{/if}</h2>
 				{#if !loading && !failed}
-					<span class="cat-count">{cards.length} {cards.length === 1 ? 'title' : 'titles'}</span>
+					<span class="cat-count">{cards.length}{more ? '+' : ''} {cards.length === 1 ? 'title' : 'titles'}</span>
 				{/if}
 			</div>
 		</div>
@@ -142,6 +181,7 @@
 				</li>
 			{/each}
 		</ul>
+		{#if more}<div class="cat-more" bind:this={sentinel} aria-hidden="true">{#if loadingMore}<SkGrid kind="wide" min="var(--title-item)" count={4} />{/if}</div>{/if}
 	{/if}
 </section>
 
@@ -162,6 +202,8 @@
 	.cat-title { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
 	.cat-title h2 { margin: 0; font: 700 22px/1.2 var(--font-display); color: var(--text); }
 	.cat-count { font: 600 12.5px/1 var(--font-ui); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+	.cat-hub { margin-left: .3em; color: var(--text-muted); font-weight: 600; }
+	.cat-more { min-height: 1px; margin-top: 18px; }
 	.cat-grid {
 		display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--title-item, 240px), 1fr));
 		gap: 18px 8px; margin: 0; padding: 0; list-style: none;

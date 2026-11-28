@@ -133,7 +133,6 @@
 		if (id) url.searchParams.set('cat', id);
 		else url.searchParams.delete('cat');
 		url.searchParams.delete('genre');
-		url.searchParams.delete('hub');
 		if (type === 'music') {
 			type = 'all';
 			url.searchParams.delete('type');
@@ -582,6 +581,7 @@
 		<ExploreSubcategoryView
 			{catId}
 			{type}
+			hub={hubView.hubOn && hubView.hubId ? { id: hubView.hubId, name: hubView.info?.name ?? hubView.hubId } : null}
 			categories={sheetCategories.length ? sheetCategories : subcategories}
 			{owned}
 			{manage}

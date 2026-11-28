@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -284,8 +285,12 @@ func (h *Handlers) browsePage(ctx context.Context, r *http.Request, sw string) (
 // browseItems fetches category c for the tab (both kinds merged by
 // popularity), without titles above the rating limit max. Never-add
 // titles are left to browseDropNever.
-func (h *Handlers) browseItems(ctx context.Context, src ExploreSource, c engine.Category, sw string, kid bool, max string) ([]engine.Item, error) {
-	if c.ID == "awards" {
+func (h *Handlers) browseItems(ctx context.Context, src ExploreSource, c engine.Category, sw string, kid bool, max string, scope ...browseScope) ([]engine.Item, error) {
+	sc := browseScope{}
+	if len(scope) > 0 {
+		sc = scope[0]
+	}
+	if c.ID == "awards" && sc.zero() {
 		if merged, ok, err := h.awardItems(ctx, src, c, sw, kid); ok {
 			if err != nil || max == "" {
 				return merged, err
@@ -299,7 +304,7 @@ func (h *Handlers) browseItems(ctx context.Context, src ExploreSource, c engine.
 	var group sync.WaitGroup
 	for i, q := range requests {
 		group.Go(func() {
-			lists[i], errs[i] = src.List(ctx, q)
+			lists[i], errs[i] = src.List(ctx, sc.apply(q))
 		})
 	}
 	group.Wait()
@@ -457,7 +462,13 @@ func (h *Handlers) searchBrowseCategory(w http.ResponseWriter, r *http.Request) 
 	if h.KidLimited(w, r) {
 		return
 	}
-	items, err := h.browseItems(r.Context(), h.LiveExplore(r.Context()), c, sw, kid, h.KidMax(r))
+	scope := hubBrowseScope(q.Get("hub"))
+	scope.Page, _ = strconv.Atoi(q.Get("page"))
+	if scope.Page > 500 {
+		webserver.Fail(w, http.StatusBadRequest, "page must be 500 or less")
+		return
+	}
+	items, err := h.browseItems(r.Context(), h.LiveExplore(r.Context()), c, sw, kid, h.KidMax(r), scope)
 	if err == nil {
 		items, err = h.browseDropNever(r.Context(), items)
 	}
@@ -465,7 +476,9 @@ func (h *Handlers) searchBrowseCategory(w http.ResponseWriter, r *http.Request) 
 		webserver.Internal(w, "api", err)
 		return
 	}
-	if len(items) > browseCategoryMax {
+	// Later pages come whole; the first page keeps its short, fast answer.
+	more := len(items) > 0
+	if scope.Page <= 1 && len(items) > browseCategoryMax {
 		items = items[:browseCategoryMax]
 	}
 	views, err := h.ExploreViews(r.Context(), r, []engine.Row{{ID: "browse-" + c.ID, Type: "browse", Title: c.Name, Items: items}})
@@ -479,5 +492,5 @@ func (h *Handlers) searchBrowseCategory(w http.ResponseWriter, r *http.Request) 
 		out = views[0].Items
 	}
 	h.Caching(w, r, "private, no-cache")
-	webserver.WriteJSON(w, http.StatusOK, map[string]any{"type": sw, "id": c.ID, "name": c.Name, "section": c.Section, "items": out})
+	webserver.WriteJSON(w, http.StatusOK, map[string]any{"type": sw, "id": c.ID, "name": c.Name, "section": c.Section, "items": out, "more": more})
 }

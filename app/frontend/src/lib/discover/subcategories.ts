@@ -22,6 +22,8 @@ export interface CategoryBrowseAnswer {
 	name: string;
 	section: string;
 	items: ProviderItem[];
+	/** True while a later page may hold more titles. */
+	more?: boolean;
 }
 
 export interface CategorySearchAnswer {
@@ -79,10 +81,14 @@ export async function fetchSubcategories(
 export async function fetchCategoryBrowse(
 	id: string,
 	type: ExploreType | string = 'all',
-	signal?: AbortSignal
+	signal?: AbortSignal,
+	opts: { hub?: string; page?: number } = {}
 ): Promise<CategoryBrowseAnswer> {
 	const sw = subcatSwitch(type);
 	const params = new URLSearchParams({ type: sw, id: id.trim() });
+	// A hub narrows the subcategory (Legal under K-Drama lists Korean legal titles).
+	if (opts.hub) params.set('hub', opts.hub);
+	if (opts.page && opts.page > 1) params.set('page', String(opts.page));
 	return api.get<CategoryBrowseAnswer>(`/explore/browse/category?${params.toString()}`, signal);
 }
 

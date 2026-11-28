@@ -109,11 +109,11 @@
 	.types-mark { height: 0; margin-top: -32px; }
 	.types { position: sticky; top: calc(var(--topbar) + 10px); z-index: 20; display: flex; justify-content: center; margin-top: -12px; pointer-events: none; }
 	.types :global(.ui-seg) { pointer-events: auto; transition: transform var(--bar-glide), box-shadow var(--bar-glide), background-color var(--bar-glide); transform-origin: top center; }
-	.types.stuck :global(.ui-seg) { transform: scale(0.9); background: color-mix(in srgb, var(--surface-2) 70%, transparent); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); box-shadow: 0 10px 30px rgb(0 0 0 / 0.28), 0 0 0 0.5px color-mix(in srgb, var(--text) 14%, transparent); }
+	.types.stuck :global(.ui-seg) { transform: scale(0.9); background: color-mix(in srgb, var(--surface-2) 93%, transparent); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); box-shadow: 0 10px 30px rgb(0 0 0 / 0.28), 0 0 0 0.5px color-mix(in srgb, var(--text) 14%, transparent); }
 	.types.stuck { --seg-hit: 49px; }
 	@media (prefers-reduced-motion: reduce) { .types :global(.ui-seg), .types :global(.ui-seg .thumb), .genre-pick :global(.trigger) { transition: none; } }
 	@media (max-width: 767px) { .types { top: max(16px, env(safe-area-inset-top)); max-width: 100%; } }
-	@media (max-width: 767px) { .types :global(.ui-seg) { flex: 1 1 auto; display: grid; width: auto; min-width: 0; } .types :global(.ui-seg button) { padding: 0 8px; } .genre-pick { flex: none; min-width: 0; } .genre-pick :global(.trigger) { max-width: 36vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } }
+	@media (max-width: 767px) { .types :global(.ui-seg) { flex: 1 1 auto; display: grid; width: auto; min-width: 0; } .types :global(.ui-seg button) { padding: 0 6px; white-space: nowrap; font-size: 13px; } .genre-pick { flex: none; min-width: 0; } .genre-pick :global(.trigger) { max-width: 36vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } }
 	@media (max-width: 479px) { .types :global(.ui-seg button) { padding: 0 6px; font-size: 13px; min-width: 0; } .genre-pick { margin-left: 6px; } .genre-pick :global(.trigger) { padding: 0 12px; font-size: 13px; } }
 	@media (min-width: 360px) and (max-width: 479px) { .types :global(.ui-seg button svg) { display: none; } }
 	@media (max-width: 359px) {
@@ -122,7 +122,7 @@
 	.genre-pick { pointer-events: auto; margin-left: 8px; display: flex; align-items: center; }
 	.genre-pick :global(.trigger) { min-height: 36px; border-radius: 10px; padding: 0 14px; font: 600 14px/1 var(--font-ui); background: var(--surface-2); color: var(--text); transition: transform var(--bar-glide); transform-origin: top center; }
 	@media (pointer: coarse) { .genre-pick :global(.trigger) { min-height: 44px; } }
-	.types.stuck .genre-pick :global(.trigger) { transform: scale(0.9); background: color-mix(in srgb, var(--surface-2) 70%, transparent); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); box-shadow: 0 10px 30px rgb(0 0 0 / 0.28), 0 0 0 0.5px color-mix(in srgb, var(--text) 14%, transparent); }
+	.types.stuck .genre-pick :global(.trigger) { transform: scale(0.9); background: color-mix(in srgb, var(--surface-2) 93%, transparent); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); box-shadow: 0 10px 30px rgb(0 0 0 / 0.28), 0 0 0 0.5px color-mix(in srgb, var(--text) 14%, transparent); }
 	:global(html[data-look='minimal']) .types.stuck :global(.ui-seg), :global(html[data-look='minimal']) .types.stuck .genre-pick :global(.trigger) { background: var(--surface-2); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--text) 14%, transparent); }
 	.genre-pick :global(.panel) { max-height: min(calc(100dvh - var(--topbar, 64px) - 96px), 560px); padding: 0; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--text) 28%, transparent) transparent; }
 	.genre-pick :global(.panel::-webkit-scrollbar) { width: 8px; }

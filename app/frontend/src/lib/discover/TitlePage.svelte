@@ -4,16 +4,17 @@
 	import { t, appLocale } from '#lib/core/i18n/i18n.svelte.ts';
 	import '#lib/ui/title-page.css';
 	import PageLoader from '#lib/ui/PageLoader.svelte';
-	import TitleHero, { richMetadata, runtimeWords, type RichMeta } from '#lib/ui/TitleHero.svelte';
+	import { richMetadata, runtimeWords, type RichMeta } from '#lib/ui/TitleHero.svelte';
 	import ActionButton from '#lib/ui/ActionButton.svelte';
 	import Shelf from '#lib/ui/Shelf.svelte';
 	import TitleRows from '#lib/ui/TitleRows.svelte';
 	import FollowButton from '#lib/ui/FollowButton.svelte';
-	import type { InfoDetails } from '#lib/ui/title-info.ts';
+	import { readInfo, type InfoDetails } from '#lib/ui/title-info.ts';
+	import { defaultRegion, serviceRegion } from '#lib/ui/region.ts';
 	import { tmdbArtName } from '#lib/ui/title-cards.ts';
-	import { loadExtras, scoreName, type OutsideScore } from '#lib/ui/outside-ratings.ts';
+	import { loadExtras, type OutsideScore } from '#lib/ui/outside-ratings.ts';
 	import { ratingPicks, shownRatings } from '#lib/ui/rating-picks.svelte.ts';
-	import { loadWikiFacts, type WikiAward } from '#lib/ui/wiki-facts.ts';
+	import { loadWikiFacts } from '#lib/ui/wiki-facts.ts';
 	import ActionMenu from '#lib/ui/ActionMenu.svelte';
 	import PersonCircle from '#lib/ui/PersonCircle.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
@@ -24,6 +25,7 @@
 	import { audienceOf, titleStatus } from '#lib/ui/title-status.ts';
 	import TitleScores from './TitleScores.svelte';
 	import TitleTrailers from './TitleTrailers.svelte';
+	import TitleShowcase from './TitleShowcase.svelte';
 	import { createOwnedTitle } from './title-owned.svelte.ts';
 	import { NoDownloaderNote } from '#lib/downloads/index.ts';
 	import { WatchLinks } from '#lib/mediaservers/index.ts';
@@ -362,6 +364,17 @@
 	const certOf = (r?: string) => (r && !/\/\s*10$/.test(r) ? r : undefined);
 	// The details answer read by the rows (seasons for a show).
 	let info = $state<InfoDetails | null>(null);
+	// The fact column needs these details on first view, before the Recommendations tab is opened.
+	$effect(() => {
+		const k = kind, id = tmdb;
+		info = null;
+		if (!id || !isDetailKind(k)) return;
+		const ctl = new AbortController();
+		api.get<Record<string, unknown>>(`/metadata/${k}/${encodeURIComponent(id)}?region=${encodeURIComponent(serviceRegion(defaultRegion()))}`, ctl.signal)
+			.then((raw) => (info = readInfo(k, id, raw)))
+			.catch(() => {});
+		return () => ctl.abort();
+	});
 	const seasons = $derived((info?.tmdb === details?.tmdb ? info?.seasons : undefined) ?? details?.seasons ?? []);
 	const resumeTarget = $derived(kind === 'show' ? resolveShowResumeTarget(seasons, watchLatest, watchEpisodes) : null);
 	const defaultSeason = $derived(kind === 'show' ? pickDefaultSeason(seasons, watchLatest, watchEpisodes) : null);
@@ -411,32 +424,19 @@
 	const money = (n?: number) => (n ? new Intl.NumberFormat(appLocale('en-US'), { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }).format(n) : '');
 	const statusWord = (s?: string) => (!s || s === 'Released' ? '' : s.charAt(0) + s.slice(1).toLowerCase());
 	// Award badges ("3 Oscars"), in the hero or under it with the facts line.
-	let awards = $state<WikiAward[]>([]);
 	let awardBadges = $state<string[]>([]);
 	$effect(() => {
 		const k = kind, id = tmdb;
-		awards = [];
 		awardBadges = [];
 		if (!isDetailKind(k) || !id) return;
 		let live = true;
-		void loadWikiFacts(api.get, k, id).then((f) => live && ((awards = f.awards), (awardBadges = f.badges.slice(0, 2))));
+		void loadWikiFacts(api.get, k, id).then((f) => live && (awardBadges = f.badges.slice(0, 2)));
 		return () => (live = false);
 	});
 	const topScores = $derived(picked.scores);
 	const topTmdb = $derived(picked.tmdb);
 	const tags = $derived((info?.keywords ?? []).slice(0, 10));
 	const cert = $derived(details ? (rich?.certification ?? certOf(details.rating) ?? '') : '');
-	// About band: every score this title has (first is the big one), the award count, and three fact columns.
-	const allScores = $derived.by(() => {
-		const out: { name: string; value: string; votes: string }[] = [];
-		// Every score on one scale (out of 10, one decimal) so rows line up and compare at a glance.
-		const ten = (v: number, max: number) => ((Math.round((v / max) * 100) / 10).toFixed(1));
-		for (const o of outside) out.push({ name: scoreName(o.source), value: ten(o.value, o.max), votes: o.votes ? o.votes.toLocaleString(appLocale()) : '' });
-		const t = rich?.score ?? scoreOf(details?.rating);
-		if (t) out.push({ name: 'TMDB', value: ten(t, 10), votes: '' });
-		return out;
-	});
-	const awardWins = $derived(awards.filter((a) => a.won).length);
 	const atvCols = $derived.by(() => {
 		if (!details) return [];
 		const d = details;
@@ -508,25 +508,25 @@
 {#if details}
 	{@const d = details}
 	<article class="tp" data-testid="title-detail">
-		<TitleHero
-			title={d.name}
+		<TitleShowcase
 			kind={d.kind}
 			tmdb={d.tmdb}
+			name={d.name}
+			originalName={info?.originalTitle || d.original_title}
 			poster={d.poster}
 			backdrop={d.backdrop}
-			backdrops={rich?.backdrops}
 			logo={rich?.logo}
-			crumbIcon={d.kind === 'show' ? 'tv' : 'compass'}
-			breadcrumb={isDetailKind(kind) ? [sectionCrumb, ...crumbs.slice(1)] : []}
-			meta={heroFacts(d)}
-			showFacts={false}
-			ratings={false}
-			tagline={info?.tagline}
-			certification={rich?.certification ?? certOf(d.rating)}
-			score={rich?.score ?? scoreOf(d.rating)}
-			status={hiddenShown(d) ? 'turned_down' : d.neverAdd || d.ask ? heroPill(d).kind : undefined}
-			statusLabel={hiddenShown(d) ? hiddenPill(d.hides ?? [], people) : d.neverAdd || d.ask ? heroPill(d).label : undefined}
-			vtName={tmdbArtName(d.kind, d.tmdb)}
+			genres={d.genres}
+			overview={d.overview}
+			facts={[{ label: 'Type', value: d.kind === 'show' ? 'TV' : 'Movie' }, ...(makers.length ? [{ label: madeBy, value: makers.slice(0, 2).map((p) => p.name).join(', ') }] : []), ...(stars.length ? [{ label: t('discover.titlePage.starring'), value: stars.slice(0, 3).map((p) => p.name).join(', ') }] : []), ...atvCols.flatMap((c) => c.rows).filter((r) => r.label !== t('discover.titlePage.otherNames')), ...(awardBadges.length ? [{ label: 'Awards', value: awardBadges.join(' · ') }] : [])]}
+			themes={tags.slice(0, 6)}
+			studios={network ? [network] : (info?.studios.slice(0, 3) ?? [])}
+			languages={info?.spokenLanguages.length ? info.spokenLanguages.slice(0, 4) : lang ? [lang] : []}
+			videos={rich?.videos ?? []}
+			nextAir={d.kind === 'show' ? (info?.nextEpisode ?? null) : null}
+			pill={hiddenShown(d) ? hiddenPill(d.hides ?? [], people) : d.neverAdd || d.ask ? heroPill(d).label : ''}
+			showTabs={!(owned && ownTab !== 'overview')}
+			episodes={d.kind === 'show' ? seasonGrid : undefined}
 		>
 			{#snippet byline()}{#if owned}<AskedByLine {askers} />{#if ownState.kind !== 'have' && ownState.kind !== 'downloading'}<SearchOutcomeLine titleId={owned.id} />{/if}{/if}{/snippet}
 			{#snippet actions()}
@@ -577,13 +577,25 @@
 				{#if d.kind === 'show' || d.kind === 'movie'}<FollowButton titleId={owned?.id} tmdb={d.tmdb} kind={d.kind} />{/if}
 				{#if mayHide && !owned}<ActionMenu label={t('discover.titlePage.moreActions')} caption={t('discover.titlePage.more')} icon="more" items={[hideItem]} />{/if}
 			{/snippet}
-		</TitleHero>
+			{#snippet scores()}{#if topScores.length || topTmdb}<TitleScores scores={topScores} tmdb={topTmdb} variant="mono" />{/if}{/snippet}
+			{#snippet library()}
+				{#if !owned && ownedFailed && libraryId}<LoadError hasData={false} message={t('discover.titlePage.couldNotLoadThis2')} onretry={() => libraryId && void own.loadOwned(libraryId)} />{/if}
+				{#if owned}{@render ownTabBar()}<NoDownloaderNote kind={owned.no_downloader} {manage} /><TitleLibrary {own} {folders} {rules} /><TitleOwnedSheets {own} />{/if}
+			{/snippet}
+			{#snippet relations()}{@render linkLine()}{@render castRow()}{@render trailers()}<PluginCards cards={pluginSections} testid="title-plugin-sections" />{/snippet}
+			{#snippet recommendations()}
+				<TitleRows kind={d.kind} tmdb={d.tmdb} band={false} quickAsk={QuickAsk} ownAsk={d.kind === 'movie' && d.ask?.mine ? d.ask.state : undefined} onasked={(a) => { if (details && !a.four_k) details = { ...details, ask: { id: a.id, state: a.state, state_label: a.state_label, mine: true, people: a.people.length } }; }} onadded={ownAdded} />
+			{/snippet}
+		</TitleShowcase>
 
 		{#snippet ask4kButton(td: TitleDetails)}
 			{@const offer = fourKMovies ? fourKOffer({ ...td, titleId: td.titleId ?? owned?.id }) : null}
 			{#if offer}
 				<ActionButton icon="wish" pill label={offer === 'asked' ? t('discover.titlePage.askedFor4k', { name: td.name }) : t('discover.titlePage.askFor4k', { name: td.name })} caption={phone ? '4K' : offer === 'asked' ? t('discover.titlePage.requested4kCaption') : t('discover.titlePage.request4k')} disabled={offer === 'asked'} onclick={() => askMovieDialog?.open({ tmdb: td.tmdb, name: td.name, year: td.year, ask: td.ask, ask4k: td.ask4k, fourKOnly: true, inLibrary: !!(td.titleId ?? owned?.id), has4k: td.has4k })} data-testid="hero-ask-4k" />
 			{/if}
+		{/snippet}
+		{#snippet seasonGrid()}
+					<SeasonFolds showcase tmdb={d.tmdb} {seasons} fallback={d.backdrop} showMeta={{ name: d.name, year: d.year, imdb: d.imdb ?? showExt?.imdb ?? '', original_title: d.original_title, genres: d.genres, original_language: d.original_language, origin_country: d.origin_country }} {defaultSeason} activeTarget={session.kid ? undefined : resumeTarget} progress={watchEpisodesByKey} onstream={session.kid ? undefined : (s, e) => void goto(watchHref(true, s, e))} onstreamSources={session.kid ? undefined : (s, e) => void goto(watchHref(false, s, e, 'sources'))} onToggleWatched={session.kid ? undefined : toggleEpisodeWatched} onMarkSeasonWatched={session.kid ? undefined : markSeasonWatched} />
 		{/snippet}
 		{#snippet castRow()}
 			{#if d.cast.length}
@@ -594,29 +606,12 @@
 				</Shelf>
 			{/if}
 		{/snippet}
-		{#snippet names(list: { name: string; id?: string }[], max: number)}
-			{#each list.slice(0, max) as p, i (p.name + i)}{#if i}{', '}{/if}{#if personHref(p.id)}<a href={personHref(p.id)}>{p.name}</a>{:else}{p.name}{/if}{/each}
-		{/snippet}
-		{#snippet story()}
-			{#if d.overview}<p class="lead" data-testid="title-story" dir="auto">{d.overview}</p>{/if}
-		{/snippet}
 		{#snippet trailers()}
 			<TitleTrailers kind={d.kind} tmdb={d.tmdb} title={d.name} videos={rich?.videos ?? []} art={[d.backdrop, ...(rich?.backdrops ?? [])]} />
 		{/snippet}
 
-		{#snippet factsLine()}
-			{@const parts = heroFacts(d).slice(0, heroFacts(d).length - d.genres.slice(0, d.kind === 'show' ? 2 : 3).length)}
-			<div class="calm-meta">
-				{#each parts as f, i (i)}{#if i}<span class="sep" aria-hidden="true">·</span>{/if}<span>{f}</span>{/each}
-				{#if cert}<span class="sep" aria-hidden="true">·</span><span class="fb cert">{cert}</span>{/if}
-				{#if topScores.length || topTmdb}<span class="sep" aria-hidden="true">·</span><a class="top-scores" href="#ratings" title={t('discover.titlePage.allRatings')}><TitleScores scores={topScores} tmdb={topTmdb} variant="mono" /></a>{/if}
-			</div>
-		{/snippet}
 		{#snippet linkLine()}
 			{#if outLinks.length}<ul class="tagchips out-links" data-testid="title-links">{#each outLinks as l (l.name)}<li><a href={l.href} target="_blank" rel="noopener noreferrer">{l.name} ↗</a></li>{/each}</ul>{/if}
-		{/snippet}
-		{#snippet tagLine()}
-			{#if tags.length}<ul class="tagchips quiet" data-testid="title-tags">{#each tags.slice(0, 5) as t (t)}<li>{t}</li>{/each}</ul>{/if}
 		{/snippet}
 		{#snippet ownTabBar()}
 			<div class="own-tabs" role="tablist" data-testid="own-tabs">
@@ -627,76 +622,6 @@
 				{/each}
 			</div>
 		{/snippet}
-		{#if !owned && ownedFailed && libraryId}
-			<LoadError hasData={false} message={t('discover.titlePage.couldNotLoadThis2')} onretry={() => libraryId && void own.loadOwned(libraryId)} />
-		{/if}
-		{#if owned}
-			{@render ownTabBar()}
-			<NoDownloaderNote kind={owned.no_downloader} {manage} />
-			<TitleLibrary {own} {folders} {rules} />
-			<TitleOwnedSheets {own} />
-		{/if}
-		{#if !(owned && ownTab !== 'overview')}
-		<div class="side" data-testid="title-side">
-			<div class="d-left">{@render factsLine()}{@render linkLine()}{@render story()}{@render tagLine()}</div>
-			<dl class="side-credits">
-				{#if makers.length}<div><dt>{madeBy}</dt><dd>{@render names(makers, 2)}</dd></div>{/if}
-				{#if stars.length}<div><dt>{t('discover.titlePage.starring')}</dt><dd>{@render names(stars, 3)}</dd></div>{/if}
-				{#if d.genres.length}<div><dt>{t('discover.titlePage.genres')}</dt><dd>{d.genres.slice(0, 3).join(', ')}</dd></div>{/if}
-				{#if info?.contentNotes.length}<div data-testid="title-content-notes"><dt>{t('discover.titlePage.contains')}</dt><dd>{info.contentNotes.join(', ')}</dd></div>{/if}
-				{#if network}<div><dt>{t('discover.titlePage.network')}</dt><dd>{network}</dd></div>
-				{:else if info?.studios.length}<div><dt>{t('discover.titlePage.studio')}</dt><dd>{info.studios[0]}</dd></div>{/if}
-			</dl>
-		</div>
-		{@render trailers()}
-		{#if d.kind === 'show'}
-			<SeasonFolds tmdb={d.tmdb} {seasons} fallback={d.backdrop} showMeta={{ name: d.name, year: d.year, imdb: d.imdb ?? showExt?.imdb ?? '', original_title: d.original_title, genres: d.genres, original_language: d.original_language, origin_country: d.origin_country }} {defaultSeason} activeTarget={session.kid ? undefined : resumeTarget} progress={watchEpisodesByKey} onstream={session.kid ? undefined : (s, e) => void goto(watchHref(true, s, e))} onstreamSources={session.kid ? undefined : (s, e) => void goto(watchHref(false, s, e, 'sources'))} onToggleWatched={session.kid ? undefined : toggleEpisodeWatched} onMarkSeasonWatched={session.kid ? undefined : markSeasonWatched} />
-		{/if}
-		{@render castRow()}
-		<PluginCards cards={pluginSections} testid="title-plugin-sections" />
-		<TitleRows kind={d.kind} tmdb={d.tmdb} bind:info band={false} quickAsk={QuickAsk} ownAsk={d.kind === 'movie' && d.ask?.mine ? d.ask.state : undefined} onasked={(a) => { if (details && !a.four_k) details = { ...details, ask: { id: a.id, state: a.state, state_label: a.state_label, mine: true, people: a.people.length } }; }} onadded={ownAdded} />
-			<!-- About band: a lighter strip to the page edges, a row of cards (the title, every score, awards), three columns of label and value facts, then links out. -->
-			<section class="atv" data-testid="title-ledger">
-				<h2 class="atv-h">{t('discover.titlePage.about')}</h2>
-				<div class="atv-cards">
-					{#if owned}
-						<article class="atv-card" data-testid="own-file-card">
-							<h3>{ownState.label}</h3>
-							<dl class="atv-rows">
-								{#if ownBadges.length}<div><dt>{t('discover.titlePage.quality')}</dt><dd>{ownBadges.join(' · ')}</dd></div>{/if}
-								{#if owned.size_bytes}<div><dt>{t('discover.titlePage.size')}</dt><dd>{bytes(owned.size_bytes)}</dd></div>{/if}
-								{#if owned.added_at}<div><dt>{t('discover.titlePage.added')}</dt><dd>{ago(owned.added_at)}</dd></div>{/if}
-								<div><dt>{t('discover.titlePage.keptUpToDate')}</dt><dd>{owned.keep_up_to_date ? t('discover.titlePage.yes') : t('discover.titlePage.no')}</dd></div>
-							</dl>
-						</article>
-					{:else}
-					<article class="atv-card">
-						<h3>{d.name}</h3>
-						<p class="atv-cap">{d.genres.slice(0, 2).join(', ') || (d.kind === 'show' ? t('discover.titlePage.tvShow') : t('discover.titlePage.movie'))}</p>
-						{#if d.overview}<p class="atv-text clamp">{d.overview}</p>{/if}
-					</article>
-					{/if}
-					{#if allScores.length}
-						<article class="atv-card">
-							<h3 id="ratings">{t('discover.titlePage.ratings')}</h3>
-							<div class="atv-scores" ><TitleScores scores={outside} tmdb={rich?.score ?? scoreOf(d.rating)} variant="list" outOf10 /></div>
-						</article>
-					{/if}
-					{#if awards.length}
-						<article class="atv-card">
-							<h3>{awardBadges[0] ?? t('discover.titlePage.winsCount', { n: awardWins })}</h3>
-								<dl class="atv-rows">
-									<div><dt>{t('discover.titlePage.wins')}</dt><dd>{awardWins}</dd></div>
-									<div><dt>{t('discover.titlePage.nominations')}</dt><dd>{awards.length - awardWins}</dd></div>
-								</dl>
-						</article>
-					{/if}
-				</div>
-				<h3 class="atv-h3">{t('discover.titlePage.information')}</h3>
-				<dl class="atv-grid">{#each atvCols.flatMap((c) => c.rows) as r (r.label)}<div><dt>{r.label}</dt><dd>{r.value}</dd></div>{/each}</dl>
-			</section>
-
-		{/if}
 		{#if mayHide}<HideSheet bind:open={hideOpen} kind={d.kind} tmdb={d.tmdb} name={d.name} genres={d.genres} hides={d.hides ?? []} {people} onchange={hidesChanged} />{/if}
 		<Sheet bind:open={allCast} title={t('discover.titlePage.castAndCrew')} size="lg">
 			<ul class="all-grid people">
@@ -724,10 +649,6 @@
 <style>
 	.all-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 18px 14px; margin: 0; padding: 0; list-style: none; }
 	.all-grid.people { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
-	.lead { max-width: 72ch; margin: 0; font: 400 16px/1.55 var(--font-ui); color: var(--text); }
-	.d-left { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
-	.top-scores { display: contents; color: inherit; text-decoration: none; }
-	#ratings { scroll-margin-top: 90px; }
 	.own-tabs { display: flex; gap: 6px; }
 	.own-tabs button { position: relative; display: inline-flex; align-items: center; gap: 6px; height: 40px; padding: 0 14px; border: 0; background: none; color: var(--text-muted); font: 600 14px/1 var(--font-ui); cursor: pointer; }
 	.own-tabs button.on { color: var(--text); }
@@ -740,48 +661,11 @@
 	
 	.own-badge { margin-left: 6px; display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: var(--fail); color: #fff; font-size: 11px; }
 	/* Every separator is one fixed 21px lead before its item, and the row is pulled 21px left and clipped there, so a line that wraps never starts with a lone dot. */
-	.calm-meta .sep { flex: none; width: 21px; text-align: center; color: var(--text-faint); }
-	.calm-meta { margin: 0; margin-inline-start: -21px; clip-path: inset(-8px -8px -8px 21px); }
-	.calm-meta > :first-child { margin-inline-start: 21px; }
-	.calm-meta :global(.mono li + li) { margin-left: 0; }
-	.calm-meta :global(.mono li + li::before) { flex: none; width: 16px; margin: 0; text-align: center; }
-	.side-credits dt { color: var(--text-muted); font-weight: 500; }
-	.side-credits a { color: inherit; }
-	.side { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 20px 48px; align-items: start; padding-bottom: 8px; }
-	.side-credits { display: grid; gap: 10px; margin: 0; font: 500 14px/1.45 var(--font-ui); }
-	.side-credits div { display: flex; flex-wrap: wrap; gap: 0 6px; }
-	.side-credits dd { margin: 0; color: var(--text); }
-	@media (max-width: 899px) { .side { grid-template-columns: minmax(0, 1fr); } }
-	.calm-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 0; color: var(--text-muted); font: 500 15.5px/1.4 var(--font-ui); }
-	.d-left .tagchips.quiet { margin-top: -6px; }
-	.atv { position: relative; margin-top: 32px; padding: 32px 0 40px; background: var(--atv-band); box-shadow: 0 0 0 100vmax var(--atv-band); clip-path: inset(0 -100vmax -100vmax -100vmax); --atv-band: color-mix(in srgb, var(--text) 7%, var(--bg)); --atv-card: rgb(255 255 255 / 10%); }
-	:global([data-theme='light']) .atv { --atv-band: color-mix(in srgb, var(--text) 5%, var(--bg)); --atv-card: var(--bg); }
-	.atv-scores :global(.list li) { padding: 0; border-top: 0; font-size: 15px; line-height: 20px; }
-	.atv-scores :global(.list .n) { color: var(--text-muted); font: 400 15px/20px var(--font-ui); }
-	.atv-scores :global(.list .v) { color: var(--text-muted); font: 400 15px/20px var(--font-ui); font-variant-numeric: tabular-nums; }
-	.atv-h { margin: 0 0 13px; color: var(--text); font: 700 17px/21px var(--font-ui); }
-	.atv-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
-	.atv-card { min-width: 0; padding: 14px 16px 16px; border-radius: 12px; background: var(--atv-card); }
-	.atv-card h3 { margin: 0; padding-bottom: 8px; color: var(--text); font: 700 17px/21px var(--font-ui); }
-	.atv-cap { margin: 0; padding-bottom: 5px; color: var(--text-muted); font: 400 11px/14px var(--font-ui); text-transform: uppercase; }
-	.atv-text { margin: 0; color: var(--text-muted); font: 400 15px/20px var(--font-ui); }
-	.atv-text.clamp { display: -webkit-box; -webkit-line-clamp: 4; line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
-	.atv-rows { display: grid; gap: 2px; margin: 0; }
-	.atv-rows div { display: flex; justify-content: space-between; gap: 12px; color: var(--text-muted); font: 400 15px/20px var(--font-ui); }
-	.atv-rows dd { margin: 0; color: var(--text-muted); font-variant-numeric: tabular-nums; }
-	.atv-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; margin: 0; }
-	.atv-grid dt { color: var(--text); font: 400 12px/16px var(--font-ui); }
-	.atv-grid dd { margin: 0; color: var(--text-muted); font: 400 12px/16px var(--font-ui); overflow-wrap: anywhere; }
-	.atv-h3 { margin: 22px 0 13px; color: var(--text); font: 700 17px/21px var(--font-ui); }
 	/* Links out sit under the facts line as small chips; the whole chip is the link, 44px tall on touch phones. */
-	.d-left .out-links { margin-top: -8px; }
 	.out-links li { padding: 0; min-height: 28px; color: var(--text-muted); font-size: 12px; }
 	.out-links a { display: inline-flex; align-items: center; min-height: inherit; padding: 0 12px; color: inherit; text-decoration: none; }
 	.out-links li:hover { color: var(--text); border-color: var(--text-faint); }
 	@media (max-width: 767px) and (pointer: coarse) { .out-links li { min-height: 44px; } }
-	@media (max-width: 899px) { .atv-cards { grid-template-columns: minmax(0, 1fr); } .atv-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; } }
-	.tagchips.quiet li { background: none; border: 1px solid var(--line); color: var(--text-muted); font-size: 12px; }
-	.fb { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 7px; border-radius: 5px; border: 1.5px solid currentColor; font: 700 11.5px/1 var(--font-ui); letter-spacing: .03em; white-space: nowrap; }
 	.tagchips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
 	.tagchips li { display: inline-flex; align-items: center; min-height: 30px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--text); font: 500 13px/1 var(--font-ui); }
 </style>

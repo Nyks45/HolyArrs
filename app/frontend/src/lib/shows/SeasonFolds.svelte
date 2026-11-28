@@ -36,7 +36,8 @@
 		onstreamSources,
 		onToggleWatched,
 		onMarkSeasonWatched,
-		progress = {}
+		progress = {},
+		showcase = false
 	}: {
 		tmdb: string;
 		seasons: { number: number; episodes: number; year?: number }[];
@@ -49,6 +50,7 @@
 		onToggleWatched?: (season: number, episode: number, epName: string, watched: boolean) => void | Promise<void>;
 		onMarkSeasonWatched?: (season: number, episodes: { number: number; name?: string }[], watched: boolean) => void | Promise<void>;
 		progress?: Record<string, EpProgress>;
+		showcase?: boolean;
 	} = $props();
 
 	let picked = $state<number | null>(null);
@@ -56,7 +58,7 @@
 	let epSearch = $state('');
 	let statusFilter = $state<'all' | 'out' | 'unwatched' | 'upcoming'>('all');
 	let sortAsc = $state(true);
-	let viewMode = $state<'list' | 'grid'>('list');
+	let viewMode = $state<'list' | 'grid'>(untrack(() => (showcase ? 'grid' : 'list')));
 	let expanded = $state(false);
 	// Best effort: the page works without anime data.
 	let anime = $state<AnimeView | null>(null);
@@ -192,6 +194,7 @@
 	{#if c.still && stillState[`${sNum}:${c.key}`] !== 'bad'}
 		<img src={sized(c.still, 'backdrop', 300)} alt="" loading="lazy" decoding="async" draggable="false" onload={() => (stillState[`${sNum}:${c.key}`] = 'ok')} onerror={() => (stillState[`${sNum}:${c.key}`] = 'bad')} />
 	{/if}
+	{#if showcase && c.runtime}<span class="ep-rt">{c.runtime}:00</span>{/if}
 	{#if c.release.badge}
 		<span class="ep-rel {c.release.status}">{c.release.badge}</span>
 	{/if}
@@ -205,7 +208,7 @@
 {/snippet}
 
 {#if seasons.length}
-	<section class="tp-section seasons" aria-labelledby="h-seasons" data-testid="season-row">
+	<section class="tp-section seasons" class:showcase aria-labelledby="h-seasons" data-testid="season-row">
 		<h2 id="h-seasons" class="tp-h2">{t('shows.folds.seasons')}</h2>
 		<div class="pills" role="group" aria-label={t('shows.picker.season')} use:wheelX>
 			{#each ordered as s (s.number)}
@@ -308,6 +311,17 @@
 											{@render stillArt(shown, c, epProg)}
 										</span>
 									{/if}
+									{#if showcase && viewMode === 'grid'}
+										<div class="ep-body sc-body">
+											<span class="ep-kick">Episode {c.key}</span>
+											{#if onstream && c.release.isReleased}<button type="button" class="ep-title-btn" onclick={() => onstream(shown, c.key)}>{c.rawName || c.title}</button>{:else}<b class="ep-name">{c.rawName || c.title}</b>{/if}
+											<div class="ep-foot">
+												<span class="xs muted">{isNextUp ? (activeTarget?.kind === 'resume' ? 'Resume' : 'Next up') : serverWords(c.line).split(' · ').find((x) => /\d{4}|today|in /i.test(x)) ?? ''}</span>
+												{#if c.release.isReleased && onstreamSources}<button type="button" class="ep-act-btn" title="Pick stream source" aria-label={`Sources for ${seasonName(shown)} ${c.title}`} onclick={() => onstreamSources(shown, c.key)}><Icon name="source" size={13} /></button>{/if}
+												{#if c.release.isReleased && onToggleWatched}<button type="button" class="ep-ring" class:done={!!epProg?.completed} aria-pressed={!!epProg?.completed} title={epProg?.completed ? 'Mark unwatched' : 'Mark watched'} aria-label={epProg?.completed ? `Mark ${c.title} unwatched` : `Mark ${c.title} watched`} onclick={() => onToggleWatched(shown, c.key, c.rawName, !epProg?.completed)}><Icon name="check" size={11} /></button>{/if}
+											</div>
+										</div>
+									{:else}
 									<div class="ep-body">
 										<div class="ep-title-row">
 											{#if onstream && c.release.isReleased}
@@ -336,6 +350,7 @@
 										<span class="xs muted">{serverWords(c.line)}</span>
 										{#if c.overview}<p class="ep-text">{c.overview}</p>{/if}
 									</div>
+									{/if}
 								</article>
 							{/each}
 						</div>
@@ -424,4 +439,20 @@
 	.ep-err p { margin: 0; }
 	.ep-sk { display: flex; gap: 12px; margin-top: 12px; }
 	.ep-sk > :global(*) { flex: 1; }
+
+	/* Title page layout: a dense grid of stills with a kicker, the name and a footer. */
+	.showcase > #h-seasons { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+	.showcase .ep-items.grid { grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 22px 18px; }
+	.showcase .ep-items.grid .still { border-radius: 4px; margin-bottom: 8px; }
+	.showcase .ep-items.grid .ep-rel { top: auto; bottom: 8px; }
+	.showcase .ep-items.grid .ep-done { display: none; }
+	.ep-rt { position: absolute; left: 8px; top: 8px; z-index: 2; padding: 3px 7px; border-radius: 4px; background: rgb(0 0 0 / 70%); color: #fff; font: 700 11px/1 var(--font-ui); font-variant-numeric: tabular-nums; }
+	.sc-body { gap: 2px; }
+	.ep-kick { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--text-muted); }
+	.sc-body .ep-name, .sc-body .ep-title-btn { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: start; }
+	.ep-foot { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--line); min-height: 34px; }
+	.ep-foot > span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.ep-ring { flex: none; display: grid; place-items: center; width: 18px; height: 18px; padding: 0; border-radius: 999px; border: 1.5px solid #22c55e; background: none; color: transparent; cursor: pointer; }
+	.ep-ring:hover { color: #22c55e; }
+	.ep-ring.done { background: #22c55e; color: #fff; }
 </style>

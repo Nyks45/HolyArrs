@@ -176,7 +176,7 @@
 {/if}
 
 <style>
-	.wp-pop { position: absolute; top: 62px; right: 24px; width: min(420px, calc(100vw - 32px)); max-height: min(74vh, 620px); z-index: 14; background: rgb(16 16 22 / 94%); border: 1px solid rgb(255 255 255 / 14%); border-radius: 16px; backdrop-filter: blur(22px); display: flex; flex-direction: column; box-shadow: 0 20px 50px rgb(0 0 0 / 60%); animation: wp-pop-in 150ms cubic-bezier(0.22, 1, 0.36, 1); }
+	.wp-pop { position: absolute; bottom: 122px; right: clamp(8px, 3vw, 36px); width: min(420px, calc(100vw - 32px)); max-height: min(62vh, 560px); z-index: 14; background: rgb(24 24 27 / 97%); border: 1px solid rgb(255 255 255 / 10%); border-radius: 12px; backdrop-filter: blur(22px); display: flex; flex-direction: column; box-shadow: 0 20px 50px rgb(0 0 0 / 60%); animation: wp-pop-in 150ms cubic-bezier(0.22, 1, 0.36, 1); }
 	@keyframes wp-pop-in { from { opacity: 0; transform: translateY(-6px) scale(0.985); } }
 	.wp-pop-head { display: flex; align-items: center; justify-content: space-between; padding: 13px 16px; border-bottom: 1px solid rgb(255 255 255 / 10%); }
 	.wp-pop-title { display: flex; align-items: center; gap: 8px; }
@@ -189,7 +189,7 @@
 	.wp-fallback-banner { padding: 7px 10px; border-radius: 8px; background: rgb(245 158 11 / 20%); color: #fcd34d; font-size: 12px; }
 	.wp-box { padding: 10px; border-radius: 10px; background: rgb(255 255 255 / 5%); display: flex; flex-direction: column; gap: 8px; }
 	.wp-label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: rgb(255 255 255 / 72%); }
-	.wp-label select, .wp-search-row input { height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid rgb(255 255 255 / 20%); background: rgb(28 28 34); color: #fff; font-size: 12.5px; }
+	.wp-label select, .wp-search-row input { height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid rgb(255 255 255 / 20%); background: rgb(24 24 27); color: #fff; font-size: 12.5px; }
 	.wp-search-row { display: flex; gap: 8px; }
 	.wp-search-row input { flex: 1; }
 	.wp-tab-row { display: flex; flex-wrap: wrap; gap: 5px; }
@@ -197,7 +197,7 @@
 	.wp-chip.on { background: #fff; color: #111; border-color: #fff; }
 	.wp-cand-list { display: flex; flex-direction: column; gap: 7px; }
 	.wp-cand { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 11px; border: 1px solid rgb(255 255 255 / 10%); border-radius: 10px; background: rgb(255 255 255 / 4%); }
-	.wp-cand.current { border-color: #e50914; background: rgb(229 9 20 / 16%); }
+	.wp-cand.current { border-color: rgb(255 255 255 / 55%); background: rgb(255 255 255 / 8%); }
 	.wp-cand-info { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 4px; }
 	.wp-cand-name { font-size: 12.5px; font-weight: 600; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 	.wp-cand-meta { display: flex; flex-wrap: wrap; gap: 4px; font-size: 11px; color: rgb(255 255 255 / 72%); }
@@ -210,7 +210,7 @@
 	.tag.dur { background: rgb(255 255 255 / 10%); color: rgb(255 255 255 / 84%); }
 	.tag.dur-warn { background: rgb(245 158 11 / 24%); color: #fde68a; }
 	.tag.dur-bad { background: rgb(239 68 68 / 28%); color: #fca5a5; }
-	.tag.playing { background: #e50914; color: #fff; }
+	.tag.playing { background: #f4f4f5; color: #09090b; }
 	.tag.transcode { background: rgb(245 158 11 / 26%); color: #fde68a; }
 	.tag.ms-fast { background: rgb(34 197 94 / 18%); color: #86efac; }
 	.tag.ms-mid { background: rgb(245 158 11 / 22%); color: #fde68a; }
@@ -218,7 +218,7 @@
 	.tag.hdr { background: rgb(245 158 11 / 22%); }
 	.wp-cand-acts { display: flex; gap: 5px; flex: none; }
 	.wp-mini-btn { padding: 6px 10px; border-radius: 8px; border: 1px solid rgb(255 255 255 / 20%); background: rgb(255 255 255 / 10%); color: #fff; font-size: 11.5px; font-weight: 600; cursor: pointer; }
-	.wp-mini-btn.accent { background: #e50914; border-color: #e50914; }
+	.wp-mini-btn.accent { background: #f4f4f5; border-color: #f4f4f5; color: #09090b; }
 	.wp-muted { margin: 0; color: rgb(255 255 255 / 66%); font-size: 12.5px; }
 	.wp-err-inline { padding: 7px 10px; border-radius: 8px; background: rgb(239 68 68 / 20%); color: #fca5a5; font-size: 12px; }
 </style>

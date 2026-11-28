@@ -95,18 +95,18 @@
 </aside>
 
 <style>
-	.panel { position: absolute; z-index: 20; right: clamp(8px, 3vw, 36px); bottom: 90px; width: min(360px, calc(100% - 16px)); max-height: min(68vh, 570px); display: flex; flex-direction: column; border: 1px solid #42424c; border-radius: 16px; background: #191b23; box-shadow: 0 14px 45px #0009; color: #fff; }
-	header { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-bottom: 1px solid #3d3e49; }
-	h2 { margin: 0; font-size: 15px; font-weight: 700; } h3 { font-size: 12px; color: #c1c3ce; margin: 14px 8px 2px; }
+	.panel { position: absolute; z-index: 20; right: clamp(8px, 3vw, 36px); bottom: 122px; width: min(360px, calc(100% - 16px)); max-height: min(68vh, 570px); display: flex; flex-direction: column; border: 1px solid rgb(255 255 255 / 10%); border-radius: 12px; background: #18181b; box-shadow: 0 14px 45px #0009; color: #fff; }
+	header { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-bottom: 1px solid rgb(255 255 255 / 10%); }
+	h2 { margin: 0; font-size: 15px; font-weight: 700; } h3 { font-size: 12px; color: rgb(255 255 255 / 50%); margin: 14px 8px 2px; }
 	.body { overflow: auto; padding: 6px; }
 	.row, label, .pair { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 38px; width: 100%; padding: 6px 9px; font-size: 13px; }
-	.row > span { display: flex; align-items: center; gap: 8px; color: #c9cbd4; }
+	.row > span { display: flex; align-items: center; gap: 8px; color: rgb(255 255 255 / 70%); }
 	button, select { background: transparent; color: inherit; border-radius: 7px; border: 1px solid transparent; cursor: pointer; }
-	.row:hover, .icon:hover, .choices button:hover { background: #30313d; }
-	button[aria-pressed='true'] { background: #3d2631; border-color: #b85265; }
-	button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #f292a1; outline-offset: 2px; }
+	.row:hover, .icon:hover, .choices button:hover { background: #26262b; }
+	button[aria-pressed='true'] { background: rgb(255 255 255 / 12%); border-color: rgb(255 255 255 / 55%); }
+	button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
 	.choices { display: flex; gap: 3px; } .choices button { padding: 5px 7px; white-space: nowrap; }
 	.icon { display: grid; place-items: center; min-width: 33px; min-height: 33px; } .close { margin-left: auto; }
-	input { accent-color: #ed6377; } select { background: #2c2e39; padding: 5px; }
-	p { margin: 12px 8px; color: #c9cbd4; font-size: 13px; }
+	input { accent-color: #ffffff; } select { background: #26262b; padding: 5px; }
+	p { margin: 12px 8px; color: rgb(255 255 255 / 70%); font-size: 13px; }
 </style>

@@ -226,7 +226,7 @@
 	.wp-ep-card { flex: none; width: 224px; scroll-snap-align: start; display: flex; flex-direction: column; gap: 8px; padding: 8px; border: 1px solid rgb(255 255 255 / 10%); border-radius: 12px; background: rgb(255 255 255 / 4%); color: #fff; text-align: left; cursor: pointer; transition: border-color 140ms ease, background 140ms ease, transform 140ms ease; }
 	.wp-ep-card:hover:not(:disabled) { background: rgb(255 255 255 / 9%); border-color: rgb(255 255 255 / 26%); transform: translateY(-2px); }
 	.wp-ep-card.upcoming { opacity: 0.6; cursor: not-allowed; }
-	.wp-ep-card.current { border-color: #e50914; background: rgb(229 9 20 / 16%); }
+	.wp-ep-card.current { border-color: rgb(255 255 255 / 55%); background: rgb(255 255 255 / 8%); }
 	.wp-ep-thumb { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 8px; overflow: hidden; background: rgb(255 255 255 / 10%); }
 	.wp-ep-thumb img { width: 100%; height: 100%; object-fit: cover; user-select: none; -webkit-user-drag: none; }
 	.wp-ep-num { position: absolute; left: 7px; top: 7px; padding: 2px 6px; border-radius: 5px; background: rgb(0 0 0 / 72%); font-size: 11px; font-weight: 700; }
@@ -235,7 +235,7 @@
 	.wp-ep-rel.upcoming { background: rgb(59 130 246 / 88%); }
 	.wp-ep-done { position: absolute; right: 7px; top: 7px; width: 20px; height: 20px; border-radius: 50%; background: rgb(34 197 94 / 92%); color: #fff; display: grid; place-items: center; }
 	.wp-ep-prog { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgb(255 255 255 / 26%); }
-	.wp-ep-prog i { display: block; height: 100%; background: #e50914; }
+	.wp-ep-prog i { display: block; height: 100%; background: #fff; }
 	.wp-ep-meta { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 	.wp-ep-meta b { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.wp-ep-sub { color: #86efac; font-size: 11px; font-weight: 600; }

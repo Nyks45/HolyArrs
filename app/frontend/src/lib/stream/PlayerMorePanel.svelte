@@ -78,17 +78,17 @@
 </aside>
 
 <style>
-	.panel { position: absolute; bottom: 84px; right: clamp(8px, 3vw, 36px); z-index: 22; width: min(360px, calc(100% - 16px)); max-height: min(70vh, 650px); display: flex; flex-direction: column; border: 1px solid #454655; border-radius: 16px; background: #191b23; box-shadow: 0 16px 55px #000a; }
+	.panel { position: absolute; bottom: 122px; right: clamp(8px, 3vw, 36px); z-index: 22; width: min(360px, calc(100% - 16px)); max-height: min(70vh, 650px); display: flex; flex-direction: column; border: 1px solid rgb(255 255 255 / 12%); border-radius: 12px; background: #18181b; box-shadow: 0 16px 55px #000a; }
 	.panel.stats { top: 62px; bottom: auto; left: 12px; right: auto; }
 	.panel.keys { right: 50%; transform: translateX(50%); width: min(470px, calc(100% - 16px)); }
-	header { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px 8px 15px; border-bottom: 1px solid #3d3e49; }
-	h2 { font-size: 15px; margin: 0; } h3 { font-size: 12px; margin: 14px 10px 4px; color: #bebfcc; }
+	header { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px 8px 15px; border-bottom: 1px solid rgb(255 255 255 / 10%); }
+	h2 { font-size: 15px; margin: 0; } h3 { font-size: 12px; margin: 14px 10px 4px; color: rgb(255 255 255 / 55%); }
 	.body { padding: 6px; overflow: auto; }
 	button { display: flex; width: 100%; min-height: 32px; align-items: center; justify-content: space-between; gap: 8px; border-radius: 7px; border: 1px solid transparent; padding: 5px 9px; background: transparent; color: inherit; font-size: 13px; cursor: pointer; }
-	button:hover, button[aria-pressed='true'] { background: #39303d; }
-	button:focus-visible { outline: 2px solid #f292a1; outline-offset: 1px; }
+	button:hover, button[aria-pressed='true'] { background: rgb(255 255 255 / 12%); }
+	button:focus-visible { outline: 2px solid #ffffff; outline-offset: 1px; }
 	button.close { width: 34px; justify-content: center; padding: 0; }
-	kbd { background: #30323e; border: 1px solid #595969; border-radius: 4px; padding: 2px 5px; white-space: nowrap; font-size: 11px; color: #eeedf1; }
+	kbd { background: #26262b; border: 1px solid rgb(255 255 255 / 18%); border-radius: 4px; padding: 2px 5px; white-space: nowrap; font-size: 11px; color: rgb(255 255 255 / 92%); }
 	.tabs { display: flex; gap: 4px; } .tabs button { justify-content: center; }
 	dl { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 8px 12px; margin: 10px; font-size: 12px; }
 	dd { margin: 0; font-variant-numeric: tabular-nums; } p { padding: 4px 10px; font-size: 13px; }

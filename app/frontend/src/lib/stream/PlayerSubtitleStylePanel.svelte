@@ -74,20 +74,20 @@
 </aside>
 
 <style>
-	.panel { position: absolute; z-index: 24; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(495px, calc(100% - 18px)); max-height: 84vh; display: flex; flex-direction: column; background: #1c1d27; border: 1px solid #4f4f60; border-radius: 15px; box-shadow: 0 20px 65px #000b; }
-	header, footer { display: flex; align-items: center; justify-content: space-between; padding: 9px 14px; border-bottom: 1px solid #3b3e4c; }
-	footer { border: 0; border-top: 1px solid #3b3e4c; }
+	.panel { position: absolute; z-index: 24; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(495px, calc(100% - 18px)); max-height: 84vh; display: flex; flex-direction: column; background: #18181b; border: 1px solid rgb(255 255 255 / 10%); border-radius: 15px; box-shadow: 0 20px 65px #000b; }
+	header, footer { display: flex; align-items: center; justify-content: space-between; padding: 9px 14px; border-bottom: 1px solid rgb(255 255 255 / 12%); }
+	footer { border: 0; border-top: 1px solid rgb(255 255 255 / 12%); }
 	h2, h3 { margin: 4px 0; font-size: 15px; } h3 { font-size: 13px; margin-top: 14px; }
 	.body { overflow: auto; padding: 10px 14px; }
 	label, .font { display: flex; justify-content: space-between; gap: 12px; min-height: 34px; align-items: center; font-size: 13px; }
-	fieldset { padding: 5px 9px; margin: 6px 0; border: 1px solid #404353; border-radius: 8px; }
-	legend { font-size: 12px; color: #e1dfe7; }
+	fieldset { padding: 5px 9px; margin: 6px 0; border: 1px solid rgb(255 255 255 / 12%); border-radius: 8px; }
+	legend { font-size: 12px; color: rgb(255 255 255 / 85%); }
 	.scopes { display: flex; gap: 5px; }
-	button, select { padding: 5px 9px; color: #fff; background: #303342; border: 1px solid #4d5060; border-radius: 6px; cursor: pointer; font: inherit; font-size: 12.5px; }
+	button, select { padding: 5px 9px; color: #fff; background: #26262b; border: 1px solid rgb(255 255 255 / 14%); border-radius: 6px; cursor: pointer; font: inherit; font-size: 12.5px; }
 	.file { max-width: 220px; font: inherit; font-size: 12px; color: rgb(255 255 255 / 65%); }
-	.file::file-selector-button { margin-right: 8px; padding: 5px 9px; color: #fff; background: #303342; border: 1px solid #4d5060; border-radius: 6px; font: inherit; cursor: pointer; }
-	button[aria-pressed='true'] { border-color: #db7189; background: #4b293a; }
-	button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid #f292a1; outline-offset: 2px; }
-	input { accent-color: #ed6377; max-width: 52%; }
-	p { color: #ff9bab; font-size: 13px; }
+	.file::file-selector-button { margin-right: 8px; padding: 5px 9px; color: #fff; background: #26262b; border: 1px solid rgb(255 255 255 / 14%); border-radius: 6px; font: inherit; cursor: pointer; }
+	button[aria-pressed='true'] { border-color: rgb(255 255 255 / 55%); background: rgb(255 255 255 / 12%); }
+	button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+	input { accent-color: #ffffff; max-width: 52%; }
+	p { color: #ffffff; font-size: 13px; }
 </style>

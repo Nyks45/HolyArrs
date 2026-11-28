@@ -36,6 +36,7 @@
 	import PlayerLandingOverlay from './PlayerLandingOverlay.svelte';
 	import PlayerSourcesDrawer from './PlayerSourcesDrawer.svelte';
 	import PlayerSubsDrawer from './PlayerSubsDrawer.svelte';
+	import PlayerAudioPopover from './PlayerAudioPopover.svelte';
 	import PlayerEpisodesDrawer from './PlayerEpisodesDrawer.svelte';
 
 	let { kind, tmdb, initialSeason = 1, initialEpisode = 1, autoResume = true, initialDrawer = 'none', backHref = '' }: { kind: 'movie' | 'show'; tmdb: string; initialSeason?: number; initialEpisode?: number; autoResume?: boolean; initialDrawer?: 'none' | 'sources'; backHref?: string } = $props();
@@ -110,7 +111,7 @@
 	let isPiP = $state(false);
 	let playerError = $state('');
 
-	let drawer = $state<'none' | 'sources' | 'quality' | 'audioSubs' | 'episodes'>('none');
+	let drawer = $state<'none' | 'sources' | 'quality' | 'audioSubs' | 'audio' | 'episodes'>('none');
 	let hudVisible = $state(true);
 	let feedbackText = $state('');
 
@@ -648,7 +649,7 @@
 
 	{#if !uiHidden}
 	<PlayerHud
-		{hudVisible} {drawer} {kind} {headerTitle} immersive={device.immersive} captionsOn={!subs.subHidden && (subs.subMode !== 'off' || !!subs.secondary)} onCaptions={toggleCaptions} onMore={() => openUtility('more')} {headerSub} previewSource={pipelineMode === 'direct' && (session?.transport === 'direct' || session?.transport === 'local') ? to(session.direct_url || session.media_url) : ''} runtimeMin={curEpObj?.runtime || details?.runtime || 0}
+		{hudVisible} {drawer} {kind} {headerTitle} immersive={device.immersive} captionsOn={!subs.subHidden && (subs.subMode !== 'off' || !!subs.secondary)} onCaptions={toggleCaptions} onMore={() => openUtility('more')} onImmersive={() => updateDevice({ immersive: !device.immersive })} episodeLabel={kind === 'show' ? `EP ${episode} / ${curSeasonEps.length || episode}` : ''} episodeName={curEpObj?.name ?? ''} {headerSub} previewSource={pipelineMode === 'direct' && (session?.transport === 'direct' || session?.transport === 'local') ? to(session.direct_url || session.media_url) : ''} runtimeMin={curEpObj?.runtime || details?.runtime || 0}
 		{session} {activeCandidate} candidatesCount={candidates.length} {loadingMoreSources} seamlessStatus={timeline.seamlessStatus} stalled={timeline.stalled}
 		{pipelineMode} {paused} {mpvAvailable} {pipAvailable} {isPiP}
 		{volume} {muted} {isFullscreen} {totalDuration} {currentPos} {scrubbedPct} {bufferedPct}
@@ -682,6 +683,10 @@
 		onToggleKeep={() => { if (session) void setStreamKeep(session.id, !session.keep_file).then((s) => { session = s; }); }}
 	/>
 
+	{#if drawer === 'audio'}
+		<PlayerAudioPopover tracks={session?.probe?.audio_tracks ?? []} {audioIdx} canSwitch={ffmpegAvailable && !!session} boost={device.boost} onBoost={(boost) => updateDevice({ boost })} onClose={() => { drawer = 'none'; }}
+			onChangeAudio={(idx) => { if (idx === audioIdx) return; audioIdx = idx; if (session && playMode === 'browser') void attachPlayback(placeNow(), true, true, 'Switching audio...'); }} />
+	{/if}
 	<PlayerSubsDrawer
 		open={drawer === 'audioSubs'} boost={device.boost} target={subs.target} secondary={subs.secondary?.label ?? ''} onBoost={(boost) => updateDevice({ boost })} onTarget={(target) => { subs.target = target; }} onClearSecondary={() => { subs.secondary = null; subs.target = 'primary'; }} onOpenStyle={() => openUtility('style')} {session} {audioIdx} {ffmpegAvailable} subMode={subs.subMode} subIndex={subs.subIndex} subLabel={subs.subLabel} subDelayMS={subs.subDelayMS} subSize={subs.subSize} activeSubVtt={subs.activeSubVtt} syncingSub={subs.syncingSub} syncNote={subs.syncNote} bind:subStyle bind:siteSubLangsInput={subs.siteSubLangsInput}
 		siteSubCandidates={subs.siteSubCandidates} searchingSubs={subs.searchingSubs} loadingSub={subs.loadingSub} subError={subs.subError}
@@ -709,7 +714,9 @@
 </div>
 
 <style>
-	.wp-stage { position: fixed; inset: 0; width: 100vw; height: 100dvh; overflow: hidden; background: #000; color: #fff; font-family: var(--font-ui); user-select: none; }
+	/* The player covers the window, so the page keeps no scrollbar gutter beside it. */
+	:global(html:has(.wp-stage)) { scrollbar-gutter: auto; overflow: hidden; }
+	.wp-stage { position: fixed; inset: 0; height: 100dvh; overflow: hidden; background: #000; color: #fff; font-family: var(--font-ui); user-select: none; }
 	.wp-stage.hide-cursor { cursor: none; }
 	.wp-backdrop { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(18px) brightness(0.4); transform: scale(1.06); }
 	.wp-backdrop-scrim { position: absolute; inset: 0; background: radial-gradient(circle at center, rgb(0 0 0 / 35%), rgb(0 0 0 / 88%)); }

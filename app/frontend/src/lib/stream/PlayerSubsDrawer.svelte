@@ -227,7 +227,7 @@
 {/if}
 
 <style>
-	.wp-pop { position: absolute; top: 62px; right: 24px; width: min(410px, calc(100vw - 32px)); max-height: min(74vh, 620px); z-index: 14; background: rgb(16 16 22 / 94%); border: 1px solid rgb(255 255 255 / 14%); border-radius: 16px; backdrop-filter: blur(22px); display: flex; flex-direction: column; box-shadow: 0 20px 50px rgb(0 0 0 / 60%); animation: wp-pop-in 150ms cubic-bezier(0.22, 1, 0.36, 1); }
+	.wp-pop { position: absolute; bottom: 122px; right: clamp(8px, 3vw, 36px); width: min(410px, calc(100vw - 32px)); max-height: min(62vh, 560px); z-index: 14; background: rgb(24 24 27 / 97%); border: 1px solid rgb(255 255 255 / 10%); border-radius: 12px; backdrop-filter: blur(22px); display: flex; flex-direction: column; box-shadow: 0 20px 50px rgb(0 0 0 / 60%); animation: wp-pop-in 150ms cubic-bezier(0.22, 1, 0.36, 1); }
 	@keyframes wp-pop-in { from { opacity: 0; transform: translateY(-6px) scale(0.985); } }
 	.wp-pop-head { display: flex; align-items: center; justify-content: space-between; padding: 13px 16px; border-bottom: 1px solid rgb(255 255 255 / 10%); }
 	.wp-pop-head h3 { margin: 0; font-size: 15px; font-weight: 700; }
@@ -240,22 +240,22 @@
 	.wp-box-title { font-size: 11px; font-weight: 700; color: rgb(255 255 255 / 66%); text-transform: uppercase; letter-spacing: .04em; }
 	.wp-row-between, .wp-sync-row, .wp-slider-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12.5px; }
 	.wp-delay { display: flex; }
-	.wp-delay input { width: 68px; padding: 0 6px; border: 1px solid #535360; border-radius: 4px; background: #23232d; color: inherit; font: inherit; font-variant-numeric: tabular-nums; }
-	.wp-slider-row input[type="range"] { width: 140px; accent-color: #e50914; }
+	.wp-delay input { width: 68px; padding: 0 6px; border: 1px solid rgb(255 255 255 / 14%); border-radius: 4px; background: #26262b; color: inherit; font: inherit; font-variant-numeric: tabular-nums; }
+	.wp-slider-row input[type="range"] { width: 140px; accent-color: #fff; }
 	.wp-check { display: flex; align-items: center; gap: 8px; font-size: 12.5px; cursor: pointer; }
 	.wp-btns, .wp-tab-row { display: flex; flex-wrap: wrap; gap: 6px; }
 	.wp-chip { padding: 4px 9px; border: 1px solid rgb(255 255 255 / 16%); border-radius: 999px; background: transparent; color: rgb(255 255 255 / 78%); font-size: 11.5px; font-weight: 600; cursor: pointer; }
 	.wp-chip.on { background: #fff; color: #111; border-color: #fff; }
 	.wp-search-row { display: flex; gap: 8px; }
-	.wp-search-row input { flex: 1; height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid rgb(255 255 255 / 20%); background: rgb(28 28 34); color: #fff; font-size: 12.5px; }
+	.wp-search-row input { flex: 1; height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid rgb(255 255 255 / 20%); background: rgb(24 24 27); color: #fff; font-size: 12.5px; }
 	.wp-stack { display: flex; flex-direction: column; gap: 6px; }
 	.wp-list-pick { display: flex; width: 100%; padding: 8px 11px; border: 1px solid rgb(255 255 255 / 12%); border-radius: 9px; background: rgb(255 255 255 / 5%); color: #fff; text-align: left; font-size: 12.5px; cursor: pointer; }
-	.wp-list-pick.on { border-color: #e50914; background: rgb(229 9 20 / 16%); }
+	.wp-list-pick.on { border-color: rgb(255 255 255 / 55%); background: rgb(255 255 255 / 8%); }
 	.wp-sub-cand { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 	.wp-sub-cand span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.wp-sub-cand small { color: rgb(255 255 255 / 62%); font-size: 11px; }
 	.wp-mini-btn { padding: 6px 10px; border-radius: 8px; border: 1px solid rgb(255 255 255 / 20%); background: rgb(255 255 255 / 10%); color: #fff; font-size: 11.5px; font-weight: 600; cursor: pointer; }
-	.wp-mini-btn.accent { background: #e50914; border-color: #e50914; }
+	.wp-mini-btn.accent { background: #f4f4f5; border-color: #f4f4f5; color: #09090b; }
 	.wp-muted { margin: 0; color: rgb(255 255 255 / 66%); font-size: 12.5px; }
 	.wp-err-inline { padding: 7px 10px; border-radius: 8px; background: rgb(239 68 68 / 20%); color: #fca5a5; font-size: 12px; }
 </style>

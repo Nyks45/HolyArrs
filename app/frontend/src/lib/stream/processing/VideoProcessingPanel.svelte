@@ -96,27 +96,27 @@
 </aside>
 
 <style>
-	.processing { position: absolute; z-index: 21; right: clamp(8px, 3vw, 36px); bottom: 90px; width: min(400px, calc(100% - 16px)); max-height: min(70vh, 660px); display: flex; flex-direction: column; border: 1px solid #42424c; border-radius: 16px; background: #191b23; box-shadow: 0 14px 45px #0009; color: #fff; font-size: 13px; }
-	header { display: flex; justify-content: space-between; align-items: center; padding: 9px 12px; border-bottom: 1px solid #3d3e49; }
-	h2 { font-size: 15px; margin: 0; } h3 { margin: 12px 8px 5px; color: #d1d3de; font-size: 12px; }
+	.processing { position: absolute; z-index: 21; right: clamp(8px, 3vw, 36px); bottom: 90px; width: min(400px, calc(100% - 16px)); max-height: min(70vh, 660px); display: flex; flex-direction: column; border: 1px solid rgb(255 255 255 / 10%); border-radius: 16px; background: #18181b; box-shadow: 0 14px 45px #0009; color: #fff; font-size: 13px; }
+	header { display: flex; justify-content: space-between; align-items: center; padding: 9px 12px; border-bottom: 1px solid rgb(255 255 255 / 10%); }
+	h2 { font-size: 15px; margin: 0; } h3 { margin: 12px 8px 5px; color: rgb(255 255 255 / 80%); font-size: 12px; }
 	nav { display: flex; gap: 5px; padding: 6px 9px; }
 	nav button { flex: 1; }
 	.body { overflow: auto; padding: 3px 7px; }
-	footer { border-top: 1px solid #3d3e49; padding: 3px 7px; }
+	footer { border-top: 1px solid rgb(255 255 255 / 10%); padding: 3px 7px; }
 	.row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 39px; padding: 4px 8px; }
-	button, select { color: inherit; border: 1px solid #454653; border-radius: 7px; background: #262832; min-height: 33px; padding: 4px 7px; cursor: pointer; }
-	button:hover { background: #363746; }
-	button[aria-pressed='true'] { background: #3d2631; border-color: #b85265; }
+	button, select { color: inherit; border: 1px solid rgb(255 255 255 / 12%); border-radius: 7px; background: #1f1f23; min-height: 33px; padding: 4px 7px; cursor: pointer; }
+	button:hover { background: #26262b; }
+	button[aria-pressed='true'] { background: rgb(255 255 255 / 12%); border-color: rgb(255 255 255 / 55%); }
 	button:disabled { opacity: .45; cursor: default; }
-	button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #f292a1; outline-offset: 2px; }
+	button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
 	.icon { display: grid; place-items: center; min-width: 34px; }
-	.filter { border-top: 1px solid #353641; }
+	.filter { border-top: 1px solid #26262b; }
 	.filter button { min-height: 34px; display: flex; justify-content: space-between; align-items: center; flex: 1; gap: 8px; background: transparent; border-color: transparent; padding-left: 0; }
-	input { accent-color: #eb6379; }
+	input { accent-color: #ffffff; }
 	.slider { display: block; padding: 5px 8px; } .slider span { display: flex; justify-content: space-between; } .slider input { width: 100%; margin: 5px 0 0; }
 	.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 0 7px; }
 	ol { margin: 0; padding: 0 7px; list-style: none; }
 	li { display: flex; align-items: center; gap: 4px; margin: 4px 0; } li span { flex: 1; } li button { display: grid; place-items: center; min-width: 28px; }
 	.reset { margin: 5px 8px; }
-	p { margin: 3px 8px 8px; color: #caced9; overflow-wrap: anywhere; }
+	p { margin: 3px 8px 8px; color: rgb(255 255 255 / 70%); overflow-wrap: anywhere; }
 </style>

@@ -4,10 +4,8 @@ import { hlsScript } from '#lib/core/trailer/hls-player.ts';
 import type { TitleDetails } from '#lib/metadata/index.ts';
 import {
 	autoSyncStreamSubtitle,
-	fetchStreamSubtitle,
 	searchStreamReleases,
 	searchStreamSubtitles,
-	uploadStreamSubtitle,
 	type SessionStatus,
 	type StreamCandidate,
 	type StreamSearchReq,
@@ -17,7 +15,9 @@ import {
 } from './stream-api.ts';
 import { getSkipSegments, postScrobble, type SkipSegment, type SubStylePrefs } from './streaming-config-api.ts';
 import { durationMismatchTier } from './video-watchdog.ts';
-import { parseWebVTT, type VTTCue } from './vtt.ts';
+import { type VTTCue } from './vtt.ts';
+import { resolveSiteSub } from './subtitle-tracks';
+export { resolveEmbeddedSub, resolveSiteSub, resolveUploadedSub } from './subtitle-tracks';
 
 export interface SeasonEp {
 	number: number;
@@ -417,8 +417,8 @@ export function buildWatchEntryPayload(args: {
 		source_id: c?.source_id ?? args.session?.source_id ?? args.saved?.source_id ?? 0,
 		source_name: c?.provider ?? c?.source_name ?? args.session?.source_name ?? args.saved?.source_name ?? '',
 		release_title: c?.release_name ?? c?.title ?? args.session?.release_title ?? args.saved?.release_title ?? '',
-		release_link: c?.link ?? args.saved?.release_link ?? '',
-		info_hash: c?.info_hash ?? args.saved?.info_hash ?? '',
+		release_link: c ? c.link || '' : args.saved?.release_link ?? '',
+		info_hash: c ? c.info_hash || '' : args.saved?.info_hash ?? '',
 		resolution: c?.quality ?? c?.resolution ?? args.saved?.resolution ?? '',
 		file_index: args.session?.selected_file ?? args.saved?.file_index ?? 0,
 		quality: args.browserQuality,
@@ -459,32 +459,6 @@ export function buildResumeCandidate(sv: WatchEntry): StreamCandidate {
 		audio: '',
 		languages: []
 	};
-}
-
-export async function resolveEmbeddedSub(
-	sessionId: string,
-	token: string,
-	idx: number,
-	track?: { language?: string; title?: string }
-): Promise<{ cues: VTTCue[]; rawVtt: string; lang: string; label: string }> {
-	const res = await fetch(to(`/api/v1/stream/${encodeURIComponent(sessionId)}/sub/${encodeURIComponent(token)}/${idx}`), { credentials: 'same-origin' });
-	if (!res.ok) throw new Error(await res.text());
-	const rawVtt = await res.text();
-	const cues = parseWebVTT(rawVtt);
-	const lang = track?.language ?? '';
-	const label = [track?.language?.toUpperCase(), track?.title].filter(Boolean).join(' · ') || `Track ${idx + 1}`;
-	return { cues, rawVtt, lang, label };
-}
-
-export async function resolveSiteSub(id: string, lang: string, label: string, sessionId: string): Promise<{ cues: VTTCue[]; rawVtt: string; lang: string; label: string; subFile: string }> {
-	const res = await fetchStreamSubtitle(id, sessionId);
-	const resolvedLang = res.language || lang;
-	return { cues: parseWebVTT(res.vtt), rawVtt: res.vtt, lang: resolvedLang, label: label || resolvedLang.toUpperCase(), subFile: res.sub_file ?? '' };
-}
-
-export async function resolveUploadedSub(file: File, sessionId: string): Promise<{ cues: VTTCue[]; rawVtt: string; label: string; subFile: string }> {
-	const res = await uploadStreamSubtitle(file.name, await file.text(), '', sessionId);
-	return { cues: parseWebVTT(res.vtt), rawVtt: res.vtt, label: file.name, subFile: res.sub_file ?? '' };
 }
 
 export function matchPlayerHotkey(e: KeyboardEvent, isShow: boolean): PlayerHotkeyAction | null {
@@ -756,6 +730,7 @@ export async function runAutoFindAndSyncSubtitle(args: {
 	best: StreamSubCandidate;
 	cues: VTTCue[];
 	rawVtt: string;
+	ass: string;
 	lang: string;
 	label: string;
 	subFile: string;

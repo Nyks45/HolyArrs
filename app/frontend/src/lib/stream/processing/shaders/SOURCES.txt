@@ -1,0 +1,22 @@
+The HolyArrs player bundles the following shader sources under their original licenses.
+
+Anime4K v4.0.1 by bloc97, MIT
+https://github.com/bloc97/Anime4K/releases/tag/v4.0.1
+
+ArtCNN C4F16 and C4F16 DS v1.6.2 by Artoriuz, MIT
+https://github.com/Artoriuz/ArtCNN/releases/tag/v1.6.2
+
+FidelityFX Super Resolution 1.0 (EASU and RCAS) by AMD, MIT
+https://github.com/GPUOpen-Effects/FidelityFX-FSR/blob/master/ffx-fsr/ffx_fsr1.h
+
+SSimSuperRes by Shiandow, distributed by igv, LGPL-3.0-or-later
+https://gist.github.com/igv/2364ffa6e81540f29cb7ab4c9bc05b6b
+
+glsl-smaa 4.0.0 by Damien Seguin and the SMAA authors, MIT
+https://github.com/dmnsgn/shaders-smaa
+The three GLSL stages and lookup textures are in the adjacent smaa directory.
+
+The application specializes these files for browser rendering in mpv-shaders.ts,
+artcnn-shader.ts and smaa-shaders.ts. To replace a shader, change its source
+file here, run app/frontend/scripts/generate-processing-shaders.mjs with the
+Naga CLI and glslangValidator, then rebuild the application.

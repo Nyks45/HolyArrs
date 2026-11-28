@@ -236,6 +236,7 @@ func randomHex(nBytes int) string {
 
 // Start begins a new torrent stream session, stopping any prior session owned by userID.
 func (m *Manager) Start(ctx context.Context, userID int64, req StartReq) (SessionStatus, error) {
+	began := time.Now()
 	if strings.TrimSpace(req.Link) == "" {
 		return SessionStatus{}, errors.New("torrent link is required")
 	}
@@ -253,7 +254,7 @@ func (m *Manager) Start(ctx context.Context, userID int64, req StartReq) (Sessio
 		return SessionStatus{}, fmt.Errorf("fetching torrent: %w", err)
 	}
 
-	m.stopUserSessions(userID)
+	m.stopUserSessions(userID, began)
 
 	id := randomHex(8)
 	token := randomHex(16)
@@ -357,11 +358,16 @@ func (m *Manager) Start(ctx context.Context, userID int64, req StartReq) (Sessio
 	return sess.status(), nil
 }
 
-func (m *Manager) stopUserSessions(userID int64) {
+// stopUserSessions stops the user's sessions created before began. A slow start that
+// finishes late must not stop a newer session the user already switched to.
+func (m *Manager) stopUserSessions(userID int64, began time.Time) {
 	m.mu.Lock()
 	var ids []string
 	for id, s := range m.sessions {
-		if s.userID == userID {
+		s.mu.Lock()
+		older := s.createdAt.Before(began)
+		s.mu.Unlock()
+		if s.userID == userID && older {
 			ids = append(ids, id)
 		}
 	}
@@ -413,6 +419,16 @@ func (m *Manager) Status(id string) (SessionStatus, bool) {
 		return SessionStatus{}, false
 	}
 	return s.status(), true
+}
+
+// KeepAlive marks a session as in use. Proxied playback never reaches the media handlers,
+// so the player's status polls keep such sessions from being reaped mid-film.
+func (m *Manager) KeepAlive(id string) {
+	if s, ok := m.getSession(id); ok {
+		s.mu.Lock()
+		s.lastActivity = time.Now()
+		s.mu.Unlock()
+	}
 }
 
 // SelectFile switches the active file index inside a multi-file torrent.

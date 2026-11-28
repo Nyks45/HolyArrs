@@ -1,11 +1,13 @@
 package subtitles
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -387,4 +389,18 @@ func formatVTTMS(ms int64) string {
 	min := totalMin % 60
 	hr := totalMin / 60
 	return fmt.Sprintf("%02d:%02d:%02d.%03d", hr, min, sec, remMS)
+}
+
+// StyledText returns cleaned ASS or SSA text when raw holds a styled subtitle, else "".
+func StyledText(raw []byte, nameHint, lang string) string {
+	format := strings.TrimPrefix(strings.ToLower(filepath.Ext(nameHint)), ".")
+	if format != subtext.ASS && format != subtext.SSA {
+		head := bytes.TrimSpace(bytes.TrimPrefix(raw, []byte("\xef\xbb\xbf")))
+		if !bytes.HasPrefix(bytes.ToLower(head[:min(len(head), 13)]), []byte("[script info]")) {
+			return ""
+		}
+		format = subtext.ASS
+	}
+	text, _ := subtext.CleanFor(raw, format, lang)
+	return text
 }

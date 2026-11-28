@@ -8,6 +8,7 @@
 		session,
 		audioIdx = 0,
 		ffmpegAvailable = false,
+		boost, secondary, target, onTarget, onClearSecondary, onBoost, onOpenStyle,
 		subMode,
 		subIndex,
 		subLabel,
@@ -39,6 +40,9 @@
 		session: SessionStatus | null;
 		audioIdx?: number;
 		ffmpegAvailable?: boolean;
+		boost: number; secondary: string; target: 'primary' | 'secondary';
+		onTarget: (target: 'primary' | 'secondary') => void; onClearSecondary: () => void;
+		onBoost: (percent: number) => void; onOpenStyle: () => void;
 		subMode: 'off' | 'embedded' | 'site' | 'upload';
 		subIndex: number;
 		subLabel: string;
@@ -85,6 +89,7 @@
 
 		<div class="wp-pop-body">
 			{#if subError}<div class="wp-err-inline">{subError}</div>{/if}
+			<div class="wp-box"><label class="wp-slider-row"><span>Volume boost ({boost}%)</span><input type="range" min="100" max="300" step="5" value={boost} oninput={(event) => onBoost(Number(event.currentTarget.value))} /></label></div>
 
 			{#if (session?.probe?.audio_tracks.length ?? 0) > 0}
 				<div class="wp-box">
@@ -110,11 +115,18 @@
 					<strong>Subtitle: {subMode === 'off' ? 'Off' : subLabel || 'Loaded'}</strong>
 					{#if subMode !== 'off'}<button type="button" class="wp-mini-btn" onclick={onTurnOff}>Turn Off</button>{/if}
 				</div>
+				<div class="wp-btns">
+					<button type="button" class="wp-mini-btn" aria-pressed={target === 'primary'} onclick={() => onTarget('primary')}>Primary track</button>
+					<button type="button" class="wp-mini-btn" aria-pressed={target === 'secondary'} onclick={() => onTarget('secondary')}>{secondary || '+ Secondary track'}</button>
+					{#if secondary}<button type="button" class="wp-mini-btn" onclick={onClearSecondary}>Remove secondary</button>{/if}
+				</div>
 				<div class="wp-sync-row">
 					<span>Timing ({subDelayMS >= 0 ? `+${subDelayMS}` : subDelayMS} ms)</span>
 					<div class="wp-btns">
 						<button type="button" class="wp-mini-btn" onclick={() => onAdjustDelay(-250)}>-0.25s</button>
+						<label class="wp-delay"><span class="sr-only">Subtitle delay in milliseconds</span><input type="number" step="50" value={subDelayMS} onchange={(e) => { const next = Number(e.currentTarget.value); if (Number.isFinite(next)) onAdjustDelay(Math.round(next) - subDelayMS); }} /></label>
 						<button type="button" class="wp-mini-btn" onclick={() => onAdjustDelay(250)}>+0.25s</button>
+						<button type="button" class="wp-mini-btn" onclick={() => onAdjustDelay(-subDelayMS)}>Reset</button>
 					</div>
 				</div>
 				{#if session && ffmpegAvailable && (onAutoFindAndSync || onSyncCurrentSub)}
@@ -141,6 +153,7 @@
 
 			<div class="wp-box">
 				<div class="wp-box-title">Appearance &amp; Filters</div>
+				<button type="button" class="wp-mini-btn" onclick={onOpenStyle}>Scoped subtitle style</button>
 				<label class="wp-check">
 					<input type="checkbox" checked={subStyle.strip_sdh} onchange={(e) => patchStyle({ strip_sdh: (e.currentTarget as HTMLInputElement).checked })} />
 					<span>Strip SDH annotations ([music], speaker tags)</span>
@@ -165,6 +178,8 @@
 					<span>Text Color</span>
 					<input type="color" value={subStyle.color} oninput={(e) => patchStyle({ color: (e.currentTarget as HTMLInputElement).value })} />
 				</label>
+				<label class="wp-slider-row"><span>Background color</span><input type="color" value={subStyle.bg_color} oninput={(e) => patchStyle({ bg_color: e.currentTarget.value })} /></label>
+				<label class="wp-slider-row"><span>Font family</span><select value={subStyle.font_family} onchange={(e) => patchStyle({ font_family: e.currentTarget.value as SubStylePrefs['font_family'] })}><option value="sans">Sans</option><option value="serif">Serif</option><option value="mono">Mono</option></select></label>
 			</div>
 
 			{#if (session?.probe?.subtitle_tracks.length ?? 0) > 0}
@@ -224,6 +239,8 @@
 	.wp-box { padding: 11px; border-radius: 10px; background: rgb(255 255 255 / 5%); display: flex; flex-direction: column; gap: 9px; }
 	.wp-box-title { font-size: 11px; font-weight: 700; color: rgb(255 255 255 / 66%); text-transform: uppercase; letter-spacing: .04em; }
 	.wp-row-between, .wp-sync-row, .wp-slider-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12.5px; }
+	.wp-delay { display: flex; }
+	.wp-delay input { width: 68px; padding: 0 6px; border: 1px solid #535360; border-radius: 4px; background: #23232d; color: inherit; font: inherit; font-variant-numeric: tabular-nums; }
 	.wp-slider-row input[type="range"] { width: 140px; accent-color: #e50914; }
 	.wp-check { display: flex; align-items: center; gap: 8px; font-size: 12.5px; cursor: pointer; }
 	.wp-btns, .wp-tab-row { display: flex; flex-wrap: wrap; gap: 6px; }

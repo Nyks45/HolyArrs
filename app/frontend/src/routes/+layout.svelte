@@ -242,12 +242,12 @@
 	const topHidden = $derived(path === '/downloads' || path === '/library' || path === '/downloads/history');
 	const typingIn = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
 	function keys(e: KeyboardEvent) {
-		if (!ready || bare) return;
+		if (!ready || bare || e.defaultPrevented) return;
 		const mod = mac ? e.metaKey : e.ctrlKey;
 		if (mod && e.key === '\\') {
 			e.preventDefault();
 			void toggleSidebar();
-		} else if ((mod && (e.key === 'k' || e.key === 'K')) || (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey && !typingIn(e.target))) {
+		} else if ((mod && (e.key === 'k' || e.key === 'K')) || (!cinema && e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey && !typingIn(e.target))) {
 			// Ctrl+K and / focus the one search field (the top bar; on phones the Search page's) and open Search.
 			e.preventDefault();
 			showBar();

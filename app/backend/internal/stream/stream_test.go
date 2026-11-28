@@ -165,7 +165,7 @@ func TestBuildFFmpegArgs(t *testing.T) {
 			{Index: 1, Codec: "ac3", Channels: 6},
 		},
 	}
-	argsCopy := buildFFmpegArgs("http://127.0.0.1/media", "/tmp/hls", probeH264, "original", 0, 0, false)
+	argsCopy := buildFFmpegArgs("http://127.0.0.1/media", "/tmp/hls", probeH264, "original", 0, 0, false, "balanced")
 	if !hasPair(argsCopy, "-c:v", "copy") {
 		t.Fatalf("expected -c:v copy in %v", argsCopy)
 	}
@@ -179,7 +179,7 @@ func TestBuildFFmpegArgs(t *testing.T) {
 		t.Fatalf("did not expect -ss for startSec=0: %v", argsCopy)
 	}
 
-	argsMidSeek := buildFFmpegArgs("http://127.0.0.1/media", "/tmp/hls", probeH264, "original", 0, 125.5, false)
+	argsMidSeek := buildFFmpegArgs("http://127.0.0.1/media", "/tmp/hls", probeH264, "original", 0, 125.5, false, "balanced")
 	if !hasPair(argsMidSeek, "-c:v", "libx264") {
 		t.Fatalf("expected mid-seek startSec>0.5 to reencode keyframes instead of copy: %v", argsMidSeek)
 	}
@@ -187,12 +187,12 @@ func TestBuildFFmpegArgs(t *testing.T) {
 		t.Fatalf("expected strict IDR keyframe cadence in %v", argsMidSeek)
 	}
 
-	argsForcedReencode := buildFFmpegArgs("http://127.0.0.1/media", "/tmp/hls", probeH264, "original", 0, 0, true)
+	argsForcedReencode := buildFFmpegArgs("http://127.0.0.1/media", "/tmp/hls", probeH264, "original", 0, 0, true, "balanced")
 	if !hasPair(argsForcedReencode, "-c:v", "libx264") {
 		t.Fatalf("expected forced reencode at startSec=0: %v", argsForcedReencode)
 	}
 
-	args720 := buildFFmpegArgs("http://127.0.0.1/media", "/tmp/hls", probeH264, "720p", 1, 125.5, false)
+	args720 := buildFFmpegArgs("http://127.0.0.1/media", "/tmp/hls", probeH264, "720p", 1, 125.5, false, "balanced")
 	if !hasPair(args720, "-c:v", "libx264") {
 		t.Fatalf("expected -c:v libx264 for 720p: %v", args720)
 	}
@@ -207,7 +207,7 @@ func TestBuildFFmpegArgs(t *testing.T) {
 	}
 
 	probeHEVC := &MediaProbe{VideoCodec: "hevc", PixFmt: "yuv420p10le"}
-	argsHEVC := buildFFmpegArgs("http://127.0.0.1/media", "/tmp/hls", probeHEVC, "original", 0, 0, false)
+	argsHEVC := buildFFmpegArgs("http://127.0.0.1/media", "/tmp/hls", probeHEVC, "original", 0, 0, false, "balanced")
 	if !hasPair(argsHEVC, "-c:v", "libx264") {
 		t.Fatalf("expected libx264 transcode for hevc original: %v", argsHEVC)
 	}

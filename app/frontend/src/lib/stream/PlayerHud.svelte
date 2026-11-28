@@ -1,15 +1,17 @@
 <script lang="ts">
+	import SeekPreviewCard from './SeekPreviewCard.svelte';
 	import Icon from '#lib/ui/Icon.svelte';
 	import { formatDuration, formatSpeed, type ChapterMark, type SessionStatus, type StreamCandidate } from './stream-api.ts';
 	import type { HlsQualityLevel } from './player-media.ts';
 	import type { SkipSegment } from './streaming-config-api.ts';
 
 	let {
-		hudVisible,
+		hudVisible, immersive, captionsOn, onCaptions, onMore,
 		drawer,
 		kind,
 		headerTitle,
 		headerSub,
+		previewSource = '',
 		runtimeMin = 0,
 		session,
 		activeCandidate = null,
@@ -20,13 +22,10 @@
 		pipelineMode,
 		paused,
 		mpvAvailable,
-		ffmpegAvailable,
 		pipAvailable = false,
 		isPiP = false,
-		playbackRate,
 		volume,
 		muted,
-		fitMode,
 		isFullscreen,
 		totalDuration,
 		currentPos,
@@ -37,35 +36,31 @@
 		chapters = [],
 		skipSegments = [],
 		activeSkip = null,
-		skipCountdown = 0,
+		skipCountdown = 0, nextCountdown = 0,
 		hasNextEpisode = false,
 		hlsLevels = [],
 		hlsLevelIdx = -1,
 		browserQuality = 'original',
 		onLeave,
 		onToggleDrawer,
-		onTriggerMPV,
 		onTogglePlayPause,
 		onSeekBy,
 		onScrubInput,
 		onScrubCommit,
 		onToggleMute,
 		onVolumeChange,
-		onSelectSpeed,
-		onToggleFit,
-		onSelectHlsLevel,
-		onChangeBrowserQuality,
 		onTogglePiP,
 		onNextEpisode,
 		onToggleFullscreen,
 		onExecuteSkip,
 		onCancelAutoSkip
 	}: {
-		hudVisible: boolean;
+		hudVisible: boolean; immersive: boolean; captionsOn: boolean; onCaptions: () => void; onMore: () => void;
 		drawer: 'none' | 'sources' | 'quality' | 'audioSubs' | 'episodes';
 		kind: 'movie' | 'show';
 		headerTitle: string;
 		headerSub: string;
+		previewSource?: string;
 		runtimeMin?: number;
 		session: SessionStatus | null;
 		activeCandidate?: StreamCandidate | null;
@@ -76,13 +71,10 @@
 		pipelineMode: 'none' | 'direct' | 'hls';
 		paused: boolean;
 		mpvAvailable: boolean;
-		ffmpegAvailable: boolean;
 		pipAvailable?: boolean;
 		isPiP?: boolean;
-		playbackRate: number;
 		volume: number;
 		muted: boolean;
-		fitMode: 'contain' | 'cover';
 		isFullscreen: boolean;
 		totalDuration: number;
 		currentPos: number;
@@ -93,24 +85,19 @@
 		chapters?: ChapterMark[];
 		skipSegments?: SkipSegment[];
 		activeSkip?: SkipSegment | null;
-		skipCountdown?: number;
+		skipCountdown?: number; nextCountdown?: number;
 		hasNextEpisode?: boolean;
 		hlsLevels?: HlsQualityLevel[];
 		hlsLevelIdx?: number;
 		browserQuality?: 'original' | '1080p' | '720p' | '480p';
 		onLeave: () => void;
 		onToggleDrawer: (d: 'sources' | 'quality' | 'audioSubs' | 'episodes') => void;
-		onTriggerMPV: () => void;
 		onTogglePlayPause: () => void;
 		onSeekBy: (delta: number) => void;
 		onScrubInput: (sec: number) => void;
 		onScrubCommit: (sec: number) => void;
 		onToggleMute: () => void;
 		onVolumeChange: (v: number) => void;
-		onSelectSpeed: (spd: number) => void;
-		onToggleFit: () => void;
-		onSelectHlsLevel: (idx: number) => void;
-		onChangeBrowserQuality: (q: 'original' | '1080p' | '720p' | '480p') => void;
 		onTogglePiP: () => void;
 		onNextEpisode: () => void;
 		onToggleFullscreen: () => void;
@@ -122,9 +109,9 @@
 	let hoverPct = $state(0);
 
 	const hoverChapter = $derived.by(() => {
-		if (hoverSec === null || chapters.length === 0) return '';
+		if (hoverSec === null) return '';
 		const ch = chapters.find((c) => hoverSec! >= c.start && hoverSec! <= c.end);
-		return ch?.title || '';
+		return ch?.title || skipSegments.find((seg) => hoverSec! >= seg.start && hoverSec! <= seg.end)?.label || '';
 	});
 
 	const subtitleLine = $derived.by(() => {
@@ -169,14 +156,9 @@
 	</div>
 {/if}
 
-<!-- Top Movy.sx Overlay HUD -->
-<header class="wp-top-bar" class:visible={hudVisible || paused || drawer !== 'none'}>
-	<div class="wp-top-left">
-		<button type="button" class="wp-ghost-ico" title="Back" onclick={onLeave}>
-			<Icon name="back" size={20} />
-		</button>
-		<div class="wp-title-meta">
-			<strong>{headerTitle}</strong>
+{#snippet titleMetadata()}
+	<div class="wp-title-meta">
+			<small>Now watching</small><strong>{headerTitle}</strong>
 			<div class="wp-sub-row">
 				{#if subtitleLine}<span>{subtitleLine}</span>{/if}
 				{#if sourceSummary}
@@ -189,6 +171,15 @@
 				{/if}
 			</div>
 		</div>
+{/snippet}
+
+<!-- Player title and source controls -->
+<header class="wp-top-bar" class:visible={hudVisible || paused || drawer !== 'none'}>
+	<div class="wp-top-left">
+		<button type="button" class="wp-ghost-ico" title="Back" onclick={onLeave}>
+			<Icon name="back" size={20} />
+		</button>
+		{#if immersive}{@render titleMetadata()}{/if}
 	</div>
 
 	<div class="wp-top-right">
@@ -197,9 +188,9 @@
 			<span>Sources{candidatesCount > 0 ? ` (${candidatesCount})` : ''}</span>
 			{#if loadingMoreSources}<span class="wp-mini-dot"></span>{/if}
 		</button>
-		<button type="button" class="wp-ghost-btn" class:on={drawer === 'quality'} onclick={() => onToggleDrawer('quality')}>
+		<button type="button" class="wp-ghost-btn" aria-label="Settings" class:on={drawer === 'quality'} onclick={() => onToggleDrawer('quality')}>
 			<Icon name="sliders" size={16} />
-			<span>Quality</span>
+			<span>Settings</span>
 			<small>{qualityLabel}</small>
 		</button>
 		<button type="button" class="wp-ghost-btn" class:on={drawer === 'audioSubs'} onclick={() => onToggleDrawer('audioSubs')}>
@@ -208,69 +199,12 @@
 		</button>
 		{#if kind === 'show' && hasNextEpisode}
 			<button type="button" class="wp-ghost-btn accent" onclick={onNextEpisode}>
-				<span>Next Episode</span>
+				<span>Next Episode{nextCountdown > 0 ? ` · ${nextCountdown}s` : ''}</span>
 				<Icon name="chevronRight" size={16} />
 			</button>
 		{/if}
 	</div>
 </header>
-
-<!-- Compact Floating Quality & Playback Menu -->
-{#if drawer === 'quality'}
-	<aside class="wp-q-pop" aria-label="Quality and playback options">
-		{#if hlsLevels.length > 1}
-			<div class="wp-q-sec">
-				<span class="wp-q-lbl">Stream Quality</span>
-				<div class="wp-q-chips">
-					<button type="button" class="wp-q-chip" class:on={hlsLevelIdx === -1} onclick={() => onSelectHlsLevel(-1)}>Auto</button>
-					{#each hlsLevels as lv (lv.index)}
-						<button type="button" class="wp-q-chip" class:on={hlsLevelIdx === lv.index} onclick={() => onSelectHlsLevel(lv.index)}>
-							{lv.label}
-						</button>
-					{/each}
-				</div>
-			</div>
-		{:else if session && session.transport !== 'hls_remote' && ffmpegAvailable}
-			<div class="wp-q-sec">
-				<span class="wp-q-lbl">Transcode Quality</span>
-				<div class="wp-q-chips">
-					{#each ['original', '1080p', '720p', '480p'] as q (q)}
-						<button
-							type="button"
-							class="wp-q-chip"
-							class:on={browserQuality === q}
-							onclick={() => onChangeBrowserQuality(q as 'original' | '1080p' | '720p' | '480p')}
-						>
-							{q === 'original' ? 'Original' : q}
-						</button>
-					{/each}
-				</div>
-			</div>
-		{/if}
-
-		<div class="wp-q-sec">
-			<span class="wp-q-lbl">Speed</span>
-			<div class="wp-q-chips">
-				{#each [0.75, 1, 1.25, 1.5, 2] as spd (spd)}
-					<button type="button" class="wp-q-chip" class:on={playbackRate === spd} onclick={() => onSelectSpeed(spd)}>
-						{spd}x
-					</button>
-				{/each}
-			</div>
-		</div>
-
-		<div class="wp-q-sec">
-			<span class="wp-q-lbl">Display &amp; External</span>
-			<div class="wp-q-chips">
-				<button type="button" class="wp-q-chip" class:on={fitMode === 'contain'} onclick={() => { if (fitMode !== 'contain') onToggleFit(); }}>Fit</button>
-				<button type="button" class="wp-q-chip" class:on={fitMode === 'cover'} onclick={() => { if (fitMode !== 'cover') onToggleFit(); }}>Fill</button>
-				{#if mpvAvailable && session}
-					<button type="button" class="wp-q-chip" onclick={onTriggerMPV}>Open in MPV</button>
-				{/if}
-			</div>
-		</div>
-	</aside>
-{/if}
 
 <!-- Floating Skip Segment Button -->
 {#if activeSkip && pipelineMode !== 'none'}
@@ -290,18 +224,16 @@
 <!-- Bottom Movy.sx Playback Controls HUD -->
 <footer class="wp-bottom-bar" class:visible={(hudVisible || paused || drawer !== 'none') && pipelineMode !== 'none'} class:hidden={pipelineMode === 'none'}>
 	<div class="wp-clock-line">
+		{#if !immersive}
+			<div class="wp-compact-title"><strong>{headerTitle}</strong>{#if headerSub}<span>{headerSub}</span>{/if}</div>
+		{/if}
 		{#if endsAtText}<span class="wp-clock-end">{remainingText ? `${remainingText} · ` : ''}{endsAtText}</span>{/if}
 		<span class="wp-clock-num">{formatDuration(currentPos)} <small>/ {formatDuration(totalDuration)}</small></span>
 	</div>
 
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div class="wp-scrub-wrap" onmousemove={onTrackMove} onmouseleave={() => { hoverSec = null; }}>
-		{#if hoverSec !== null}
-			<div class="wp-hover-tip" style:left="clamp(42px, {hoverPct}%, calc(100% - 42px))">
-				<span>{formatDuration(hoverSec)}</span>
-				{#if hoverChapter}<small>{hoverChapter}</small>{/if}
-			</div>
-		{/if}
+		{#if hoverSec !== null}<SeekPreviewCard source={previewSource} seconds={hoverSec} chapter={hoverChapter} percent={hoverPct} />{/if}
 		<div class="wp-scrub-track">
 			<div class="wp-scrub-buf" style:width="{bufferedPct}%"></div>
 			{#each skipSegments as seg (seg.kind + ':' + seg.start)}
@@ -364,8 +296,10 @@
 		</div>
 
 		<div class="wp-ctrl-right">
+			<button type="button" class="wp-ghost-ico" aria-label="Captions" aria-pressed={captionsOn} class:on={captionsOn} onclick={onCaptions}><Icon name="subtitle" size={18} /></button>
+			<button type="button" class="wp-ghost-ico" aria-label="More options" onclick={onMore}>•••</button>
 			{#if pipAvailable}
-				<button type="button" class="wp-ghost-ico" class:on={isPiP} title="Picture in Picture" onclick={onTogglePiP}>
+				<button type="button" class="wp-ghost-ico wp-pip" class:on={isPiP} title="Picture in Picture" onclick={onTogglePiP}>
 					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
 						<rect x="3" y="5" width="18" height="14" rx="2" />
 						<rect x="12" y="11" width="7" height="5" rx="1" fill="currentColor" stroke="none" />
@@ -415,12 +349,6 @@
 	.wp-mini-dot { width: 6px; height: 6px; border-radius: 50%; background: #38bdf8; animation: wp-pulse 1s ease infinite; }
 	@keyframes wp-pulse { 50% { opacity: 0.3; } }
 
-	.wp-q-pop { position: absolute; top: 62px; right: 24px; width: min(320px, calc(100vw - 32px)); z-index: 14; padding: 14px; border-radius: 16px; background: rgb(16 16 22 / 92%); border: 1px solid rgb(255 255 255 / 14%); backdrop-filter: blur(22px); display: flex; flex-direction: column; gap: 12px; box-shadow: 0 18px 44px rgb(0 0 0 / 55%); }
-	.wp-q-sec { display: flex; flex-direction: column; gap: 7px; }
-	.wp-q-lbl { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: rgb(255 255 255 / 60%); }
-	.wp-q-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-	.wp-q-chip { padding: 6px 11px; border-radius: 999px; border: 1px solid rgb(255 255 255 / 16%); background: rgb(255 255 255 / 6%); color: rgb(255 255 255 / 86%); font-size: 12px; font-weight: 600; cursor: pointer; }
-	.wp-q-chip.on { background: #fff; color: #111; border-color: #fff; }
 
 	.wp-skip-wrap { position: absolute; right: 26px; bottom: 54px; z-index: 10; display: flex; align-items: center; gap: 6px; transition: bottom 180ms ease; }
 	.wp-skip-wrap.hud-up { bottom: 118px; }
@@ -430,12 +358,13 @@
 
 	.wp-bottom-bar { bottom: 0; padding: 40px 24px 16px; display: flex; flex-direction: column; gap: 6px; background: linear-gradient(to top, rgb(0 0 0 / 88%), rgb(0 0 0 / 42%) 62%, transparent); }
 	.wp-clock-line { display: flex; justify-content: flex-end; align-items: center; gap: 12px; font-size: 12px; font-weight: 600; color: rgb(255 255 255 / 86%); }
+	.wp-compact-title { display: flex; flex: 1; min-width: 0; align-items: baseline; gap: 8px; margin-right: auto; white-space: nowrap; overflow: hidden; }
+	.wp-compact-title strong { font-size: 13px; overflow: hidden; text-overflow: ellipsis; }
+	.wp-compact-title span { color: #ddd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.wp-clock-end { color: rgb(255 255 255 / 58%); }
 	.wp-clock-num small { color: rgb(255 255 255 / 55%); font-weight: 500; font-size: 12px; }
 
 	.wp-scrub-wrap { position: relative; height: 20px; display: flex; align-items: center; }
-	.wp-hover-tip { position: absolute; bottom: 24px; transform: translateX(-50%); padding: 4px 9px; border-radius: 6px; background: rgb(16 16 22 / 94%); border: 1px solid rgb(255 255 255 / 20%); font-size: 11.5px; font-weight: 700; display: flex; flex-direction: column; align-items: center; white-space: nowrap; pointer-events: none; }
-	.wp-hover-tip small { color: rgb(255 255 255 / 70%); font-weight: 500; }
 	.wp-scrub-track { position: relative; width: 100%; height: 4px; border-radius: 999px; background: rgb(255 255 255 / 24%); overflow: hidden; transition: height 120ms ease; }
 	.wp-scrub-wrap:hover .wp-scrub-track { height: 7px; }
 	.wp-scrub-buf { position: absolute; left: 0; top: 0; bottom: 0; background: rgb(255 255 255 / 34%); }
@@ -447,7 +376,7 @@
 	.wp-scrub-wrap:hover .wp-scrub-knob { transform: translate(-50%, -50%) scale(1.1); }
 	.wp-scrub-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 5; margin: 0; }
 
-	.wp-ctrl-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; }
+	.wp-ctrl-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 10px; }
 	.wp-ctrl-left { display: flex; align-items: center; gap: 6px; }
 	.wp-ctrl-center { display: flex; justify-content: center; }
 	.wp-ctrl-right { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
@@ -459,6 +388,9 @@
 
 	@media (max-width: 720px) {
 		.wp-ghost-btn span { display: none; }
-		.wp-clock-end, .wp-vol-slider { display: none !important; }
+		.wp-clock-end, .wp-compact-title span, .wp-vol-slider, .wp-pip { display: none !important; }
+		.wp-bottom-bar { padding-inline: 8px; }
+		.wp-ctrl-row { gap: 2px; } .wp-ctrl-left, .wp-ctrl-right { gap: 2px; }
+		.wp-ctrl-row .wp-ghost-ico { width: clamp(20px, calc((100vw - 139px) / 8), 40px); }
 	}
 </style>

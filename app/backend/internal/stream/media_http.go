@@ -9,6 +9,10 @@ import (
 	"github.com/anacrolix/torrent"
 )
 
+func setStreamCORS(w http.ResponseWriter) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+}
+
 func contentTypeForExt(name string) string {
 	switch strings.ToLower(filepath.Ext(name)) {
 	case ".mp4", ".m4v":
@@ -58,6 +62,7 @@ func (m *Manager) ServeMedia(w http.ResponseWriter, r *http.Request) {
 	sess.mu.Unlock()
 
 	sess.touch()
+	setStreamCORS(w)
 	if localPath != "" {
 		f, err := os.Open(localPath)
 		if err != nil {

@@ -60,3 +60,31 @@ func TestWatchHistoryKeepsCommittedEntriesOnError(t *testing.T) {
 	}
 	checkPrior()
 }
+
+func TestWatchHistoryDropsOldLinkWhenReleaseChanges(t *testing.T) {
+	h := NewHistoryStore(t.TempDir())
+	base := WatchEntry{Kind: "movie", TMDB: "900003", PositionSec: 600, DurationSec: 6000}
+	first := base
+	first.ReleaseTitle, first.ReleaseLink, first.InfoHash = "Film.2160p.WEB", "magnet:?xt=urn:btih:abc", "abc"
+	if _, err := h.Upsert(1, first); err != nil {
+		t.Fatal(err)
+	}
+	same := base
+	same.ReleaseTitle = "Film.2160p.WEB"
+	got, err := h.Upsert(1, same)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ReleaseLink != first.ReleaseLink || got.InfoHash != "abc" {
+		t.Fatalf("same release lost its link: %+v", got)
+	}
+	other := base
+	other.ReleaseTitle = "Instant 1080p"
+	got, err = h.Upsert(1, other)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ReleaseLink != "" || got.InfoHash != "" {
+		t.Fatalf("new release kept the old torrent: link %q hash %q", got.ReleaseLink, got.InfoHash)
+	}
+}

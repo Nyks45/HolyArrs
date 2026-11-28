@@ -233,6 +233,8 @@ func (s *HistoryStore) upsertEntryLocked(userID int64, in WatchEntry, now time.T
 	merged.Kind = kind
 	merged.TMDB = tmdb
 	if hasPrev {
+		// A different release played last, so the old link, hash and file would resume the wrong source.
+		sameRelease := in.ReleaseTitle == "" || in.ReleaseTitle == prev.ReleaseTitle
 		if merged.IMDb == "" {
 			merged.IMDb = prev.IMDb
 		}
@@ -263,10 +265,10 @@ func (s *HistoryStore) upsertEntryLocked(userID int64, in WatchEntry, now time.T
 		if merged.ReleaseTitle == "" {
 			merged.ReleaseTitle = prev.ReleaseTitle
 		}
-		if merged.ReleaseLink == "" {
+		if merged.ReleaseLink == "" && sameRelease {
 			merged.ReleaseLink = prev.ReleaseLink
 		}
-		if merged.InfoHash == "" {
+		if merged.InfoHash == "" && sameRelease {
 			merged.InfoHash = prev.InfoHash
 		}
 		if merged.Resolution == "" {

@@ -287,6 +287,7 @@ export interface StreamSubSearchResponse {
 
 export interface StreamSubFetchResponse {
 	vtt: string;
+	ass?: string;
 	language?: string;
 	sub_file?: string;
 }
@@ -326,12 +327,15 @@ export function selectStreamFile(id: string, fileIndex: number): Promise<Session
 	return api.post<SessionStatus>(`/stream/${encodeURIComponent(id)}/file`, { file_index: fileIndex });
 }
 
-export function ensureStreamHLS(id: string, quality: string, audioIndex: number, startSec: number, reencode = false): Promise<HLSResponse> {
+export type H264Quality = 'balanced' | 'high';
+
+export function ensureStreamHLS(id: string, quality: string, audioIndex: number, startSec: number, reencode = false, h264Quality?: H264Quality): Promise<HLSResponse> {
 	return api.post<HLSResponse>(`/stream/${encodeURIComponent(id)}/hls`, {
 		quality,
 		audio_index: audioIndex,
 		start_sec: startSec,
-		reencode
+		reencode,
+		h264_quality: h264Quality
 	});
 }
 

@@ -107,6 +107,9 @@ func TestProxyManagerHeaderInjectionAndHLSRewrite(t *testing.T) {
 	if rec.Code != http.StatusPartialContent || rec.Body.String() != "HELLO" {
 		t.Fatalf("proxy range got %d %q", rec.Code, rec.Body.String())
 	}
+	if rec.Header().Get("Access-Control-Allow-Origin") != "*" {
+		t.Fatalf("proxy range did not allow browser processing")
+	}
 
 	// 2. HLS manifest rewrite + nested segment header injection.
 	tokHLS, _, err := pm.Register(srv.URL+"/master.m3u8", headers, 1)

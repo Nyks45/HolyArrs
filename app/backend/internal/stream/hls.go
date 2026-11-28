@@ -64,6 +64,7 @@ type hlsState struct {
 	audioIdx    int
 	startSec    float64
 	reencode    bool
+	h264Quality string
 	dir         string
 	playlistURL string
 	cmd         *exec.Cmd
@@ -226,7 +227,7 @@ func tagCI(tags map[string]string, key string) string {
 	return ""
 }
 
-func buildFFmpegArgs(mediaURL, outDir string, probe *MediaProbe, quality string, audioIdx int, startSec float64, reencode bool) []string {
+func buildFFmpegArgs(mediaURL, outDir string, probe *MediaProbe, quality string, audioIdx int, startSec float64, reencode bool, h264Quality string) []string {
 	switch quality {
 	case "original", "1080p", "720p", "480p":
 	default:
@@ -255,8 +256,12 @@ func buildFFmpegArgs(mediaURL, outDir string, probe *MediaProbe, quality string,
 	if copyVideo {
 		args = append(args, "-c:v", "copy")
 	} else {
+		preset, crf := "superfast", "23"
+		if h264Quality == "high" {
+			preset, crf = "veryfast", "18"
+		}
 		args = append(args,
-			"-c:v", "libx264", "-preset", "superfast", "-crf", "23", "-pix_fmt", "yuv420p",
+			"-c:v", "libx264", "-preset", preset, "-crf", crf, "-pix_fmt", "yuv420p",
 			"-g", "48", "-keyint_min", "48", "-sc_threshold", "0", "-force_key_frames", "expr:gte(t,n_forced*2)",
 		)
 		switch quality {
@@ -298,7 +303,7 @@ func (s *Session) stopHLSLocked() {
 }
 
 // EnsureHLS starts or switches the ffmpeg HLS pipeline for browser playback.
-func (m *Manager) EnsureHLS(ctx context.Context, id, quality string, audioIdx int, startSec float64, reencode bool) (playlistURL string, actualStart float64, err error) {
+func (m *Manager) EnsureHLS(ctx context.Context, id, quality string, audioIdx int, startSec float64, reencode bool, h264Quality string) (playlistURL string, actualStart float64, err error) {
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
 		return "", 0, errors.New("ffmpeg is not installed")
 	}
@@ -312,6 +317,23 @@ func (m *Manager) EnsureHLS(ctx context.Context, id, quality string, audioIdx in
 	if startSec < 0 {
 		startSec = 0
 	}
+	if h264Quality != "high" {
+		h264Quality = "balanced"
+	}
+	// Without the probe, ffmpeg re-encodes everything and ignores the audio choice; wait briefly for it.
+	for deadline := time.Now().Add(6 * time.Second); time.Now().Before(deadline); {
+		sess.mu.Lock()
+		waiting := sess.probing && sess.probe == nil && !sess.closed
+		sess.mu.Unlock()
+		if !waiting {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return "", 0, ctx.Err()
+		case <-time.After(150 * time.Millisecond):
+		}
+	}
 
 	sess.mu.Lock()
 	target, _, _, targetOK := sess.localOrMediaTargetLocked(m.localBaseURL())
@@ -321,7 +343,7 @@ func (m *Manager) EnsureHLS(ctx context.Context, id, quality string, audioIdx in
 	}
 	// Reuse running pipeline if parameters match.
 	if sess.hls != nil && sess.hls.quality == quality && sess.hls.audioIdx == audioIdx &&
-		sess.hls.reencode == reencode && absFloat(sess.hls.startSec-startSec) < 0.5 && sess.hls.errText == "" {
+		sess.hls.reencode == reencode && sess.hls.h264Quality == h264Quality && absFloat(sess.hls.startSec-startSec) < 0.5 && sess.hls.errText == "" {
 		url := sess.hls.playlistURL
 		st := sess.hls.startSec
 		sess.lastActivity = time.Now()
@@ -343,7 +365,7 @@ func (m *Manager) EnsureHLS(ctx context.Context, id, quality string, audioIdx in
 	mediaURL := target
 	playlistPath := fmt.Sprintf("/api/v1/stream/%s/hls/%s/%d/index.m3u8", sess.id, sess.token, gen)
 
-	args := buildFFmpegArgs(mediaURL, outDir, probe, quality, audioIdx, startSec, reencode)
+	args := buildFFmpegArgs(mediaURL, outDir, probe, quality, audioIdx, startSec, reencode, h264Quality)
 	cmd := exec.CommandContext(sess.ctx, "ffmpeg", args...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -360,6 +382,7 @@ func (m *Manager) EnsureHLS(ctx context.Context, id, quality string, audioIdx in
 		audioIdx:    audioIdx,
 		startSec:    startSec,
 		reencode:    reencode,
+		h264Quality: h264Quality,
 		dir:         outDir,
 		playlistURL: playlistPath,
 		cmd:         cmd,
@@ -456,6 +479,7 @@ func (m *Manager) ServeHLSFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fullPath := filepath.Join(dir, file)
+	setStreamCORS(w)
 	if file == "index.m3u8" {
 		w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 		w.Header().Set("Cache-Control", "no-store")
@@ -466,7 +490,7 @@ func (m *Manager) ServeHLSFile(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, fullPath)
 }
 
-// ServeSubtitleVTT extracts an embedded subtitle stream as WebVTT for browser <track>.
+// ServeSubtitleVTT extracts an embedded text track as WebVTT or ASS.
 func (m *Manager) ServeSubtitleVTT(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	tok := r.PathValue("token")
@@ -494,20 +518,33 @@ func (m *Manager) ServeSubtitleVTT(w http.ResponseWriter, r *http.Request) {
 	sess.lastActivity = time.Now()
 	sess.mu.Unlock()
 
-	vttPath := filepath.Join(subsDir, fmt.Sprintf("%d_%d.vtt", fileIdx, idx))
-	if _, statErr := os.Stat(vttPath); statErr != nil {
+	extension, format, contentType := "vtt", "webvtt", "text/vtt; charset=utf-8"
+	if r.URL.Query().Get("format") == "ass" {
+		extension, format, contentType = "ass", "ass", "text/plain; charset=utf-8"
+	}
+	subPath := filepath.Join(subsDir, fmt.Sprintf("%d_%d.%s", fileIdx, idx, extension))
+	if _, statErr := os.Stat(subPath); statErr != nil {
 		if err := os.MkdirAll(subsDir, 0o750); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
 		defer cancel()
-		tmpPath := vttPath + ".tmp"
-		cmd := exec.CommandContext(ctx, "ffmpeg", "-v", "error", "-y", "-i", mediaURL, "-map", fmt.Sprintf("0:s:%d", idx), "-f", "webvtt", tmpPath)
+		tmp, err := os.CreateTemp(subsDir, "track-*")
+		if err != nil {
+			http.Error(w, "cannot stage subtitle", http.StatusInternalServerError)
+			return
+		}
+		tmpPath := tmp.Name()
+		defer os.Remove(tmpPath)
+		if err := tmp.Close(); err != nil {
+			http.Error(w, "cannot stage subtitle", http.StatusInternalServerError)
+			return
+		}
+		cmd := exec.CommandContext(ctx, "ffmpeg", "-v", "error", "-y", "-i", mediaURL, "-map", fmt.Sprintf("0:s:%d", idx), "-f", format, tmpPath)
 		var stderr bytes.Buffer
 		cmd.Stderr = &stderr
 		if runErr := cmd.Run(); runErr != nil {
-			_ = os.Remove(tmpPath)
 			msg := strings.TrimSpace(stderr.String())
 			if msg == "" {
 				msg = runErr.Error()
@@ -515,17 +552,17 @@ func (m *Manager) ServeSubtitleVTT(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "subtitle extraction failed: "+msg, http.StatusBadGateway)
 			return
 		}
-		if renErr := os.Rename(tmpPath, vttPath); renErr != nil {
-			_ = os.Remove(tmpPath)
+		if renErr := os.Rename(tmpPath, subPath); renErr != nil {
 			http.Error(w, renErr.Error(), http.StatusInternalServerError)
 			return
 		}
 	}
 
-	w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
+	setStreamCORS(w)
+	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Cache-Control", "no-cache")
-	if offsetSec, err := strconv.ParseFloat(strings.TrimSpace(r.URL.Query().Get("offset")), 64); err == nil && offsetSec > 0.5 {
-		raw, rerr := os.ReadFile(vttPath)
+	if offsetSec, err := strconv.ParseFloat(strings.TrimSpace(r.URL.Query().Get("offset")), 64); format == "webvtt" && err == nil && offsetSec > 0.5 {
+		raw, rerr := os.ReadFile(subPath)
 		if rerr != nil {
 			http.Error(w, rerr.Error(), http.StatusInternalServerError)
 			return
@@ -533,7 +570,7 @@ func (m *Manager) ServeSubtitleVTT(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write(shiftWebVTT(raw, offsetSec))
 		return
 	}
-	http.ServeFile(w, r, vttPath)
+	http.ServeFile(w, r, subPath)
 }
 
 func shiftWebVTT(data []byte, offsetSec float64) []byte {

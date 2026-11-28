@@ -379,6 +379,7 @@ func (p *ProxyManager) proxyUpstream(w http.ResponseWriter, r *http.Request, tok
 	}
 	defer resp.Body.Close()
 
+	setStreamCORS(w)
 	ct := strings.ToLower(resp.Header.Get("Content-Type"))
 	isManifest := method == http.MethodGet && resp.StatusCode >= 200 && resp.StatusCode < 300 &&
 		(strings.Contains(ct, "mpegurl") || isMaybeHLS)

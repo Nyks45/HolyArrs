@@ -36,6 +36,7 @@ func looksIncompatibleForDirectPlay(releaseTitle, streamURL, contentType string)
 // StartLocal starts an instant playback session backed directly by a present
 // file inside the user's Library folders.
 func (m *Manager) StartLocal(ctx context.Context, userID int64, file mediafiles.LocalStreamFile, req StartReq) (SessionStatus, error) {
+	began := time.Now()
 	if file.FullPath == "" {
 		return SessionStatus{}, errors.New("local library file path is empty")
 	}
@@ -44,7 +45,7 @@ func (m *Manager) StartLocal(ctx context.Context, userID int64, file mediafiles.
 		return SessionStatus{}, errors.New("local library file could not be read")
 	}
 
-	m.stopUserSessions(userID)
+	m.stopUserSessions(userID, began)
 
 	id := randomHex(8)
 	tok := randomHex(16)
@@ -123,6 +124,7 @@ func (m *Manager) StartVerifiedRemote(ctx context.Context, userID int64, cand Un
 }
 
 func (m *Manager) startRemote(ctx context.Context, userID int64, streamURL string, headers map[string]string, isHLS bool, provider string, req StartReq, verified bool, fastStart bool) (SessionStatus, error) {
+	began := time.Now()
 	if m.Proxy == nil {
 		return SessionStatus{}, errors.New("stream proxy unavailable")
 	}
@@ -155,7 +157,7 @@ func (m *Manager) startRemote(ctx context.Context, userID int64, streamURL strin
 		return SessionStatus{}, err
 	}
 
-	m.stopUserSessions(userID)
+	m.stopUserSessions(userID, began)
 
 	id := randomHex(8)
 	tok := randomHex(16)

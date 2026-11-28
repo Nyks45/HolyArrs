@@ -869,6 +869,7 @@ groups_claim
 guess
 guid
 h
+h264_quality
 hand_search
 hasFile
 has_4k

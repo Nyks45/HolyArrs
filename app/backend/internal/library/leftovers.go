@@ -330,6 +330,15 @@ func (s *Service) matchEpisodesTx(ctx context.Context, tx *sql.Tx, f mediafiles.
 		ge = mediafiles.ReachesGoodEnough(release, pr.Body)
 	} else {
 		ge = mediafiles.OwnedReachesGoodEnoughFor(release, f.MediaInfo, t, pr.Body)
+		// A found note has no Quality until it is linked; the name and the
+		// inspected facts give it, so the row shows the copy's quality.
+		if f.Quality.Resolution == 0 && f.Quality.Source == "" && f.Quality.Codec == "" && len(f.Quality.HDR) == 0 {
+			if q := mediafiles.OwnedQuality(release, f.MediaInfo); q.Resolution != 0 || q.Source != "" || q.Codec != "" || len(q.HDR) != 0 {
+				if err := mediafiles.SetFileQualityTx(ctx, tx, f.ID, q); err != nil {
+					return err
+				}
+			}
+		}
 	}
 	state := mediafiles.SlotInLibrary
 	if !ge && v.KeepUpToDate {

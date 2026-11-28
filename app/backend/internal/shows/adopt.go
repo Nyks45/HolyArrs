@@ -705,7 +705,8 @@ func (s *Service) recordFoundEpisodes(ctx context.Context, lf mediafiles.Library
 		if info == nil {
 			info = map[string]any{}
 		}
-		f := &mediafiles.File{SlotIDs: slotIDs, VersionID: v.ID, RelativePath: af.Path, Size: af.Size, AddedAt: s.Clock(), Languages: []string{},
+		f := &mediafiles.File{SlotIDs: slotIDs, VersionID: v.ID, RelativePath: af.Path, Size: af.Size, AddedAt: s.Clock(),
+			Quality: mediafiles.OwnedQuality(release, info), Languages: []string{},
 			MediaInfo: info, ReleaseName: &release, Origin: "found", PlacedBy: "none", Role: "main", State: "present", LeftoverReason: &reason}
 		f.Languages = library.InspectedLanguages(info)
 		if err := s.Store.Write(ctx, func(tx *sql.Tx) error { _, err := database.Insert(tx, "files", f, by); return err }); err != nil {

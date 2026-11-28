@@ -372,4 +372,19 @@ func TestAdoptRecordsLeftovers(t *testing.T) {
 	if f := filled(t, s, res[0].TitleID); !f["S01E05"] {
 		t.Fatalf("filled %v", f)
 	}
+	// A found note matched by hand takes the quality its name gives, so the
+	// episode row shows the copy's quality and not just "In library".
+	eps := episodes(t, s, res[0].TitleID)
+	na := ls["Copper.Valley.S02E01.1080p.WEB.mkv"]
+	out, err := svc.MatchLeftovers(context.Background(), res[0].TitleID, []library.LeftoverMatch{{FileID: na.FileID, EpisodeIDs: []int64{eps["S01E01"].ItemID}}}, true, domain.System)
+	if err != nil || !out[0].Linked {
+		t.Fatalf("match by hand %+v %v", out, err)
+	}
+	var f mediafiles.File
+	if err := database.Get(context.Background(), s.Read(), "files", na.FileID, &f); err != nil {
+		t.Fatal(err)
+	}
+	if f.Quality.Resolution != 1080 || f.Quality.Source != "web_dl" {
+		t.Fatalf("quality after a match by hand: %+v", f.Quality)
+	}
 }

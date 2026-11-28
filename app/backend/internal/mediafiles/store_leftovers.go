@@ -103,6 +103,16 @@ func LinkFileInPlaceTx(ctx context.Context, tx *sql.Tx, fileID int64, slotIDs []
 	return nil
 }
 
+// SetFileQualityTx writes the Quality a File's name and facts give.
+func SetFileQualityTx(ctx context.Context, tx *sql.Tx, fileID int64, q Quality) error {
+	raw, err := json.Marshal(q)
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `UPDATE files SET quality = json(?) WHERE id = ?`, string(raw), fileID)
+	return err
+}
+
 // UnlinkFileTx turns a File back into a found note with the reason: the
 // Slots it filled are empty again. Nothing on disk changes.
 func UnlinkFileTx(ctx context.Context, tx *sql.Tx, fileID int64, reason string, now time.Time, by database.Actor) error {

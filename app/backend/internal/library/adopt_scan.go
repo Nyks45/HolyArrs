@@ -560,7 +560,8 @@ func (s *Service) recordFound(ctx context.Context, lf mediafiles.LibraryFolder, 
 			if info == nil {
 				info = map[string]any{}
 			}
-			f := &mediafiles.File{SlotIDs: []int64{}, VersionID: v.ID, RelativePath: vid.Path, Size: vid.Size, AddedAt: s.now(), Languages: []string{},
+			f := &mediafiles.File{SlotIDs: []int64{}, VersionID: v.ID, RelativePath: vid.Path, Size: vid.Size, AddedAt: s.now(),
+				Quality: mediafiles.OwnedQuality(release, info), Languages: []string{},
 				MediaInfo: info, ReleaseName: &release, Origin: "found", PlacedBy: "none", Role: "main", State: "present"}
 			f.Languages = InspectedLanguages(info)
 			if err := s.Store.Write(ctx, func(tx *sql.Tx) error { _, err := database.Insert(tx, "files", f, by); return err }); err != nil {

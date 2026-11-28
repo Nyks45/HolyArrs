@@ -33,6 +33,14 @@ func JudgeName(name string, mediaInfo map[string]any) string {
 	return name + " " + r
 }
 
+// OwnedQuality is the quality a File's release name and inspected facts give:
+// the name judged with the inspection's resolution, read for resolution,
+// source, codec and HDR.
+func OwnedQuality(name string, mediaInfo map[string]any) Quality {
+	p := releasename.Parse(JudgeName(name, mediaInfo), releasename.Hints{})
+	return Quality{Resolution: p.Resolution.Value, Source: p.Source.Value, Codec: p.Codec.Value, HDR: p.HDR.Value}
+}
+
 // RecordedQualityKey is the media info key of the quality the old app
 // recorded for a moved-over file ("WEBDL-1080p").
 const RecordedQualityKey = "recorded_quality"

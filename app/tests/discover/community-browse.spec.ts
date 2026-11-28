@@ -171,7 +171,7 @@ async function mockCommunity(page: Page) {
 				results: [
 					{ title_id: 77, name: 'North Star', status: 'removed' },
 					{ title_id: 78, name: 'North Star II', status: 'skipped', error: 'the protected file changed after review' },
-					{ title_id: 79, name: 'North Star III', status: 'failed', error: 'the Library row changed after review' }
+					{ title_id: 79, name: 'North Star III', status: 'failed', error: 'the Watchlist row changed after review' }
 				]
 			});
 		}
@@ -266,8 +266,8 @@ for (const viewport of viewports) {
 			await page.getByRole('button', { name: 'Remove reviewed movies' }).click();
 			await expect(page.getByRole('heading', { name: 'Collection removed' })).toBeVisible();
 			await expect(page.getByText('North Star was removed from the Library.')).toBeVisible();
-			await expect(page.getByText('North Star II stayed in the Library: the protected file changed after review.')).toBeVisible();
-			await expect(page.getByText('North Star III could not be removed: the Library row changed after review.')).toBeVisible();
+			await expect(page.getByText('North Star II stayed in the Watchlist: the protected file changed after review.')).toBeVisible();
+			await expect(page.getByText('North Star III could not be removed: the Watchlist row changed after review.')).toBeVisible();
 			await verifyPage(page, testInfo, `${viewport.name}-series-results`);
 		});
 

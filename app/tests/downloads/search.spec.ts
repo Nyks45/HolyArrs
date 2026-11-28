@@ -104,7 +104,7 @@ test('a movie not out yet: every Release is listed, and one that did not pass is
 	// they are still listed with that reason.
 	const best = release(sheet, '.1080p.');
 	await expect(verdict(best)).toHaveText('Turned away by the rules');
-	await expect(best.locator('.rs-why.fail').filter({ hasText: 'no Title in the library' })).toBeVisible();
+	await expect(best.locator('.rs-why.fail').filter({ hasText: 'no Title in the watchlist' })).toBeVisible();
 	await best.getByRole('button', { name: 'Pick', exact: true }).click();
 	await expect(best.getByRole('button', { name: 'Pick anyway' })).toBeVisible();
 	// Closed without forcing it: nothing was sent.
@@ -221,7 +221,7 @@ test('a member sees none of the search screens', async ({ browser }) => {
 	await expect(m).toHaveURL(/\/$/);
 	await m.goto('/library');
 	await expect(m.getByRole('link', { name: 'Held', exact: true })).toHaveCount(0);
-	await expect(m.getByRole('link', { name: 'Library tools' })).toHaveCount(0);
+	await expect(m.getByRole('link', { name: 'Watchlist tools' })).toHaveCount(0);
 	await m.locator('[data-testid="library-card"], [data-testid="library-row"]', { hasText: 'Quiet Orchard' }).click();
 	await expect(m.getByRole('heading', { level: 1 })).toContainText('Quiet Orchard');
 	for (const b of ['Search now', 'Choose a release']) await expect(m.getByRole('button', { name: b })).toHaveCount(0);

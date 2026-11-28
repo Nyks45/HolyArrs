@@ -23,10 +23,10 @@ describe('libraryState: movies', () => {
 		expect(label(movie([slot('in_library', { file: { RelativePath: 'a', Size: 1, AddedAt: '', State: 'missing' } })]))).toBe('Missing file');
 		expect(label(movie([slot('better_wanted', { file: { RelativePath: 'a', Size: 1, AddedAt: '', Quality: { resolution: 720 } } })]))).toBe('Better copy · 720p');
 	});
-	it('says not kept up to date, in Library with quality, asks and not out yet', () => {
+	it('says not kept up to date, in Watchlist with quality, asks and not out yet', () => {
 		expect(label(movie([slot('wanted')], { keep_up_to_date: false }))).toBe('Not kept');
 		expect(libraryState(movie([slot('wanted')], { keep_up_to_date: false }), now)?.icon).toBe('x');
-		expect(label(movie([slot('in_library', { file: { RelativePath: 'a', Size: 1, AddedAt: '', Quality: { resolution: 2160 } } })]))).toBe('In library · 4K');
+		expect(label(movie([slot('in_library', { file: { RelativePath: 'a', Size: 1, AddedAt: '', Quality: { resolution: 2160 } } })]))).toBe('In watchlist · 4K');
 		const ask = (state: string) => [{ state, title_id: 1 }] as unknown as TitleView['asks'];
 		expect(label(movie([slot('wanted')], { asks: ask('approved') }))).toBe('Searching');
 		expect(label(movie([slot('wanted')], { asks: ask('asked') }))).toBe('Waiting');
@@ -64,7 +64,7 @@ describe('libraryState: shows', () => {
 	});
 });
 
-describe('library issue explanations', () => {
+describe('watchlist issue explanations', () => {
  it('shows recorded causes, ignores stale healthy reasons, and deduplicates issues', () => {
   const s = libraryState(movie([slot('needs_a_decision', { reason: 'Downloaded file not found' }), slot('needs_a_decision', { reason: 'Downloaded file not found' }), slot('in_library', { reason: 'Old failure' })]), now);
   expect(s?.label).toBe('Downloaded file not found');

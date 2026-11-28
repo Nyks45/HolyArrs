@@ -73,7 +73,7 @@
 	"settings.requests.streamingSkipHint": "A movie or show request on one of your services is turned down with a note saying where it streams. Approve it again to download it anyway.",
 	"settings.requests.cleanup": "Downloads on my services",
 	"settings.requests.cleanupDesc": "Finds movies and shows with files that stream on your services. Nothing is removed until you confirm each one.",
-	"settings.requests.cleanupCheck": "Check my Library",
+	"settings.requests.cleanupCheck": "Check my Watchlist",
 	"settings.requests.cleanupSaveFirst": "Save your changes first.",
 	"settings.requests.cleanupRunning": "Checked {n} of {total}…",
 	"settings.requests.cleanupFound": "On your services: {n}, using {size}.",

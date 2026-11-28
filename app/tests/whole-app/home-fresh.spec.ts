@@ -65,7 +65,7 @@ test('home before setup: welcome card on top, then the grid and the picture rows
 	const grid = page.getByTestId('home-overview');
 	await expect(grid).toBeVisible();
 	// The Library's place points to the step still missing, not an empty gap.
-	const lib = page.getByTestId('home-setup-library');
+	const lib = page.getByTestId('home-setup-watchlist');
 	await expect(lib).toContainText('Not set up yet');
 	await expect(lib).toHaveAttribute('href', /\/settings\/(sources|downloaders|library-folders)$/);
 	await expect(page.getByTestId('home-attention')).toHaveCount(0);

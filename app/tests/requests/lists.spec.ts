@@ -16,7 +16,7 @@ test.beforeAll(async ({ browser }) => {
 
 test('a TMDB list adds its movies by itself and skips the Never-add list', async () => {
 	await page.goto('/settings');
-	await page.getByTestId('settings-group').filter({ hasText: 'Library' }).click();
+	await page.getByTestId('settings-group').filter({ hasText: 'Watchlist' }).click();
 	await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('link', { name: 'Outside lists', exact: true }).click();
 	await expect(page.getByRole('heading', { level: 1, name: 'Outside lists' })).toBeVisible();
 	await expect(page.getByText('No Outside lists', { exact: true })).toBeVisible();
@@ -85,7 +85,7 @@ test('an MDBList list adds its movie without a key, then reads through the API o
 	await expect(page.locator('body')).not.toContainText(mdblistKey);
 	const before = await hits();
 	await row.getByRole('button', { name: 'Read now' }).click();
-	await expect(row.getByTestId('list-result')).toContainText('1 already in the Library', { timeout: 15_000 });
+	await expect(row.getByTestId('list-result')).toContainText('1 already in the Watchlist', { timeout: 15_000 });
 	const after = await hits();
 	expect(after.api).toBeGreaterThan(before.api);
 	expect(after.site).toBe(before.site);

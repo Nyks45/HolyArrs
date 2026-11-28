@@ -103,7 +103,7 @@ test('typing in the top search box offers no artists, albums or songs', async ()
 	await expect(musicLinks()).toHaveCount(0);
 });
 
-test('the Library has no Music', async () => {
+test('the Watchlist has no Music', async () => {
 	await visit('/library');
 	await expect(main().getByRole('radio', { name: /^Music/ })).toHaveCount(0);
 	await expect(main().getByRole('link', { name: /Add an artist|Search for an artist/ })).toHaveCount(0);
@@ -123,7 +123,7 @@ test('Downloads shows no music', async () => {
 	await expect(musicLinks()).toHaveCount(0);
 });
 
-test('no music endpoint is asked while browsing Home, Explore, New & Popular, Search and Library', async () => {
+test('no music endpoint is asked while browsing Home, Explore, New & Popular, Search and Watchlist', async () => {
 	seen.length = 0;
 	for (const path of ['/', '/explore', '/popular', '/search', '/search?q=salt', '/library']) await visit(path);
 	expect(musicHits()).toEqual([]);

@@ -382,7 +382,7 @@
 	"migrate.keyLogin.notAdmin": "This account isn't an admin in {name}.",
 	"migrate.keyLogin.unreachable": "Couldn't reach {name}.",
 	"migrate.keyLogin.withServer": "Sign in with {server}",
-	"migrate.matchLater": "You can match them later in Library › Import.",
+	"migrate.matchLater": "You can match them later in Watchlist › Import.",
 	"migrate.notListedAddVolume": "Not listed? Add the folder as a volume in HolyArrs's Docker setup, then recreate the container.",
 	"migrate.fileNames": "File names",
 	"migrate.namesKeep": "Keep current names",

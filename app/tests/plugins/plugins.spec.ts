@@ -801,7 +801,7 @@ for (const width of [1280, 375]) {
 		await expect(page.getByTestId('ai-key-groups')).toHaveText(['Can: See · Add · Downloads · Settings · Delete · Admin']);
 		await page.getByText('Make a key by hand').click();
 		const form = page.getByTestId('ai-key-groups-form');
-		for (const name of ['See library and activity', 'Add and request', 'Control downloads', 'Change settings']) await expect(form.getByRole('checkbox', { name })).toBeChecked();
+		for (const name of ['See watchlist and activity', 'Add and request', 'Control downloads', 'Change settings']) await expect(form.getByRole('checkbox', { name })).toBeChecked();
 		await expect(form.getByRole('checkbox', { name: 'Delete' })).not.toBeChecked();
 		await expect(form.getByRole('checkbox', { name: /^Admin/ })).not.toBeChecked();
 		await expect(form).toContainText('Lets the AI manage users, keys and backups.');
@@ -839,7 +839,7 @@ for (const width of [1280, 375]) {
 const stress = (() => {
 	const base = { installed: false, running: false, enabled: false, updated: '2026-11-18', repo: 'https://github.com/CoderLuii/holyarrs-a-very-long-repository-name-for-tests', support_email: 'support@holyarrs.com', size: 2_500_000 };
 	return [
-		{ ...base, id: 'ultra', version: '10.20.300-beta.1', name: 'Ultra Extended Metadata Synchronisation', author: 'a-very-long-author-name-for-tests', developers: ['CoderLuii', 'HolyArrs', 'octocat'], description: 'Keeps every piece of metadata in your library aligned with several outside catalogues, including artwork, cast lists, ratings and plots in many languages.', reaches_app: true, access: { hosts: ['api.example-catalogue-one.net', 'images.example-catalogue-two.org'], folders: ['metadata', 'cache'], actions: ['library.read', 'watched.write', 'activity.read', 'requests.create', 'requests.read', 'custom.vendor-action'] }, stats: { downloads: 1_234_567, stars: 45_678, listed: new Date().toISOString().slice(0, 10) } },
+		{ ...base, id: 'ultra', version: '10.20.300-beta.1', name: 'Ultra Extended Metadata Synchronisation', author: 'a-very-long-author-name-for-tests', developers: ['CoderLuii', 'HolyArrs', 'octocat'], description: 'Keeps every piece of metadata in your watchlist aligned with several outside catalogues, including artwork, cast lists, ratings and plots in many languages.', reaches_app: true, access: { hosts: ['api.example-catalogue-one.net', 'images.example-catalogue-two.org'], folders: ['metadata', 'cache'], actions: ['library.read', 'watched.write', 'activity.read', 'requests.create', 'requests.read', 'custom.vendor-action'] }, stats: { downloads: 1_234_567, stars: 45_678, listed: new Date().toISOString().slice(0, 10) } },
 		{ ...base, id: 'ok', version: '1.0.0', name: 'Ok', author: 'HolyArrs', description: 'Tiny.', access: null },
 		{ ...base, id: 'host', version: '2.3.1', name: 'Long Host Relay', author: 'CoderLuii', description: 'Sends events to one very long web address.', access: { hosts: ['relay-endpoint.a-really-long-subdomain-name.example-hosting-provider-cloud.net'], folders: [], actions: [] }, stats: { downloads: 7 } },
 		{ ...base, id: 'de', version: '0.9.0', name: 'Untertitel-Synchronisierungswerkzeug', author: 'CoderLuii', description: 'Synchronisiert Untertitel automatisch mit der Tonspur und korrigiert Zeitverschiebungen.', access: { hosts: ['untertitel-datenbank.beispiel.de'], folders: ['untertitel'], actions: ['library.read'] }, stats: { downloads: 4321, stars: 3 } },
@@ -976,9 +976,9 @@ const heavy = {
 	id: 'heavy', version: '12.34.56', installed: true, installed_version: '12.34.56', running: true, enabled: true, name: 'Heavy Everything Plugin With A Long Name',
 	author: 'CoderLuii', developers: ['CoderLuii', 'HolyArrs', 'octocat'], updated: '2026-11-18', size: 9_800_000,
 	repo: 'https://github.com/HolyArrs/HolyArrs-Plugins', support_email: 'support@holyarrs.com', reaches_app: true,
-	description: 'Does a great many things for your library, downloads and requests, and explains each of them at length so the text runs long.',
-	long_description: Array.from({ length: 6 }, (_, i) => `Paragraph ${i + 1}: this plugin keeps your library, downloads, requests and subtitles in step with several outside services, checks every change twice and writes a full report so you always know what it did and why it did it.`).join('\n'),
-	how_it_works: ['Reads your library every hour.', 'Compares it with the outside services.', 'Writes the changes back and keeps a report.'],
+	description: 'Does a great many things for your watchlist, downloads and requests, and explains each of them at length so the text runs long.',
+	long_description: Array.from({ length: 6 }, (_, i) => `Paragraph ${i + 1}: this plugin keeps your watchlist, downloads, requests and subtitles in step with several outside services, checks every change twice and writes a full report so you always know what it did and why it did it.`).join('\n'),
+	how_it_works: ['Reads your watchlist every hour.', 'Compares it with the outside services.', 'Writes the changes back and keeps a report.'],
 	needs_approval: ['host:extra-one.example.net', 'host:extra-two.example.net', 'folder:reports'],
 	access: {
 		hosts: Array.from({ length: 12 }, (_, i) => `api-${i + 1}.a-long-outside-service-name.example.net`),

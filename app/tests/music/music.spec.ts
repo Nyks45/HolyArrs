@@ -30,22 +30,22 @@ async function searchMusic(p: Page, words: string) {
 }
 const artistCard = (p: Page, name: string) => p.getByRole('main').getByRole('listitem').filter({ hasText: name }).first();
 
-// An owner's artist page from Search keeps its Library as a tab ("In Library"
+// An owner's artist page from Search keeps its Library as a tab ("In Watchlist"
 // switches to it), so the artist's Library page is opened by its id.
 async function artistLibraryPage(p: Page, name: string) {
 	if (/\/library\/\d+/.test(p.url())) return;
 	const { titles } = (await (await p.request.get('/api/v1/titles')).json()) as { titles: { id: number; name: string; kind: string }[] };
 	const t = titles.find((x) => x.kind === 'artist' && x.name === name);
-	expect(t, `${name} is in the Library`).toBeTruthy();
+	expect(t, `${name} is in the Watchlist`).toBeTruthy();
 	await p.goto(`/library/${t!.id}`);
 }
 
 /** libraryTab opens an artist's Library tab: its albums (the only album list), their actions and settings. */
 async function libraryTab(p: Page) {
-	const tab = p.getByTestId('artist-tabs').getByRole('tab', { name: 'Library' });
+	const tab = p.getByTestId('artist-tabs').getByRole('tab', { name: 'Watchlist' });
 	await tab.click();
 	await expect(tab).toHaveAttribute('aria-selected', 'true');
-	return p.getByTestId('artist-library');
+	return p.getByTestId('artist-watchlist');
 }
 
 test.beforeAll(async ({ browser }) => {
@@ -95,7 +95,7 @@ test('the owner finds an artist and adds it from Search', async () => {
 	await expect(dialog).toContainText('Only the newest album that is out.');
 	await dialog.getByLabel('Albums to keep up to date').selectOption('all');
 	await axe(own, 'add artist dialog');
-	await dialog.getByRole('button', { name: 'Add to Library' }).click();
+	await dialog.getByRole('button', { name: 'Add to Watchlist' }).click();
 	await expect(dialog).toBeHidden(slow);
 	await expect(own.getByRole('status')).toContainText('Tin Lanterns added');
 	await own.getByRole('main').getByRole('link', { name: 'Tin Lanterns,' }).first().click();
@@ -104,14 +104,14 @@ test('the owner finds an artist and adds it from Search', async () => {
 	await expect(own.getByRole('heading', { level: 1, name: 'Tin Lanterns' })).toBeVisible();
 	await artistLibraryPage(own, 'Tin Lanterns');
 	await expect(own.getByRole('heading', { level: 1, name: 'Tin Lanterns' })).toBeVisible();
-	await expect(own.getByTestId('artist-progress')).toContainText('tracks in the Library', slow);
+	await expect(own.getByTestId('artist-progress')).toContainText('tracks in the Watchlist', slow);
 	// Overview has no album list below it and no More menu: the albums show once, in the Library tab.
 	await expect(own.getByTestId('album')).toHaveCount(0);
 	await expect(own.getByRole('button', { name: 'More actions', exact: true })).toHaveCount(0);
-	// The hero's In Library button opens the Library tab (the last copy is the one under the artist's name).
-	await own.getByTestId('hero-library').last().click();
-	await expect(own.getByTestId('artist-tabs').getByRole('tab', { name: 'Library' })).toHaveAttribute('aria-selected', 'true');
-	const lib = own.getByTestId('artist-library');
+	// The hero's In Watchlist button opens the Watchlist tab (the last copy is the one under the artist's name).
+	await own.getByTestId('hero-watchlist').last().click();
+	await expect(own.getByTestId('artist-tabs').getByRole('tab', { name: 'Watchlist' })).toHaveAttribute('aria-selected', 'true');
+	const lib = own.getByTestId('artist-watchlist');
 	await expect(lib.getByRole('button', { name: 'Get all missing' })).toBeVisible(slow);
 	const albums = own.getByTestId('album');
 	await expect(albums).toHaveCount(3, slow);
@@ -185,7 +185,7 @@ test('the album page lists tracks and Pressings, and the owner picks another Pre
 	await expect(lib.getByTestId('album').filter({ hasText: 'Harbour Songs' }).getByTestId('album-count')).toContainText('/ 4');
 });
 
-test('artists sit in the Library with a Music kind', async () => {
+test('artists sit in the Watchlist with a Music kind', async () => {
 	await own.goto('/library');
 	await libraryKind(own, /^Music/);
 	await expect(own).toHaveURL(/kind=artist/);
@@ -200,7 +200,7 @@ test('artists sit in the Library with a Music kind', async () => {
 	await libraryKind(own, /^Everything/);
 	// Cards fade in one after another; let the ones on screen start before checking contrast.
 	await own.waitForFunction(() => [...document.querySelectorAll('.lp')].every((e) => { const r = e.getBoundingClientRect(); return e.classList.contains('shown') || !e.getClientRects().length || r.top > innerHeight || r.bottom < 0 || r.left > innerWidth || r.right < 0; }), undefined, { timeout: 5_000 }).catch(() => undefined);
-	await axe(own, 'library with music');
+	await axe(own, 'watchlist with music');
 });
 
 test('a member asks for one single from a phone', async ({ browser }) => {

@@ -3,7 +3,7 @@ import { noSidewaysScroll, owner, signIn } from '../helpers/helpers.ts';
 
 // Home: the owner's overview, and the setup bar while setup is open, on a desktop and a phone.
 for (const width of [1280, 390]) {
-	test(`home at ${width}px: Library and Needs attention, setup steps fill the bar`, async ({ browser }) => {
+	test(`home at ${width}px: Watchlist and Needs attention, setup steps fill the bar`, async ({ browser }) => {
 		test.setTimeout(90_000);
 		const ctx = await browser.newContext({ viewport: { width, height: 900 } });
 		const page = await ctx.newPage();

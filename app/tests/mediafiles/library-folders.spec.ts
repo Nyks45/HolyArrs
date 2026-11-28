@@ -74,7 +74,7 @@ function writeFiles(dir: string, rels: string[]) {
 	}
 }
 
-test('Move a show with its episode files to a second show folder from the Folder row on its Library tab', async ({ page }) => {
+test('Move a show with its episode files to a second show folder from the Folder row on its Watchlist tab', async ({ page }) => {
 	await signIn(page, owner());
 	const call = await api(page);
 	const one = join(tmp, 'lf-shows-one');
@@ -116,7 +116,7 @@ test('Move a show with its episode files to a second show folder from the Folder
 	await expect(page.getByTestId('folder-row')).toContainText('Show shelf two');
 });
 
-test('Move an artist with its album files to a second music folder from the Folder row on its Library page', async ({ page }) => {
+test('Move an artist with its album files to a second music folder from the Folder row on its Watchlist page', async ({ page }) => {
 	await signIn(page, owner());
 	const call = await api(page);
 	const one = join(tmp, 'lf-music-one');
@@ -128,7 +128,7 @@ test('Move an artist with its album files to a second music folder from the Fold
 	const id = await adopt(call, fromId, name, 'mbid:a5555555-0000-4000-8000-000000000005');
 	const toId = await addFolderInSettings(page, call, two, 'music', 'Music shelf two');
 
-	const libraryTab = page.getByTestId('artist-tabs').getByRole('tab', { name: 'Library' });
+	const libraryTab = page.getByTestId('artist-tabs').getByRole('tab', { name: 'Watchlist' });
 	await page.goto(`/library/${id}`);
 	await libraryTab.click();
 	const folderRow = page.getByTestId('folder-row');

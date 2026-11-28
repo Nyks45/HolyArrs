@@ -66,10 +66,10 @@ test('a finished episode is imported into its episode and the row says so', asyn
 });
 
 // The imported episode shows its points against good enough on the title
-// page's Library tab; on a phone they move into the row's meta line.
+// page's Watchlist tab; on a phone they move into the row's meta line.
 async function seasonTwo(p: Page, show: string) {
 	await p.goto(show);
-	await p.getByRole('tab', { name: 'Library' }).click();
+	await p.getByRole('tab', { name: 'Watchlist' }).click();
 	await p.locator('.lib-sr-main', { hasText: 'Season 2' }).click();
 	return p.locator('.lib-ep').filter({ hasText: 'Return of the Fog' });
 }

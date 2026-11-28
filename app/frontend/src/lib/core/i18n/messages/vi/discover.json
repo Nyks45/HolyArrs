@@ -1,4 +1,8 @@
 {
+	"discover.titlePage.download": "Download",
+	"discover.titlePage.downloadName": "Download {name}",
+	"discover.titlePage.retryDownload": "Retry download",
+	"discover.titlePage.addedToWatchlist": "{name} added to your watchlist",
 	"discover.calEmpty.nothingComingUpHere": "Chưa có gì sắp tới ở đây",
 	"discover.calListRows.today": "Hôm nay",
 	"discover.calTile.inTheLibrary": "· Đã có trong Thư viện",

@@ -12,5 +12,5 @@
 	"settings.danger.restart": "Restart HolyArrs",
 	"settings.danger.safe": "Restart in safe mode",
 	"settings.danger.shutdown": "Shut down",
-	"settings.danger.safeNote": "Starts once with only sign-in, Settings and Library. Use it when a Part blocks startup."
+	"settings.danger.safeNote": "Starts once with only sign-in, Settings and Watchlist. Use it when a Part blocks startup."
 }

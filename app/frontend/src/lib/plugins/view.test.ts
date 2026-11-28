@@ -106,7 +106,7 @@ describe('directory tiles and panel', () => {
 		expect(categoryLabel('Weird')).toBe('Weird');
 	});
 	it('says actions, folders and any host in plain words', () => {
-		expect(reaches(a)).toEqual(['Connect to api.example.net', 'Reach nothing else: other websites and devices are blocked', 'See your library', 'Use HolyArrs for: odd.thing', 'Use the folders you choose: imports (read only), exports (read and write)']);
+		expect(reaches(a)).toEqual(['Connect to api.example.net', 'Reach nothing else: other websites and devices are blocked', 'See your watchlist', 'Use HolyArrs for: odd.thing', 'Use the folders you choose: imports (read only), exports (read and write)']);
 		expect(reaches(b)).toEqual(['Connect to any web address']);
 	});
 	it('shows only GitHub logins as developers and only https links', () => {

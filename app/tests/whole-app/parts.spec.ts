@@ -60,7 +60,7 @@ test('a part that is off hides its pages and says so on a direct link', async ()
 	const caps = page.getByRole('navigation', { name: 'Settings sections' });
 	await expect(caps.getByRole('link', { name: /^Sources/ })).toBeVisible();
 	await page.getByTestId('settings-back').click();
-	await page.getByTestId('settings-group').filter({ hasText: 'Library' }).click();
+	await page.getByTestId('settings-group').filter({ hasText: 'Watchlist' }).click();
 	await expect(caps.getByRole('link', { name: 'Library folders', exact: true })).toBeVisible();
 	await expect(caps.getByRole('link', { name: 'Music defaults', exact: true })).toHaveCount(0);
 

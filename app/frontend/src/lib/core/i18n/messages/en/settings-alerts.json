@@ -1,7 +1,7 @@
 {
 	"settings.alerts.groupRequests": "Requests",
 	"settings.alerts.groupRequestsHint": "New requests and decisions",
-	"settings.alerts.groupLibrary": "Library",
+	"settings.alerts.groupLibrary": "Watchlist",
 	"settings.alerts.groupLibraryHint": "Downloads, imports and problems. Email goes to staff.",
 	"settings.alerts.email": "Email",
 	"settings.alerts.packSaved": "Pack Alerts saved",

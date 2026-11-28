@@ -68,7 +68,7 @@ test('the owner adds Moss Parade with every season kept', async () => {
 		const dialog = page.getByRole('dialog');
 		await expect(dialog.getByTestId('no-show-search')).toContainText('Tick Search when added to start now');
 		await dialog.getByLabel('Seasons to keep up to date').selectOption('all');
-		await dialog.getByRole('button', { name: 'Add to Library' }).click();
+		await dialog.getByRole('button', { name: 'Add to Watchlist' }).click();
 		await expect(dialog).toBeHidden();
 	}
 	await openShow(page, 'Moss Parade');

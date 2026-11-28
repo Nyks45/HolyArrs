@@ -293,7 +293,7 @@ test('download the key kit from Backups', async () => {
 	await expect(page.getByText('Key kit downloaded')).toBeVisible();
 });
 
-test('search, add a movie, and the Library updates live', async ({ browser }) => {
+test('search, add a movie, and the Watchlist updates live', async ({ browser }) => {
 	// A second tab watches the Library while the first adds a movie.
 	const watcher = await browser.newPage();
 	await signIn(watcher, owner());
@@ -303,13 +303,13 @@ test('search, add a movie, and the Library updates live', async ({ browser }) =>
 	const dialog = await addFromSearch(page, 'Driftwood Moon', 'Driftwood Moon');
 	await dialog.getByRole('checkbox', { name: /^Keep up to date/ }).check();
 	await dialog.getByLabel('Search when added').uncheck();
-	await dialog.getByRole('button', { name: 'Add to Library' }).click();
+	await dialog.getByRole('button', { name: 'Add to Watchlist' }).click();
 	await expect(page).toHaveURL(/\/library\/\d+/);
 
 	await expect(watcher.locator('[data-testid="library-card"], [data-testid="library-row"]').first()).toBeVisible();
 	await watcher.close();
 
-	await expect(page.getByTestId('hero-library')).toBeVisible();
+	await expect(page.getByTestId('hero-watchlist')).toBeVisible();
 	await page.getByRole('button', { name: 'More actions', exact: true }).click();
 	// A movie is added kept up to date, so the menu offers to stop that.
 	await expect(page.getByRole('menuitem', { name: 'Stop keeping up to date' })).toBeVisible();
@@ -339,7 +339,7 @@ test('Home reads its rows from one bounded answer', async () => {
 	}
 });
 
-test('Library search debounces the indexed query and ignores stale results', async () => {
+test('Watchlist search debounces the indexed query and ignores stale results', async () => {
 	await page.goto('/library');
 	const canonical = await page.evaluate(async () => {
 		const response = await fetch('/api/v1/titles');
@@ -355,7 +355,7 @@ test('Library search debounces the indexed query and ignores stale results', asy
 		const query = new URL(route.request().url()).searchParams.get('q') ?? '';
 		calls.push(query);
 		if (query === 'slow alias') await slow;
-		if (query === 'broken') return route.fulfill({ status: 500, json: { error: 'Library search failed.' } });
+		if (query === 'broken') return route.fulfill({ status: 500, json: { error: 'Watchlist search failed.' } });
 		const titles = query === 'alias café' || query === 'slow alias' ? [driftwood] : [];
 		return route.fulfill({ json: { titles } });
 	});
@@ -398,7 +398,7 @@ test('Library search debounces the indexed query and ignores stale results', asy
 	await expect(cards).toHaveCount(canonical.length);
 
 	await find.fill('broken');
-	await expect(page.getByRole('alert')).toContainText('Library search failed.');
+	await expect(page.getByRole('alert')).toContainText('Watchlist search failed.');
 	// The Filter menu and the layout switch stay usable after a failed search.
 	await expect(page.getByRole('button', { name: 'Sort & filter' })).toBeVisible();
 	await expect(page.getByRole('radiogroup', { name: 'View' })).toBeVisible();

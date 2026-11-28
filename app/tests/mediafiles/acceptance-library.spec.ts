@@ -6,7 +6,7 @@ import { dataDir } from '../helpers/data-folder.ts';
 
 test.describe.configure({ mode: 'serial' });
 
-const tmp = dataDir('acceptance-library');
+const tmp = dataDir('acceptance-watchlist');
 const moviesDir = join(tmp, 'movies');
 const showsDir = join(tmp, 'tv');
 const musicDir = join(tmp, 'music');
@@ -20,7 +20,7 @@ const musicFiles = {
 };
 const episode = join(showsDir, 'Fennel Clock (2020)', 'Season 1', 'Fennel.Clock.S01E01.1080p.WEB-DL.H264-LAB.mkv');
 const episodeSubtitle = join(dirname(episode), 'Fennel.Clock.S01E01.1080p.WEB-DL.H264-LAB.en.srt');
-const owner = { name: 'acceptance-owner', password: ['acceptance', 'library', 'owner', 'pw'].join('-') };
+const owner = { name: 'acceptance-owner', password: ['acceptance', 'watchlist', 'owner', 'pw'].join('-') };
 
 let context: BrowserContext;
 let page: Page;
@@ -73,8 +73,8 @@ test('music adoption and rename stay on one fixture and prove the exact disk res
 
 	await page.getByTestId('adopt-results').getByRole('link', { name: 'Open the artist' }).click();
 	// The album page opens from the artist's Library tab (its album rows).
-	await page.getByTestId('artist-tabs').getByRole('tab', { name: 'Library' }).click();
-	const row = page.getByTestId('artist-library').getByTestId('album').filter({ hasText: 'Low Orbit' });
+	await page.getByTestId('artist-tabs').getByRole('tab', { name: 'Watchlist' }).click();
+	const row = page.getByTestId('artist-watchlist').getByTestId('album').filter({ hasText: 'Low Orbit' });
 	await row.getByRole('button', { expanded: false }).click();
 	await row.getByRole('link', { name: 'Open the album page of Low Orbit' }).click();
 	await expect(page.getByRole('heading', { level: 1, name: 'Low Orbit' })).toBeVisible();
@@ -122,7 +122,7 @@ test('episode subtitle dialog chooses from the fake site and saves the exact fil
 	const site = page.getByTestId('subtitle-site').filter({ hasText: 'Lab subtitle site' }).first();
 	await expect(site.getByTestId('subtitle-site-test')).toHaveText(/· \d+ subtitles?$/, { timeout: 15_000 });
 
-	await adopt('Shows: ', 'Fennel Clock', 'Adopt 1 show', '1 show is now in the Library');
+	await adopt('Shows: ', 'Fennel Clock', 'Adopt 1 show', '1 show is now in the Watchlist');
 	await page.getByTestId('adopt-results').getByRole('link', { name: 'Open the show' }).click();
 	// An episode's subtitles live in its sheet, opened from its row on the Library tab.
 	await openLibraryTab(page);

@@ -232,7 +232,7 @@ test('a member asks for one album of an artist from its page', async ({ browser 
 	await expect(card(own, 'Wicker Owls').getByRole('button', { name: 'Open Wicker Owls, asked by nell' })).toBeVisible();
 });
 
-test('4K: a member asks for a 4K copy of a movie and of one in the Library; the approver sees 4K', async ({ browser }) => {
+test('4K: a member asks for a 4K copy of a movie and of one in the Watchlist; the approver sees 4K', async ({ browser }) => {
 	test.setTimeout(120_000);
 	const gus = await member(browser, 'gus');
 	// Not in the Library: the Ask sheet's Quality row picks 4K, an ask of its own.
@@ -314,7 +314,7 @@ test('a failed ask says why: the member and the approver read the reason', async
 	const gone = await call('POST', `/titles/${titleId}/delete`, { delete_files: false, never_add: false, apply: true });
 	expect(gone.ok(), await gone.text()).toBe(true);
 
-	const why = 'It was deleted from the Library after it was approved.';
+	const why = 'It was deleted from the Watchlist after it was approved.';
 	await pip.goto('/requests');
 	await pip.getByRole('button', { name: /^Approved/ }).click();
 	await expect(pip.getByTestId('ask').filter({ hasText: 'Pewter Kite' }).getByTestId('ask-failed')).toHaveText(why);
@@ -440,7 +440,7 @@ test('Follow on title pages: a show, a movie that lands later, and an album not 
 	await movieBell.click();
 	await expect(movieBell).toHaveAttribute('aria-pressed', 'true');
 	await expect(movieBell).toHaveAttribute('title', /you hear when it is in the Library/);
-	const told = async () => ((await (await dot.request.get('/api/v1/messages')).json()) as { messages: { text: string }[] }).messages.some((m) => m.text.includes('Cobalt Orrery is in the Library'));
+	const told = async () => ((await (await dot.request.get('/api/v1/messages')).json()) as { messages: { text: string }[] }).messages.some((m) => m.text.includes('Cobalt Orrery is in the Watchlist'));
 	const ownCall = await api(own);
 	const cobalt = await inLibrary(ownCall, 900033, 'Cobalt Orrery');
 	// Added with no file is not ready to watch: no word yet.
@@ -453,7 +453,7 @@ test('Follow on title pages: a show, a movie that lands later, and an album not 
 	await dot.goto('/requests');
 	await dot.getByRole('button', { name: /^(Manage|More)/ }).click();
 	await dot.getByRole('link', { name: /^Recent alerts/ }).click();
-	await expect(dot.getByRole('dialog', { name: 'Recent alerts' }).getByRole('listitem').filter({ hasText: 'Cobalt Orrery is in the Library' })).toBeVisible();
+	await expect(dot.getByRole('dialog', { name: 'Recent alerts' }).getByRole('listitem').filter({ hasText: 'Cobalt Orrery is in the Watchlist' })).toBeVisible();
 	await dot.keyboard.press('Escape');
 	// The follow moved onto the Library title.
 	await openFromSearch(dot, 'cobalt', 'Cobalt Orrery');
@@ -468,12 +468,12 @@ test('Follow on title pages: a show, a movie that lands later, and an album not 
 	await expect(heronBell).toHaveAttribute('aria-pressed', 'false');
 	await heronBell.click();
 	await expect(heronBell).toHaveAttribute('aria-pressed', 'true');
-	const heronTold = async () => ((await (await dot.request.get('/api/v1/messages')).json()) as { messages: { text: string }[] }).messages.filter((m) => m.text.includes('Heron Clockwork is in the Library')).length;
+	const heronTold = async () => ((await (await dot.request.get('/api/v1/messages')).json()) as { messages: { text: string }[] }).messages.filter((m) => m.text.includes('Heron Clockwork is in the Watchlist')).length;
 	expect(await heronTold()).toBe(0);
 	await giveFile(ownCall, heron, 'Heron Clockwork', 2015);
 	await expect.poll(heronTold, slow).toBe(1);
 	await dot.goto('/requests');
-	await expect(dot.getByRole('status').filter({ hasText: 'Heron Clockwork is in the Library and ready to watch' })).toBeVisible();
+	await expect(dot.getByRole('status').filter({ hasText: 'Heron Clockwork is in the Watchlist and ready to watch' })).toBeVisible();
 
 	// An album not out yet, on its artist's page: the bell says you will hear when it is out.
 	// Following a Library artist is its own test below (it needs a music folder).
@@ -704,9 +704,9 @@ test('a member follows their approved request step by step', async ({ browser })
 });
 
 // the member's own card follows the download through to the Library:
-// "Downloading now", then "Adding it to the Library" (or straight to Ready
+// "Downloading now", then "Adding it to the Watchlist" (or straight to Ready
 // when the import is quicker than the page's next read), never a percent.
-test('a member sees their request downloading, then added to the Library', async ({ browser }) => {
+test('a member sees their request downloading, then added to the Watchlist', async ({ browser }) => {
 	test.setTimeout(120_000);
 	const call = await api(own);
 	// The fake Source and qBittorrent, unless earlier projects added them; taken away at the end.

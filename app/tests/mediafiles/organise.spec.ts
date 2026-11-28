@@ -11,7 +11,7 @@ import { tmp } from '../helpers/data-folder.ts';
 // Settings > Naming and files. Runs last.
 test.describe.configure({ mode: 'serial' });
 
-const oldLib = join(tmp, 'old-library');
+const oldLib = join(tmp, 'old-watchlist');
 let page: Page;
 
 async function fresh(browser: Browser, width = 1280) {
@@ -27,18 +27,18 @@ test.beforeAll(async ({ browser }) => {
 	await page.goto('/settings/library-folders');
 	await page.getByRole('button', { name: 'Add a folder' }).click();
 	await page.getByLabel('Folder path').fill(oldLib);
-	await page.getByRole('textbox', { name: /^Name/ }).fill('Old library');
+	await page.getByRole('textbox', { name: /^Name/ }).fill('Old watchlist');
 	await page.getByRole('button', { name: 'Add', exact: true }).click();
 	// the row shows its name and a short path (full path on hover)
-	await expect(page.locator('#main .folder').filter({ hasText: 'Old library' })).toBeVisible();
+	await expect(page.locator('#main .folder').filter({ hasText: 'Old watchlist' })).toBeVisible();
 });
 
 test('import: scan shows matched, unsure and unmatched; fix the unsure one; adopt without moving anything', async () => {
 	await page.goto('/library');
-	await libraryTool(page, 'Import a library');
-	await expect(page.getByRole('heading', { level: 1, name: 'Import a library' })).toBeVisible();
+	await libraryTool(page, 'Import a watchlist');
+	await expect(page.getByRole('heading', { level: 1, name: 'Import a watchlist' })).toBeVisible();
 	await expect(page.getByTestId('nothing-moved')).toContainText('Files stay where they are');
-	await page.getByLabel('Library folder').selectOption({ label: `Old library (${oldLib})` });
+	await page.getByLabel('Library folder').selectOption({ label: `Old watchlist (${oldLib})` });
 	await page.getByRole('button', { name: 'Scan', exact: true }).click();
 
 	const plan = page.getByTestId('adopt-plan');
@@ -69,7 +69,7 @@ test('import: scan shows matched, unsure and unmatched; fix the unsure one; adop
 
 	await page.getByRole('button', { name: 'Adopt 3 movies' }).click();
 	const done = page.getByTestId('adopt-results');
-	await expect(done).toContainText('3 movies are now in the Library', { timeout: 30_000 });
+	await expect(done).toContainText('3 movies are now in the Watchlist', { timeout: 30_000 });
 	// Every file is still where it was.
 	expect(readdirSync(join(oldLib, 'Cinder (2012)'))).toEqual(['Cinder.2012.720p.BluRay.x264-OLD.mkv']);
 	expect(readdirSync(join(oldLib, 'Willow Signal {tmdb-900013}'))).toEqual(['willow signal.mkv']);
@@ -80,7 +80,7 @@ test('import: scan shows matched, unsure and unmatched; fix the unsure one; adop
 test('rename: the Movie page shows the old and new name and renames after Apply', async () => {
 	await page.goto('/library');
 	await page.getByRole('link', { name: /Marble Comet/ }).first().click();
-	await titleAction(page, 'Library', 'Rename files');
+	await titleAction(page, 'Watchlist', 'Rename files');
 	const dialog = page.getByRole('dialog');
 	const step = dialog.getByTestId('rename-step');
 	await expect(step).toHaveCount(1);
@@ -91,14 +91,14 @@ test('rename: the Movie page shows the old and new name and renames after Apply'
 	await expect(page.getByText('1 file renamed')).toBeVisible({ timeout: 30_000 });
 	// Done, the sheet closes; opened again it has nothing left to rename.
 	await expect(dialog).toBeHidden();
-	await titleAction(page, 'Library', 'Rename files');
+	await titleAction(page, 'Watchlist', 'Rename files');
 	await expect(dialog.getByTestId('rename-none')).toContainText('Every name matches.');
 	expect(readdirSync(join(oldLib, 'Marble Comet (2014)'))).toEqual([to]);
 	await dialog.getByRole('button', { name: 'Close', exact: true }).click();
 	await expect(dialog).toBeHidden();
 });
 
-test('rename: the whole Library preview lists each movie, and skipped files say why', async () => {
+test('rename: the whole Watchlist preview lists each movie, and skipped files say why', async () => {
 	await page.goto('/library/rename');
 	await expect(page.getByRole('heading', { level: 1, name: 'Rename files' })).toBeVisible();
 	const steps = page.getByTestId('rename-step');
@@ -129,7 +129,7 @@ test('rename: a plan that changed since the preview renames nothing and says to 
 test('delete: the plan shows first, changes with each choice, and files go to the holding folder', async () => {
 	await page.goto('/library');
 	await page.getByRole('link', { name: /Willow Signal/ }).first().click();
-	await titleAction(page, 'Library', 'Delete movie');
+	await titleAction(page, 'Watchlist', 'Delete movie');
 	const dialog = page.getByRole('dialog');
 	await expect(dialog.getByRole('heading', { name: 'Delete Willow Signal?' })).toBeVisible();
 	const plan = dialog.getByTestId('delete-plan');
@@ -150,14 +150,14 @@ test('delete: the plan shows first, changes with each choice, and files go to th
 	// The title page stays, no longer in the Library: no Library tab or status.
 	await expect(dialog).toBeHidden();
 	await expect(page.getByTestId('own-tabs')).toHaveCount(0);
-	await expect(page.getByTestId('hero-library')).toHaveCount(0);
+	await expect(page.getByTestId('hero-watchlist')).toHaveCount(0);
 	expect(existsSync(join(oldLib, 'Willow Signal {tmdb-900013}', 'willow signal.mkv'))).toBe(false);
 	expect(existsSync(join(oldLib, '.holyarrs-replaced'))).toBe(true);
 });
 
 test('settings: patterns show a live example, a bad word is caught, and the choices save', async () => {
 	await page.goto('/settings');
-	await page.getByTestId('settings-group').filter({ hasText: 'Library' }).click();
+	await page.getByTestId('settings-group').filter({ hasText: 'Watchlist' }).click();
 	await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('link', { name: 'Naming and files', exact: true }).click();
 	await expect(page.getByRole('heading', { level: 1, name: 'Naming and files' })).toBeVisible();
 	const ex = page.getByTestId('naming-example');
@@ -181,15 +181,15 @@ test('settings: patterns show a live example, a bad word is caught, and the choi
 	await expect(page.getByLabel('Keep deleted files for (days)')).toHaveValue('14');
 	await expect(page.getByLabel('Always leave this much free space (MB)')).toHaveValue('250');
 	// 5.1.7: the folders one Import a library scan reads.
-	await expect(page.getByLabel('Folders read per library scan')).toHaveValue('5000');
-	await page.getByLabel('Folders read per library scan').fill('5');
+	await expect(page.getByLabel('Folders read per watchlist scan')).toHaveValue('5000');
+	await page.getByLabel('Folders read per watchlist scan').fill('5');
 	await page.getByRole('button', { name: 'Save' }).click();
 	// The browser holds the form back: under 10 is not a valid number here.
-	expect(await page.getByLabel('Folders read per library scan').evaluate((e) => (e as HTMLInputElement).validity.valid)).toBe(false);
+	expect(await page.getByLabel('Folders read per watchlist scan').evaluate((e) => (e as HTMLInputElement).validity.valid)).toBe(false);
 	// Nothing was saved; put the change back so leaving does not ask first.
 	await page.getByTestId('savebar').getByRole('button', { name: 'Discard' }).click();
 	await page.reload();
-	await expect(page.getByLabel('Folders read per library scan')).toHaveValue('5000');
+	await expect(page.getByLabel('Folders read per watchlist scan')).toHaveValue('5000');
 	await page.getByRole('button', { name: 'Clear', exact: true }).click();
 	await expect(page.getByText('Removing held files')).toBeVisible();
 });
@@ -208,7 +208,7 @@ test('the new screens fit a phone and pass the accessibility scan', async ({ bro
 	}
 	// The scan plan and both dialogs at phone width.
 	await ph.goto('/library/import');
-	await ph.getByLabel('Library folder').selectOption({ label: `Old library (${oldLib})` });
+	await ph.getByLabel('Library folder').selectOption({ label: `Old watchlist (${oldLib})` });
 	await ph.getByRole('button', { name: 'Scan', exact: true }).click();
 	await expect(ph.getByTestId('adopt-plan')).toBeVisible({ timeout: 30_000 });
 	await noSidewaysScroll(ph);
@@ -224,7 +224,7 @@ test('the new screens fit a phone and pass the accessibility scan', async ({ bro
 		['Rename files', 'Rename files'],
 		['Delete movie', 'Delete Cinder Waltz?']
 	]) {
-		await titleAction(ph, 'Library', button);
+		await titleAction(ph, 'Watchlist', button);
 		const d = ph.getByRole('dialog');
 		await expect(d.getByRole('heading', { name: heading })).toBeVisible();
 		if (button === 'Delete movie') await expect(d.getByTestId('delete-plan')).toContainText('stays on disk');
@@ -254,7 +254,7 @@ test('members see none of it', async ({ browser }) => {
 	await sam.getByRole('button', { name: 'Join and sign in' }).click();
 	await expect(sam).toHaveURL(/\/$/);
 	await sam.goto('/library');
-	await expect(sam.getByRole('link', { name: 'Import a library' })).toHaveCount(0);
+	await expect(sam.getByRole('link', { name: 'Import a watchlist' })).toHaveCount(0);
 	await expect(sam.getByRole('link', { name: 'Rename files' })).toHaveCount(0);
 	await sam.getByRole('link', { name: /Cinder Waltz/ }).first().click();
 	await expect(sam.getByRole('heading', { level: 1 })).toContainText('Cinder Waltz');

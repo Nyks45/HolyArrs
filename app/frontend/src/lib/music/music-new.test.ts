@@ -8,7 +8,7 @@ describe('music new', () => {
 	it('writes the hero note from data only', () => {
 		expect(heroNote(card({ date: '2026-10-21' }), now)).toBe('New album, out today');
 		expect(heroNote(card({ date: '2026-10-18', badge: 'New EP' }), now)).toBe('New EP, out this week');
-		expect(heroNote(card({ date: '2026-10-20', title_id: 3 }), now)).toBe('From an artist in your Library, out yesterday');
+		expect(heroNote(card({ date: '2026-10-20', title_id: 3 }), now)).toBe('From an artist in your Watchlist, out yesterday');
 		expect(heroNote(card({ rank: 4 }), now)).toBe("#4 on this week's album chart");
 	});
 	it('names the eyebrow', () => {

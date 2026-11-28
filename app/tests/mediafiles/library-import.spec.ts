@@ -91,7 +91,7 @@ async function importTicked(page: Page, label: string): Promise<Result[]> {
 	return ((await (await answer).json()) as { results: Result[] }).results;
 }
 
-test('Import files by hand: Change matches a wrongly named file to another Library movie and imports it there with the default Copy or link', async ({ page }) => {
+test('Import files by hand: Change matches a wrongly named file to another Watchlist movie and imports it there with the default Copy or link', async ({ page }) => {
 	await signIn(page, owner());
 	const call = await api(page);
 	const wrong = await freshMovie(call, 900040, 'Tamarind Quay');
@@ -106,7 +106,7 @@ test('Import files by hand: Change matches a wrongly named file to another Libra
 
 	// Change: look the right movie up in the Library and pick it.
 	await row.getByRole('button', { name: 'Change', exact: true }).click();
-	const look = row.getByPlaceholder('Movie, show or artist in the Library');
+	const look = row.getByPlaceholder('Movie, show or artist in the Watchlist');
 	await expect(look).toHaveValue('Tamarind Quay');
 	await look.fill('Ochre Bandstand');
 	await row.getByRole('button', { name: 'Look up', exact: true }).click();
@@ -141,13 +141,13 @@ test('Import files by hand: Change matches a wrongly named file to another Libra
 
 	await row.getByRole('link', { name: 'Open' }).click();
 	await expect(page).toHaveURL(new RegExp(`/library/${right}$`));
-	await page.getByRole('tab', { name: 'Library' }).click();
+	await page.getByRole('tab', { name: 'Watchlist' }).click();
 	const pane = page.getByTestId('lib-pane');
-	await expect(pane).toContainText('In your library');
+	await expect(pane).toContainText('In your watchlist');
 	await expect(pane).toContainText(basename(target));
 });
 
-test('Import files by hand: two loose episodes of a Library show, one season and episode picked by hand, land in the show folder', async ({ page }) => {
+test('Import files by hand: two loose episodes of a Watchlist show, one season and episode picked by hand, land in the show folder', async ({ page }) => {
 	await signIn(page, owner());
 	const call = await api(page);
 	const show = await freshShow(call, 800041, 'Gristmill Hollow');

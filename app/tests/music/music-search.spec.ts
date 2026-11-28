@@ -79,8 +79,8 @@ test('the artist page searches every missing album, or one', async () => {
 	await page.goto('/library?kind=artist');
 	await page.locator('[data-testid="library-card"], [data-testid="library-row"]', { hasText: 'Tin Lanterns' }).click();
 	// Search now and the per-album search sit on the artist's Library tab.
-	await page.getByTestId('artist-tabs').getByRole('tab', { name: 'Library' }).click();
-	const lib = page.getByTestId('artist-library');
+	await page.getByTestId('artist-tabs').getByRole('tab', { name: 'Watchlist' }).click();
+	const lib = page.getByTestId('artist-watchlist');
 	await lib.getByRole('button', { name: 'Get all missing' }).click();
 	await expect(page.getByRole('status').filter({ hasText: 'Searching for all missing tracks' })).toBeVisible();
 	await lib.getByRole('button', { name: 'Get the missing tracks of Night Ferry', exact: true }).click();

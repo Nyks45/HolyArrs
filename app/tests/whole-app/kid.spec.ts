@@ -63,7 +63,7 @@ test('a Kid sees only titles rated up to the limit, and no Music', async () => {
 	for (const text of shown.map((t) => t.trim()).filter(Boolean)) expect(allowed.some((a) => text.includes(a))).toBe(true);
 });
 
-test('a blocked Library title is not available to a Kid, not missing', async () => {
+test('a blocked Watchlist title is not available to a Kid, not missing', async () => {
 	// The server answers 404 to a Kid for a Library title above their rating.
 	const id = await own.evaluate(async (names) => {
 		const r = await (await fetch('/api/v1/titles')).json();
@@ -72,7 +72,7 @@ test('a blocked Library title is not available to a Kid, not missing', async () 
 	expect(id).toBeDefined();
 	await kai.goto(`/library/${id}`);
 	await expect(kai.getByRole('heading', { name: 'This title is not available on this account.' })).toBeVisible();
-	await expect(kai.getByRole('heading', { name: 'This title is not in your Library' })).toHaveCount(0);
+	await expect(kai.getByRole('heading', { name: 'This title is not in your Watchlist' })).toHaveCount(0);
 });
 
 test('an R title is not available, and asking for it is refused in plain words', async () => {

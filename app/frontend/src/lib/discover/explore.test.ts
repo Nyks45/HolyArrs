@@ -43,7 +43,7 @@ describe('coming soon', () => {
 		expect(cards[1].subtitle).toBe('On digital');
 		expect(cards.every((c) => c.status === 'coming_soon')).toBe(true);
 	});
-	it('still shows titles it has no Library record for', () => {
+	it('still shows titles it has no Watchlist record for', () => {
 		const [c] = comingSoon([e(7, '2026-10-21T00:00:00Z', { kind: 'album', album: 'Blue' })], [], now);
 		expect(c).toMatchObject({ kind: 'artist', name: 'T7', subtitle: 'Blue' });
 	});
@@ -123,7 +123,7 @@ describe('ranking', () => {
 		const facets = new Map(titles.map((x) => [x.id, f(x.id <= 4 ? ['Comedy', 'Family'] : ['Comedy'])]));
 		const rows = genreRows(titles, facets, 1, 4);
 		expect(rows).toHaveLength(1);
-		expect(rows[0]).toMatchObject({ id: 'genre-comedy', title: 'Comedy in your library' });
+		expect(rows[0]).toMatchObject({ id: 'genre-comedy', title: 'Comedy in your watchlist' });
 		expect(rows[0].cards).toHaveLength(5);
 		expect(genreRows(titles, facets, 3, 6)).toEqual([]);
 	});
@@ -147,7 +147,7 @@ describe('rows on a page', () => {
 	it('drops empty rows', () => {
 		expect(keepFull([null, { id: 'a', title: 'A', cards: [] }, { id: 'b', title: 'B', cards: [{ key: 'k', kind: 'movie', name: 'K', badges: [] }] }]).map((r) => r.id)).toEqual(['b']);
 	});
-	it('offers Add to managers and Ask to members, never on Library titles or own asks', () => {
+	it('offers Add to managers and Ask to members, never on Watchlist titles or own asks', () => {
 		const out = { key: 'k', kind: 'movie' as const, name: 'K', badges: [], ref: 'tmdb:1' };
 		expect(cardAction(out, { manage: true, ask: true })).toBe('add');
 		expect(cardAction(out, { manage: false, ask: true })).toBe('ask');
@@ -182,7 +182,7 @@ describe('cards asked or refused on the page', () => {
 	it('reads the returned ask state, so an auto-approved ask says Approved', () => {
 		expect(liveCard(card, { ask: 'approved' })).toMatchObject({ mine: true, status: 'approved', statusLabel: undefined });
 	});
-	it('turns a card refused as in the Library into a Library card with no action', () => {
+	it('turns a card refused as in the Watchlist into a Watchlist card with no action', () => {
 		const c = liveCard(card, { titleId: 7 });
 		expect(c).toMatchObject({ titleId: 7, status: 'in_library' });
 		expect(cardAction(c, { manage: false, ask: true })).toBeNull();

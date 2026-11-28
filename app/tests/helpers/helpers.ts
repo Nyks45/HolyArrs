@@ -170,8 +170,8 @@ export async function openRequests(page: Page) {
 }
 
 /** titleAction picks an item from a title page's hero ⋯ menu. The Library
- *  items (rename, delete, versions) joined More actions; 'Library' is kept as a name. */
-export async function titleAction(page: Page, _menu: 'Library' | 'More actions', item: string) {
+ *  items (rename, delete, versions) joined More actions; 'Watchlist' is kept as a name. */
+export async function titleAction(page: Page, _menu: 'Watchlist' | 'More actions', item: string) {
 	await page.getByRole('button', { name: 'More actions', exact: true }).click();
 	await page.getByRole('menuitem', { name: item, exact: true }).click();
 }
@@ -196,7 +196,7 @@ export async function libraryTool(page: Page, name: string) {
 		await page.getByTestId('library-deleted').click();
 		return;
 	}
-	const paths: Record<string, string> = { 'Import a library': '/library/import', 'Import files by hand': '/library/import-files', 'Turned down releases': '/library/turned-down', 'Missing subtitles': '/library/missing-subtitles', 'Rename files': '/library/rename', 'Video codecs': '/library/copies' };
+	const paths: Record<string, string> = { 'Import a watchlist': '/library/import', 'Import files by hand': '/library/import-files', 'Turned down releases': '/library/turned-down', 'Missing subtitles': '/library/missing-subtitles', 'Rename files': '/library/rename', 'Video codecs': '/library/copies' };
 	await page.goto(paths[name] ?? name);
 }
 
@@ -289,7 +289,7 @@ export async function episodeAction(page: Page, code: string, item: string) {
 	else if (item === 'History') {
 		await ep.getByRole('button', { name: /^Episode \d+:/ }).click();
 		await expect(page.getByTestId('episode-sheet')).toBeVisible();
-	} else throw new Error(`the Library tab has no "${item}" for ${code}`);
+	} else throw new Error(`the Watchlist tab has no "${item}" for ${code}`);
 }
 
 /** episodeKept says whether an episode's keep toggle is on. */
@@ -382,7 +382,7 @@ export async function ensureInLibrary(browser: Browser, words: string, name: str
 		if (await cards.filter({ hasText: name }).count()) return;
 		const dialog = await addFromSearch(page, words, name);
 		await dialog.getByLabel('Search when added').uncheck();
-		await dialog.getByRole('button', { name: 'Add to Library' }).click();
+		await dialog.getByRole('button', { name: 'Add to Watchlist' }).click();
 		await expect(page).toHaveURL(/\/library\/\d+/);
 	} finally {
 		await ctx.close();
@@ -393,7 +393,7 @@ export async function ensureInLibrary(browser: Browser, words: string, name: str
 export async function openInLibrary(page: Page) {
 	// A page reached from the Library (an album from the artist's Library page) is there already.
 	if (/\/library\/\d+/.test(new URL(page.url()).pathname)) return;
-	await page.getByRole('link', { name: 'Open in Library' }).or(page.getByRole('button', { name: 'Open in Library' })).first().click();
+	await page.getByRole('link', { name: 'Open in Watchlist' }).or(page.getByRole('button', { name: 'Open in Watchlist' })).first().click();
 	await expect(page).toHaveURL(/\/library\/\d+/);
 }
 

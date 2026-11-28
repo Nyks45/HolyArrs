@@ -19,7 +19,7 @@ describe('title status words', () => {
 	it('uses the more precise staff words', () => {
 		expect(titleStatus({}, 'staff')).toEqual({ kind: 'missing', label: 'Missing' });
 		expect(titleStatus({ ask: 'asked' }, 'staff')).toEqual({ kind: 'requested', label: 'Waiting' });
-		expect(titleStatus({ inLibrary: true }, 'staff')).toEqual({ kind: 'in_library', label: 'In your Library' });
+		expect(titleStatus({ inLibrary: true }, 'staff')).toEqual({ kind: 'in_library', label: 'In your Watchlist' });
 		expect(titleStatus({ failed: true }, 'staff')).toEqual({ kind: 'failed', label: 'Failed' });
 		expect(titleStatus({ comingSoon: true }, 'staff')).toEqual({ kind: 'coming_soon', label: 'Coming soon' });
 	});
@@ -34,7 +34,7 @@ describe('title status words', () => {
 		expect(titleStatus({ ask: 'available' }, 'member')).toEqual({ kind: 'in_library', label: 'Ready to watch' });
 	});
 
-	it('ranks downloading over the Library over an ask', () => {
+	it('ranks downloading over the Watchlist over an ask', () => {
 		expect(titleStatus({ downloading: true, inLibrary: true, ask: 'asked' }, 'staff').kind).toBe('downloading');
 		expect(titleStatus({ inLibrary: true, ask: 'asked' }, 'staff').kind).toBe('in_library');
 	});
@@ -44,7 +44,7 @@ describe('title status words', () => {
 		expect(titleStatus({ failed: true }, 'member').label).toBe('Get it');
 	});
 
-	it('tells members a Library title without a file is already on its way', () => {
+	it('tells members a Watchlist title without a file is already on its way', () => {
 		expect(titleStatus({ tracked: true }, 'member')).toEqual({ kind: 'requested', label: 'Requested' });
 		expect(titleStatus({ tracked: true }, 'staff')).toEqual({ kind: 'missing', label: 'Missing' });
 	});
@@ -71,7 +71,7 @@ describe('title status words', () => {
 
 	it('gives one word per kind and audience', () => {
 		expect(statusLabel('requested', 'member')).toBe('Requested');
-		expect(statusLabel('in_library', 'staff')).toBe('In your Library');
+		expect(statusLabel('in_library', 'staff')).toBe('In your Watchlist');
 	});
 });
 
@@ -91,7 +91,7 @@ describe('title status facts', () => {
 });
 
 describe('title status audience', () => {
-	it('gives staff words to people who manage the Library or approve', () => {
+	it('gives staff words to people who manage the Watchlist or approve', () => {
 		expect(audienceOf((p) => p === 'manage_library')).toBe('staff');
 		expect(audienceOf((p) => p === 'approve')).toBe('staff');
 		expect(audienceOf(() => false)).toBe('member');

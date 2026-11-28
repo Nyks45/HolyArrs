@@ -24,7 +24,7 @@ async function paperHarbour(page: import('@playwright/test').Page): Promise<stri
 	if ((await movie.count()) === 0) {
 		const dialog = await addFromSearch(page, 'paper harbour', 'Paper Harbour');
 		await dialog.getByLabel('Search when added').uncheck();
-		await dialog.getByRole('button', { name: 'Add to Library' }).click();
+		await dialog.getByRole('button', { name: 'Add to Watchlist' }).click();
 		await expect(page).toHaveURL(/\/library\/\d+/);
 		return new URL(page.url()).pathname;
 	}
@@ -33,10 +33,10 @@ async function paperHarbour(page: import('@playwright/test').Page): Promise<stri
 	return `/library/${id}`;
 }
 
-test("a title's Library tab lists its Versions on the File cards, with no Copies section", async ({ page }) => {
+test("a title's Watchlist tab lists its Versions on the File cards, with no Copies section", async ({ page }) => {
 	await enterApp(page);
 	const href = await paperHarbour(page);
-	await page.goto(`${href!}?tab=library`);
+	await page.goto(`${href!}?tab=watchlist`);
 	await expect(page.getByTestId('lib-pane')).toBeVisible();
 	// Protect a copy, keep a copy and add a Version, and the Versions list are out of the title page
 	// (docs/library/audio-versions.md); every Version shows as a File card, a Version without a file says so.

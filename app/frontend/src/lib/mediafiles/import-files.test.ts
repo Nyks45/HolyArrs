@@ -38,7 +38,7 @@ describe('import files by hand', () => {
 		expect(blocker(f, { ...startPick(f)!, episode: undefined })).toMatch(/season and episode/);
 		expect(blocker(f, { ...startPick(f)!, has_file: true })).toMatch(/already has a file/);
 		expect(blocker(f, { ...startPick(f)!, has_file: true, replace: true })).toBe('');
-		expect(blocker(show({ in_library: true }), startPick(f))).toMatch(/Library/);
+		expect(blocker(show({ in_library: true }), startPick(f))).toMatch(/Watchlist/);
 	});
 
 	it('ticks only sure guesses', () => {
@@ -72,10 +72,10 @@ describe('import files by hand', () => {
 	});
 
 	it('words results', () => {
-		expect(resultLine({ path: 'x', outcome: 'placed', placed_by: 'hardlink' })).toBe('Added to the Library (no extra space used)');
-		expect(resultLine({ path: 'x', outcome: 'placed', placed_by: 'copy' })).toBe('Copied to the Library (uses extra space)');
+		expect(resultLine({ path: 'x', outcome: 'placed', placed_by: 'hardlink' })).toBe('Added to the Watchlist (no extra space used)');
+		expect(resultLine({ path: 'x', outcome: 'placed', placed_by: 'copy' })).toBe('Copied to the Watchlist (uses extra space)');
 		expect(resultLine({ path: 'x', outcome: 'refused', error: 'nope' })).toBe('Not imported: nope');
-		expect(resultLine({ path: 'x', outcome: 'placed', placed_by: 'move' })).toBe('Moved to the Library');
+		expect(resultLine({ path: 'x', outcome: 'placed', placed_by: 'move' })).toBe('Moved to the Watchlist');
 	});
 
 	it('sends the chosen way to place each file', () => {
@@ -104,14 +104,14 @@ describe('import files by hand', () => {
 		expect(itemsFor([f], { [f.path]: p }, { [f.path]: true })).toEqual([{ path: f.path, title_id: 4, slot_id: 33, mode: 'copy' }]);
 		const half = song({ guess: { title_id: 4, title_name: 'Brad Paisley', title_kind: 'artist', confidence: 0, reason: 'no_album', detail: 'Mud on the Tires' } });
 		expect(pickLine(startPick(half))).toBe('Brad Paisley · pick the album');
-		expect(blocker(half, startPick(half))).toBe('Brad Paisley has no album called Mud on the Tires in the Library. Pick the album.');
+		expect(blocker(half, startPick(half))).toBe('Brad Paisley has no album called Mud on the Tires in the Watchlist. Pick the album.');
 		expect(startTicked(half, startPick(half))).toBe(false);
 		expect(itemsFor([half], { [half.path]: startPick(half) }, { [half.path]: true })).toEqual([]);
 	});
 
 	it('says why a music file has no match', () => {
 		const none = (reason: string, detail = '') => blocker(song({ guess: { confidence: 0, reason, detail } }), null);
-		expect(none('no_artist', 'Nobody')).toBe('No artist called Nobody is in the Library. Add the artist first, or pick one.');
+		expect(none('no_artist', 'Nobody')).toBe('No artist called Nobody is in the Watchlist. Add the artist first, or pick one.');
 		expect(none('no_artist')).toBe('Pick the artist, album and track.');
 		expect(none('no_facts')).toBe('The file has no tags and its folders name no artist. Pick the artist, album and track.');
 		const track = song({ guess: { ...song().guess, slot_id: undefined, track: undefined, track_name: undefined, reason: 'no_track' } });

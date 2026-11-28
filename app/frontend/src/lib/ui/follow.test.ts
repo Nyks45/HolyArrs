@@ -12,7 +12,7 @@ describe('follow', () => {
 		expect(followHint('artist', false)).toBe('Follow to see it on your calendar and hear about new albums. Nothing is asked for.');
 		expect(followHint('show', true)).toBe('On your calendar; you hear about new episodes and seasons. Tap to stop.');
 		expect(followHint('movie', false)).toBe('Follow to see its dates on your calendar. Nothing is asked for.');
-		expect(followHint('movie', false, true)).toBe('Follow to see it on your calendar and hear when it is in the Library. Nothing is asked for.');
+		expect(followHint('movie', false, true)).toBe('Follow to see it on your calendar and hear when it is in the Watchlist. Nothing is asked for.');
 		expect(followHint('movie', true)).toBe('On your calendar; you hear about it. Tap to stop.');
 	});
 
@@ -33,7 +33,7 @@ describe('follow', () => {
 		expect(calls).toEqual(['PUT /titles/7/follow', 'DELETE /titles/7/follow']);
 	});
 
-	it('follows a show not in the Library by its TMDB id', () => {
+	it('follows a show not in the Watchlist by its TMDB id', () => {
 		expect(followPath({ tmdb: '203857' })).toBe('/metadata/show/203857/follow');
 		expect(followPath({ titleId: 3 })).toBe('/titles/3/follow');
 		expect(followPath({ tmdb: '1061474', kind: 'movie' })).toBe('/metadata/movie/1061474/follow');

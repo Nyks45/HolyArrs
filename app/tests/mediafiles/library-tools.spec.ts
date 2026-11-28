@@ -6,7 +6,7 @@ import { libraryTool, libraryView, noSidewaysScroll, owner, signIn, titleAction 
 import { tmp } from '../helpers/data-folder.ts';
 
 // Library tools land on their own page (Recently deleted opens from Sort & filter).
-test('Library tools open to their own page', async ({ page }) => {
+test('Watchlist tools open to their own page', async ({ page }) => {
 	await signIn(page, owner());
 	for (const tool of ['Recently deleted', 'Import files by hand']) {
 		await page.goto('/library');
@@ -15,7 +15,7 @@ test('Library tools open to their own page', async ({ page }) => {
 	}
 });
 
-test('Library and title pages load TMDB pictures only through the artwork cache', async ({ page }) => {
+test('Watchlist and title pages load TMDB pictures only through the artwork cache', async ({ page }) => {
 	const outside: string[] = [];
 	page.on('request', (r) => {
 		const url = new URL(r.url());
@@ -26,7 +26,7 @@ test('Library and title pages load TMDB pictures only through the artwork cache'
 	// TMDB-linked Library titles render the shared metadata detail page.
 	// Give that page a direct TMDB image to exercise the browser's rewrite.
 	const movie = titles.find((title) => title.kind === 'movie' && title.ids?.tmdb);
-	if (!movie?.ids?.tmdb) throw new Error('Library fixture needs a TMDB-linked movie');
+	if (!movie?.ids?.tmdb) throw new Error('Watchlist fixture needs a TMDB-linked movie');
 	const titlePath = `/library/${movie.id}`;
 	const filename = 'audit-library-logo.png';
 	const logo = `https://image.tmdb.org/t/p/w500/${filename}`;
@@ -55,7 +55,7 @@ test('Library and title pages load TMDB pictures only through the artwork cache'
 	expect(outside).toEqual([]);
 });
 
-test('Library tools fit a phone', async ({ browser }) => {
+test('Watchlist tools fit a phone', async ({ browser }) => {
 	const ctx = await browser.newContext({ viewport: { width: 360, height: 780 } });
 	const page = await ctx.newPage();
 	await signIn(page, owner());
@@ -141,7 +141,7 @@ async function deleteWithFiles(page: Page, name: string) {
 }
 
 // Import files by hand.
-test('Import files by hand: the scan guesses the movie, Import adds it and its Library tab shows the file', async ({ page }) => {
+test('Import files by hand: the scan guesses the movie, Import adds it and its Watchlist tab shows the file', async ({ page }) => {
 	await signIn(page, owner());
 	const call = await api(page);
 	const id = await freshMovie(call, 900007, 'Northern Kettle');
@@ -172,9 +172,9 @@ test('Import files by hand: the scan guesses the movie, Import adds it and its L
 
 	await row.getByRole('link', { name: 'Open' }).click();
 	await expect(page).toHaveURL(new RegExp(`/library/${id}$`));
-	await page.getByRole('tab', { name: 'Library' }).click();
+	await page.getByRole('tab', { name: 'Watchlist' }).click();
 	const pane = page.getByTestId('lib-pane');
-	await expect(pane).toContainText('In your library');
+	await expect(pane).toContainText('In your watchlist');
 	await expect(pane).toContainText(basename(target));
 });
 
@@ -312,7 +312,7 @@ test('Remove a movie series: grouped by series, Open series, review both movies,
 	await expect(page).toHaveURL(/group=series/);
 	await libraryView(page, 'Banners');
 	const head = page.locator('.series-head').filter({ has: page.getByRole('heading', { name: 'The Brumwick Films', exact: true }) });
-	await expect(head).toContainText('2 in the Library');
+	await expect(head).toContainText('2 in the Watchlist');
 	await head.getByRole('link', { name: 'Open series' }).click();
 	await expect(page).toHaveURL(/\/library\/collections\/\d+$/);
 	await expect(page.getByRole('heading', { level: 1, name: 'The Brumwick Films' })).toBeVisible();

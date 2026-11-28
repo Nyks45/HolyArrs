@@ -19,25 +19,25 @@ describe('buildNav', () => {
 	it('gives owners every section, with Requests last under Your stuff', () => {
 		expect(labels(owner)).toEqual([
 			[null, ['Home', 'Explore', 'New & Popular']],
-			['Library', ['Movies', 'TV shows', 'Music', 'Stats']],
+			['Watchlist', ['Movies', 'TV shows', 'Music', 'Stats']],
 			['Your stuff', ['Calendar', 'Requests']],
 			['Activity', ['Downloads', 'History']],
 			['System', ['Status', 'Plugins', 'Streaming', 'Settings']]
 		]);
 	});
-	it('lists Library stats only for people who manage the Library', () => {
+	it('lists Watchlist stats only for people who manage the Watchlist', () => {
 		const lib = (i: NavInput) => buildNav(i).find((s) => s.id === 'library')?.items.map((x) => x.href);
 		expect(lib(owner)).toContain('/library/stats');
 		expect(lib(member)).not.toContain('/library/stats');
 		expect(lib({ ...owner, off: (h) => h === '/library/stats' })).not.toContain('/library/stats');
 	});
 	it('hides Music from a Kid, because music has no age ratings', () => {
-		expect(labels({ ...member, kid: true })[1]).toEqual(['Library', ['Movies', 'TV shows']]);
+		expect(labels({ ...member, kid: true })[1]).toEqual(['Watchlist', ['Movies', 'TV shows']]);
 	});
 	it('hides Manage from members but keeps Home, and lets them watch their Downloads', () => {
 		expect(labels(member)).toEqual([
 			[null, ['Home', 'Explore', 'New & Popular']],
-			['Library', ['Movies', 'TV shows', 'Music']],
+			['Watchlist', ['Movies', 'TV shows', 'Music']],
 			['Your stuff', ['Downloads', 'Calendar', 'Requests']]
 		]);
 	});

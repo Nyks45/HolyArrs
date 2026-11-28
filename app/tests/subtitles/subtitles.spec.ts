@@ -62,7 +62,7 @@ test.beforeAll(async ({ browser }) => {
 test('Settings > Subtitles: English and Spanish become the default languages; the Pass marks say what they mean', async () => {
 	await page.goto('/settings');
 	// Open the Library card first.
-	await page.getByTestId('settings-group').filter({ hasText: 'Library' }).click();
+	await page.getByTestId('settings-group').filter({ hasText: 'Watchlist' }).click();
 	await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('link', { name: 'Subtitles' }).click();
 	await expect(page.getByRole('heading', { level: 1, name: 'Subtitles' })).toBeVisible();
 	const editor = page.getByTestId('wish-editor').first();
@@ -126,8 +126,8 @@ test('Subtitle sites: the lab site is added and tested; a site that needs your a
 });
 
 test('Missing subtitles: every movie missing Spanish, by show too, and Search all with its progress', async () => {
-	await adopt(moviesDir, 'Quill Atlas', 'Adopt 1 movie', '1 movie is now in the Library');
-	await adopt(showsDir, 'Fennel Clock', 'Adopt 1 show', '1 show is now in the Library');
+	await adopt(moviesDir, 'Quill Atlas', 'Adopt 1 movie', '1 movie is now in the Watchlist');
+	await adopt(showsDir, 'Fennel Clock', 'Adopt 1 show', '1 show is now in the Watchlist');
 	await page.goto('/library');
 	await libraryTool(page, 'Missing subtitles');
 	await expect(page.getByRole('heading', { level: 1, name: 'Missing subtitles' })).toBeVisible();

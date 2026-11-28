@@ -32,7 +32,7 @@ test.beforeAll(async ({ browser }) => {
 	await signIn(page, owner());
 });
 
-test('Import a library scans the show folder, lists each file with its episodes, and adopts with nothing moved', async () => {
+test('Import a watchlist scans the show folder, lists each file with its episodes, and adopts with nothing moved', async () => {
 	await page.goto('/library/import');
 	const lf = page.getByLabel('Library folder');
 	await lf.selectOption((await lf.locator('option', { hasText: showsDir }).first().getAttribute('value')) ?? '');
@@ -47,7 +47,7 @@ test('Import a library scans the show folder, lists each file with its episodes,
 	await list.locator('summary').click();
 	await expect(list).toContainText('S01E02, S01E03');
 	await expect(list).toContainText('Left alone');
-	await axe(page, 'import a show library');
+	await axe(page, 'import a show watchlist');
 	// Last to first: unchecking a box shifts the later "checked" matches, not the earlier ones.
 	for (const box of (await plan.getByRole('checkbox', { checked: true }).all()).reverse()) {
 		if (!(await box.getAttribute('aria-label'))?.includes('Quarry Bells')) await box.uncheck();
@@ -62,7 +62,7 @@ test('Import a library scans the show folder, lists each file with its episodes,
 });
 
 test('Rename files on the show page renames the adopted episodes to the episode pattern', async () => {
-	await titleAction(page, 'Library', 'Rename files');
+	await titleAction(page, 'Watchlist', 'Rename files');
 	const sheet = page.getByRole('dialog', { name: 'Rename files' });
 	await expect(sheet).toHaveAccessibleDescription(/Quarry Bells/);
 	await expect(sheet.getByTestId('rename-step')).toHaveCount(2);
@@ -73,7 +73,7 @@ test('Rename files on the show page renames the adopted episodes to the episode 
 	await expect(page.getByText('2 files renamed')).toBeVisible({ timeout: 30_000 });
 	// The sheet closes itself when the rename is done; opened again, nothing is left to rename.
 	await expect(sheet).toBeHidden();
-	await titleAction(page, 'Library', 'Rename files');
+	await titleAction(page, 'Watchlist', 'Rename files');
 	await expect(sheet.getByTestId('rename-none')).toBeVisible();
 	await sheet.getByRole('button', { name: 'Close', exact: true }).click();
 	await expect(sheet).toBeHidden();
@@ -121,7 +121,7 @@ test('deleting one episode of a multi-episode file keeps the file; deleting the 
 	const tools = page.getByTestId('season-tools');
 	await expect(tools).toContainText('0 of 3 episodes on disk');
 	await tools.getByRole('tab', { name: 'History' }).click();
-	await expect(tools).toContainText('Deleted Quarry Bells season 1 from the Library');
+	await expect(tools).toContainText('Deleted Quarry Bells season 1 from the Watchlist');
 	await page.getByRole('dialog', { name: 'Season 1' }).getByRole('button', { name: 'Close', exact: true }).click();
 	await expect(tools).toBeHidden();
 });
@@ -131,7 +131,7 @@ test("an episode's History lists only that episode", async () => {
 	const sheet = page.getByRole('dialog', { name: 'Season 1 · Episode 2' });
 	await expect(sheet.getByRole('heading', { name: 'Dust' })).toBeVisible();
 	const events = sheet.getByTestId('episode-sheet').locator('ol.es-tl');
-	await expect(events).toContainText('Deleted Quarry Bells season 1 from the Library');
+	await expect(events).toContainText('Deleted Quarry Bells season 1 from the Watchlist');
 	// Adopting was the whole show, so it is not in the episode's History.
 	await expect(events).not.toContainText('Adopted Quarry Bells');
 	await axe(page, 'history of an episode');
@@ -151,7 +151,7 @@ test("the Calendar shows this week's episode, and the movies and shows filter", 
 	const item = page.getByTestId('cal-item').filter({ hasText: 'Quarry Bells' }).filter({ hasText: 'Season 2, Episode 1 · New Bell' });
 	// The owner follows nothing here (the show was adopted, not asked for), so
 	// the Calendar opens on My follows with a way to the Whole Library.
-	const whole = page.getByRole('button', { name: 'Show the Whole Library' });
+	const whole = page.getByRole('button', { name: 'Show the Whole Watchlist' });
 	await expect(whole.or(item).first()).toBeVisible();
 	if (await whole.isVisible()) await whole.click();
 	// The episode airs tomorrow (UTC); the Calendar opens on the weeks from today.
@@ -191,7 +191,7 @@ test('the show page, import, history and calendar work at phone width', async ({
 	await phone.getByRole('link', { name: /Quarry Bells/ }).first().click();
 	await expect(phone.getByRole('button', { name: 'More actions', exact: true })).toBeVisible();
 	await noSidewaysScroll(phone);
-	await titleAction(phone, 'Library', 'Delete show');
+	await titleAction(phone, 'Watchlist', 'Delete show');
 	const del = phone.getByTestId('delete-sheet');
 	await expect(del.getByRole('switch', { name: /Never add again/ })).toBeVisible();
 	await noSidewaysScroll(phone);
@@ -206,15 +206,15 @@ test('the show page, import, history and calendar work at phone width', async ({
 	await ctx.close();
 });
 
-test('deleting the whole show with Never-add keeps its files and leaves the Library', async () => {
+test('deleting the whole show with Never-add keeps its files and leaves the Watchlist', async () => {
 	await page.goto('/library?kind=show');
 	await page.getByRole('link', { name: /Quarry Bells/ }).first().click();
-	await titleAction(page, 'Library', 'Delete show');
+	await titleAction(page, 'Watchlist', 'Delete show');
 	const del = page.getByTestId('delete-sheet');
 	const never = del.getByRole('switch', { name: /Never add again/ });
 	await never.click();
 	await expect(never).toHaveAttribute('aria-checked', 'true');
-	await expect(del.getByTestId('delete-plan')).toContainText('Leaves your Library');
+	await expect(del.getByTestId('delete-plan')).toContainText('Leaves your Watchlist');
 	await expect(del.getByTestId('delete-plan')).toContainText('Lists never add it again');
 	await del.getByRole('button', { name: 'Delete show', exact: true }).click();
 	await expect(page.getByRole('status').filter({ hasText: 'Quarry Bells deleted' })).toBeVisible();

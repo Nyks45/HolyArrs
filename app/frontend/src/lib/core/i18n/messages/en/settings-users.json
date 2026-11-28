@@ -2,7 +2,7 @@
 	"settings.users.permAsk": "Request titles",
 	"settings.users.permAuto": "Requests approved without waiting",
 	"settings.users.permApprove": "Approve or turn down requests",
-	"settings.users.permLibrary": "Run the Library",
+	"settings.users.permLibrary": "Run the Watchlist",
 	"settings.users.permSettings": "Change settings",
 	"settings.users.owner": "Owner",
 	"settings.users.admin": "Admin",

@@ -70,7 +70,7 @@ async function bootstrap(page: Page) {
 			});
 			if (!response.ok) throw new Error(`first-run API ${path} returned ${response.status}`);
 		}
-		await save('/library-folders', 'POST', { path: folder, kind: 'movie', label: 'Optional UI Library' });
+		await save('/library-folders', 'POST', { path: folder, kind: 'movie', label: 'Optional UI Watchlist' });
 		// End the first run too, or the wizard gate sends every page to the welcome steps.
 		await save('/auth/setup/done', 'POST', {});
 		return true;

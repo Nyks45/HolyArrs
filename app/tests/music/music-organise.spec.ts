@@ -27,8 +27,8 @@ const wrenFiles = {
 
 /** artistSetting opens an artist's Library tab and presses one of its Settings rows. */
 async function artistSetting(p: Page, name: RegExp) {
-	await p.getByTestId('artist-tabs').getByRole('tab', { name: 'Library' }).click();
-	await p.getByTestId('artist-library').getByRole('button', { name }).click();
+	await p.getByTestId('artist-tabs').getByRole('tab', { name: 'Watchlist' }).click();
+	await p.getByTestId('artist-watchlist').getByRole('button', { name }).click();
 }
 
 async function openAlbum(p: Page, artist: string, album: string) {
@@ -88,13 +88,13 @@ test('Rename files on the album page renames its tracks into the new album folde
 	await expect(dialog).toBeHidden();
 	const folder = join(musicDir, 'Tin Lanterns', '2019 - Harbour Songs');
 	expect(readdirSync(folder).sort()).toEqual(['01 - Song 1.1.flac', '02 - Song 1.2.flac', '03 - Song 1.3.flac']);
-	// The artist's Library tab has the whole artist's rename: nothing left.
+	// The artist's Watchlist tab has the whole artist's rename: nothing left.
 	await page.getByRole('link', { name: 'Tin Lanterns' }).first().click();
 	await openInLibrary(page);
 	// The Rename files row only shows while something needs renaming.
-	await page.getByTestId('artist-tabs').getByRole('tab', { name: 'Library' }).click();
-	await expect(page.getByTestId('artist-library').getByRole('button', { name: /^Delete artist/ })).toBeVisible();
-	await expect(page.getByTestId('artist-library').getByRole('button', { name: /^Rename files/ })).toHaveCount(0);
+	await page.getByTestId('artist-tabs').getByRole('tab', { name: 'Watchlist' }).click();
+	await expect(page.getByTestId('artist-watchlist').getByRole('button', { name: /^Delete artist/ })).toBeVisible();
+	await expect(page.getByTestId('artist-watchlist').getByRole('button', { name: /^Rename files/ })).toHaveCount(0);
 	// Back to the default album folder pattern for the tests after this one.
 	await page.goto('/settings/naming');
 	await page.getByTestId('music-naming').getByRole('textbox', { name: 'Album folder pattern', exact: true }).fill('{album} ({year})');
@@ -102,7 +102,7 @@ test('Rename files on the album page renames its tracks into the new album folde
 	await expect(page.getByText('Naming settings saved')).toBeVisible();
 });
 
-test('Import a library scans the music folder, matches albums and tracks, and adopts with nothing moved', async () => {
+test('Import a watchlist scans the music folder, matches albums and tracks, and adopts with nothing moved', async () => {
 	await page.goto('/library/import');
 	const lf = page.getByLabel('Library folder');
 	await lf.selectOption((await lf.locator('option', { hasText: 'Music: ' }).first().getAttribute('value')) ?? '');
@@ -120,7 +120,7 @@ test('Import a library scans the music folder, matches albums and tracks, and ad
 	await expect(slow).toContainText('track 02 Song 1.2');
 	await expect(albums.getByTestId('music-album').filter({ hasText: 'Wire' })).toContainText('left out by the album kinds');
 	await expect(albums).toContainText('not in an album folder');
-	await axe(page, 'import a music library');
+	await axe(page, 'import a music watchlist');
 	await page.getByRole('button', { name: 'Adopt 1 artist' }).click();
 	const done = page.getByTestId('adopt-results');
 	await expect(done).toContainText('1 artist is now in the Library.', { timeout: 30_000 });
@@ -132,7 +132,7 @@ test('Import a library scans the music folder, matches albums and tracks, and ad
 
 test('deleting one track with its file moves it to the holding folder; the album page shows its History', async () => {
 	await openAlbum(page, 'Copper Wren', 'Low Orbit');
-	await expect(page.getByTestId('track-state').first()).toContainText(/In the Library|Better copy sought/);
+	await expect(page.getByTestId('track-state').first()).toContainText(/In the Watchlist|Better copy sought/);
 	await page.getByRole('button', { name: 'Delete track 02 Song 1.2' }).click();
 	const dialog = page.getByTestId('show-delete');
 	await expect(page.getByRole('dialog', { name: 'Delete Copper Wren – track 02 Song 1.2?' })).toBeVisible();
@@ -146,7 +146,7 @@ test('deleting one track with its file moves it to the holding folder; the album
 	expect(existsSync(wrenFiles.two)).toBe(false);
 	expect(existsSync(wrenFiles.one)).toBe(true);
 	const hist = page.getByTestId('album-history');
-	await expect(hist.getByTestId('album-event').filter({ hasText: 'Deleted Copper Wren Low Orbit: track 02 Song 1.2 from the Library' })).toBeVisible();
+	await expect(hist.getByTestId('album-event').filter({ hasText: 'Deleted Copper Wren Low Orbit: track 02 Song 1.2 from the Watchlist' })).toBeVisible();
 	await expect(hist.getByTestId('album-event').filter({ hasText: 'Adopted Copper Wren' })).toHaveCount(0);
 	await axe(page, 'album with history');
 });
@@ -190,7 +190,7 @@ test('the album page, import and delete work at phone width', async ({ browser }
 	await ctx.close();
 });
 
-test('deleting the whole artist with Never-add keeps files it only found and leaves the Library', async () => {
+test('deleting the whole artist with Never-add keeps files it only found and leaves the Watchlist', async () => {
 	await page.goto('/library?kind=artist');
 	await page.getByRole('link', { name: /Copper Wren/ }).first().click();
 	// The Library card opens the music artist page; Delete artist sits in the Library tab of its Library page.
@@ -198,7 +198,7 @@ test('deleting the whole artist with Never-add keeps files it only found and lea
 	await artistSetting(page, /^Delete artist/);
 	const dialog = page.getByTestId('delete-sheet');
 	await dialog.getByRole('switch', { name: /Never add again/ }).click();
-	await expect(dialog.getByTestId('delete-plan')).toContainText('Leaves your Library');
+	await expect(dialog.getByTestId('delete-plan')).toContainText('Leaves your Watchlist');
 	await expect(dialog.getByTestId('delete-plan')).toContainText('Lists never add it again');
 	await dialog.getByRole('button', { name: 'Delete artist', exact: true }).click();
 	await expect(page).toHaveURL(/\/library(\?|$)/);

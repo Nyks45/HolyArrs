@@ -74,3 +74,4 @@ export type { QualityPill } from './quality-row.ts';
 export { allWaiting, readList, readMore } from './ask-pages.ts';
 export { createApproveAll } from './approve-all.svelte.ts';
 export type { ListPage } from './ask-pages.ts';
+export { addInstantly, instantBody, type InstantChoices } from './instant-add.ts';

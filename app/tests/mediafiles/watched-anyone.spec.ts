@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { owner, signIn } from '../helpers/helpers.ts';
 
 // The owner's "Watched by anyone" filter keeps only the titles some account watched; the list itself comes from the media servers' watch history.
-test('the owner filters the Library to titles anybody watched', async ({ page }) => {
+test('the owner filters the Watchlist to titles anybody watched', async ({ page }) => {
 	await signIn(page, owner());
 	const { titles } = (await (await page.request.get('/api/v1/titles')).json()) as { titles: { id: number; name: string }[] };
 	const seen = titles.slice(0, 1);

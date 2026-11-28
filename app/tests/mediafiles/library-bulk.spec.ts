@@ -195,7 +195,7 @@ test('Search now: a search starts for each ticked movie, and History shows what 
 	}
 });
 
-test('Remove: two ticked movies leave the Library and their files stay on disk', async ({ page }) => {
+test('Remove: two ticked movies leave the Watchlist and their files stay on disk', async ({ page }) => {
 	await signIn(page, owner());
 	const call = await api(page);
 	const titles = await freshSet(call, false);

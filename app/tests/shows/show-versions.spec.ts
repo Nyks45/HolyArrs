@@ -44,7 +44,7 @@ test('add Tidal Atlas with a second 4K Version', async () => {
 	await expect(dialog.getByLabel('Pick rules for this Version').locator('option:checked')).toHaveText('4K');
 	await expect(dialog.getByText('the show gets its own folder named with')).toBeVisible();
 	await axe(page, 'add a show with a second Version');
-	await dialog.getByRole('button', { name: 'Add to Library' }).click();
+	await dialog.getByRole('button', { name: 'Add to Watchlist' }).click();
 	await expect(dialog).toBeHidden();
 
 	await openShow(page);

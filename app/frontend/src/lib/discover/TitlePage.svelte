@@ -31,7 +31,7 @@
 	import { WatchLinks } from '#lib/mediaservers/index.ts';
 	import TitleLibrary from './TitleLibrary.svelte';
 	import TitleOwnedSheets from './TitleOwnedSheets.svelte';
-	import { SearchOutcomeLine, keptSeasons, completeSeasons, seasonsToAsk, QuickAsk, AddMovieDialog, AddShowDialog, AskShowDialog, AskMovieDialog, fourKReady } from '#lib/requests/index.ts';
+	import { addInstantly, SearchOutcomeLine, keptSeasons, completeSeasons, seasonsToAsk, QuickAsk, AddMovieDialog, AddShowDialog, AskShowDialog, AskMovieDialog, fourKReady } from '#lib/requests/index.ts';
 	import { pickDefaultSeason, resolveShowResumeTarget, seasonWords, SeasonFolds, syncEpisodeWatchedState, syncSeasonWatchedState, toEpisodeProgressMap } from '#lib/shows/index.ts';
 	import { detailPath, fourKOffer, isDetailKind, loadDetails, remembered, type TitleDetails } from '#lib/metadata/index.ts';
 	import type { GateDefaults } from '#lib/mediafiles/index.ts';
@@ -324,6 +324,24 @@
 		if (details) details = { ...details, titleId: id };
 		if (own.ownedFor !== id) void own.loadOwned(id);
 	}
+	// One click, Netflix style: saved defaults, no sheet, no page change. The sheet opens only when a folder must be picked.
+	let instantBusy = $state(false);
+	async function instantAdd(d: TitleDetails) {
+		const item = d.kind === 'movie' ? d.movie : d.show;
+		if (!item || instantBusy) return;
+		instantBusy = true;
+		try {
+			for (let i = 0; i < 50 && !choicesLoaded; i++) await new Promise((r) => setTimeout(r, 100));
+			const title = await addInstantly(d.kind, item, { folders, rules, defaults: await savedDefaults.load(), showDefaults, gateDefault, handsOff: session.s.handsOff });
+			if (!title) return void (d.kind === 'movie' ? addMovie?.open(item as LookupMovie) : addShow?.open(item as LookupShow));
+			ownAdded(title.id);
+			toasts.push(t('discover.titlePage.addedToWatchlist', { name: title.name }), 'ok');
+		} catch (e) {
+			toasts.push(t('requests.cards.couldNotAdd'), 'fail', { body: message(e) });
+		} finally {
+			instantBusy = false;
+		}
+	}
 	function movieAsked(r: { ask: Ask; joined: boolean; already: boolean }) {
 		const brief = { id: r.ask.id, state: r.ask.state, state_label: r.ask.state_label, mine: true, people: r.ask.people.length };
 		if (details) details = r.ask.four_k ? { ...details, ask4k: brief } : { ...details, ask: brief };
@@ -530,29 +548,6 @@
 		>
 			{#snippet byline()}{#if owned}<AskedByLine {askers} />{#if ownState.kind !== 'have' && ownState.kind !== 'downloading'}<SearchOutcomeLine titleId={owned.id} />{/if}{/if}{/snippet}
 			{#snippet actions()}
-				{#if owned}
-					<ActionButton icon={ownState.kind === 'have' ? 'check' : ownState.kind === 'failed' ? 'refresh' : ownState.kind === 'downloading' ? 'download' : 'search'} label={ownState.label} caption={ownState.kind === 'failed' && manage ? t('discover.titlePage.retry') : ownState.kind === 'missing' && manage ? t('discover.titlePage.searchNow') : ownState.label} primary onclick={() => (manage && (ownState.kind === 'failed' || ownState.kind === 'missing') ? own.ownRun('search') : own.setTab('library'))} data-testid="hero-library" />
-					{#if manage && ownState.kind !== 'missing'}<WatchLinks titleId={owned.id} />{/if}
-					{#if manage || mayReport || mayHide}<ActionMenu label={t('discover.titlePage.moreActions')} caption={t('discover.titlePage.more')} icon="more" items={titleMenu} />{/if}
-					{#if mayAsk}{@render ask4kButton(d)}{/if}
-					{#if mayAsk && d.kind === 'show' && d.show && !d.neverAdd && askable.length > 0}
-						<ActionButton icon="wish" pill label={t('discover.titlePage.askFor', { name: d.name })} caption={t('discover.titlePage.request')} onclick={() => askShow?.open(d.show as LookupShow, kept, complete)} data-testid="hero-ask-seasons" />
-					{/if}
-				{:else if manage && !d.neverAdd}
-					{#if d.kind === 'movie' && d.movie}
-						<ActionButton icon="plus" label={t('discover.titlePage.addToTheLibrary', { name: d.name })} caption={t('discover.titlePage.addToLibrary')} primary onclick={() => addMovie?.open(d.movie as LookupMovie)} />
-						<ActionButton icon="grid" pill={phone} label={t('discover.titleOwned.checkReleases')} caption={phone ? t('library.title.releases') : t('discover.titleOwned.checkReleases')} onclick={() => (checkOpen = true)} data-testid="hero-choose-release" />
-					{:else if d.kind === 'show' && d.show}
-						<ActionButton icon="plus" label={t('discover.titlePage.addToTheLibrary', { name: d.name })} caption={t('discover.titlePage.addToLibrary')} primary onclick={() => addShow?.open(d.show as LookupShow)} />
-					{/if}
-				{:else if mayAsk && !d.neverAdd}
-					{#if d.kind === 'movie'}
-						<ActionButton icon="wish" label={d.ask ? t('discover.titlePage.askForToo', { name: d.name }) : t('discover.titlePage.askFor', { name: d.name })} caption={d.ask?.mine ? t('discover.titlePage.requestedCaption') : d.ask ? t('discover.titlePage.requestToo') : t('discover.titlePage.request')} primary disabled={!!d.ask?.mine} onclick={() => askMovieDialog?.open({ tmdb: d.tmdb, name: d.name, year: d.year, ask: d.ask, ask4k: d.ask4k, has4k: d.has4k })} />
-						{@render ask4kButton(d)}
-					{:else if d.show}
-						<ActionButton icon="wish" label={d.ask ? t('discover.titlePage.askForToo', { name: d.name }) : t('discover.titlePage.askFor', { name: d.name })} caption={d.ask ? t('discover.titlePage.requestToo') : t('discover.titlePage.request')} primary onclick={() => askShow?.open(d.show as LookupShow)} />
-					{/if}
-				{/if}
 				{#if !session.kid && d.kind === 'show' && resumeTarget}
 					{@const seTag = `S${String(resumeTarget.season).padStart(2, '0')} E${String(resumeTarget.episode).padStart(2, '0')}`}
 					{#if resumeTarget.kind === 'resume'}
@@ -562,7 +557,7 @@
 						<ActionButton icon="play" primary label={`Next Up ${d.name} ${seTag}`} caption={`Next Up · ${seTag}`} href={watchHref(false, resumeTarget.season, resumeTarget.episode)} data-testid="hero-next-up" />
 						<ActionButton icon="source" pill label={`Pick stream source for ${d.name}`} caption="Sources" href={watchHref(false, resumeTarget.season, resumeTarget.episode, 'sources')} data-testid="hero-stream" />
 					{:else}
-						<ActionButton icon="play" pill label={`Watch ${d.name} ${seTag}`} caption={`Watch ${seTag}`} href={watchHref(false, resumeTarget.season, resumeTarget.episode)} data-testid="hero-stream" />
+						<ActionButton icon="play" primary label={`Watch ${d.name} ${seTag}`} caption={`Watch ${seTag}`} href={watchHref(false, resumeTarget.season, resumeTarget.episode)} data-testid="hero-stream" />
 						<ActionButton icon="source" pill label={`Pick stream source for ${d.name}`} caption="Sources" href={watchHref(false, resumeTarget.season, resumeTarget.episode, 'sources')} data-testid="hero-sources" />
 					{/if}
 				{:else if !session.kid && d.kind === 'movie'}
@@ -570,8 +565,31 @@
 						<ActionButton icon="play" primary label={`Resume ${d.name}`} caption={`Resume · ${formatDuration(watchLatest.position_sec)}`} href={watchHref(true)} data-testid="hero-resume" />
 						<ActionButton icon="source" pill label={`Pick stream source for ${d.name}`} caption="Sources" href={watchHref(false, undefined, undefined, 'sources')} data-testid="hero-stream" />
 					{:else}
-						<ActionButton icon="play" pill label={`Watch ${d.name}`} caption="Watch" href={watchHref(false)} data-testid="hero-stream" />
+						<ActionButton icon="play" primary label={`Watch ${d.name}`} caption="Watch" href={watchHref(false)} data-testid="hero-stream" />
 						<ActionButton icon="source" pill label={`Pick stream source for ${d.name}`} caption="Sources" href={watchHref(false, undefined, undefined, 'sources')} data-testid="hero-sources" />
+					{/if}
+				{/if}
+				{#if owned}
+					<ActionButton icon={ownState.kind === 'have' ? 'check' : 'download'} pill label={manage && ownState.kind === 'missing' ? t('discover.titlePage.downloadName', { name: d.name }) : ownState.label} caption={ownState.kind === 'failed' && manage ? t('discover.titlePage.retryDownload') : ownState.kind === 'missing' && manage ? t('discover.titlePage.download') : ownState.label} onclick={() => (manage && (ownState.kind === 'failed' || ownState.kind === 'missing') ? own.ownRun('search') : own.setTab('library'))} data-testid="hero-library" />
+					{#if manage && ownState.kind !== 'missing'}<WatchLinks titleId={owned.id} />{/if}
+					{#if manage || mayReport || mayHide}<ActionMenu label={t('discover.titlePage.moreActions')} caption={t('discover.titlePage.more')} icon="more" items={titleMenu} />{/if}
+					{#if mayAsk}{@render ask4kButton(d)}{/if}
+					{#if mayAsk && d.kind === 'show' && d.show && !d.neverAdd && askable.length > 0}
+						<ActionButton icon="wish" pill label={t('discover.titlePage.askFor', { name: d.name })} caption={t('discover.titlePage.request')} onclick={() => askShow?.open(d.show as LookupShow, kept, complete)} data-testid="hero-ask-seasons" />
+					{/if}
+				{:else if manage && !d.neverAdd}
+					{#if d.kind === 'movie' && d.movie}
+						<ActionButton icon="plus" pill label={t('discover.titlePage.addToTheLibrary', { name: d.name })} caption={t('discover.titlePage.addToLibrary')} busy={instantBusy} onclick={() => void instantAdd(d)} data-testid="hero-add" />
+						<ActionButton icon="grid" pill={phone} label={t('discover.titleOwned.checkReleases')} caption={phone ? t('library.title.releases') : t('discover.titleOwned.checkReleases')} onclick={() => (checkOpen = true)} data-testid="hero-choose-release" />
+					{:else if d.kind === 'show' && d.show}
+						<ActionButton icon="plus" pill label={t('discover.titlePage.addToTheLibrary', { name: d.name })} caption={t('discover.titlePage.addToLibrary')} busy={instantBusy} onclick={() => void instantAdd(d)} data-testid="hero-add" />
+					{/if}
+				{:else if mayAsk && !d.neverAdd}
+					{#if d.kind === 'movie'}
+						<ActionButton icon="wish" label={d.ask ? t('discover.titlePage.askForToo', { name: d.name }) : t('discover.titlePage.askFor', { name: d.name })} caption={d.ask?.mine ? t('discover.titlePage.requestedCaption') : d.ask ? t('discover.titlePage.requestToo') : t('discover.titlePage.request')} primary disabled={!!d.ask?.mine} onclick={() => askMovieDialog?.open({ tmdb: d.tmdb, name: d.name, year: d.year, ask: d.ask, ask4k: d.ask4k, has4k: d.has4k })} />
+						{@render ask4kButton(d)}
+					{:else if d.show}
+						<ActionButton icon="wish" label={d.ask ? t('discover.titlePage.askForToo', { name: d.name }) : t('discover.titlePage.askFor', { name: d.name })} caption={d.ask ? t('discover.titlePage.requestToo') : t('discover.titlePage.request')} primary onclick={() => askShow?.open(d.show as LookupShow)} />
 					{/if}
 				{/if}
 				{#if d.kind === 'show' || d.kind === 'movie'}<FollowButton titleId={owned?.id} tmdb={d.tmdb} kind={d.kind} />{/if}

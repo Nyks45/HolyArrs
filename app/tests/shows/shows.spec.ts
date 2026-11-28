@@ -61,7 +61,7 @@ test('the owner finds a show and adds it with only the latest season kept', asyn
 	await dialog.getByLabel('Episode order').selectOption('aired');
 	await dialog.getByLabel('Details from').selectOption('tmdb');
 	await axe(own, 'add show dialog');
-	await dialog.getByRole('button', { name: 'Add to Library' }).click();
+	await dialog.getByRole('button', { name: 'Add to Watchlist' }).click();
 	await expect(dialog).toBeHidden();
 	await expect(own.getByRole('status').filter({ hasText: 'Harbour Lights added' })).toBeVisible();
 	await expect(own).toHaveURL(/\/library\/\d+/);
@@ -107,7 +107,7 @@ test('seasons and episodes turn on and off; each episode says its state and why'
 	await expect.poll(() => episodeKept(own, 'S02E01')).toBe(true);
 });
 
-test('shows sit in the Library next to movies, with kinds and state filters', async () => {
+test('shows sit in the Watchlist next to movies, with kinds and state filters', async () => {
 	await own.goto('/library');
 	await libraryKind(own, /^Shows/);
 	await expect(own).toHaveURL(/kind=show/);
@@ -141,7 +141,7 @@ test('shows sit in the Library next to movies, with kinds and state filters', as
 	await libraryKind(own, /^Everything/);
 	// Cards fade in one after another; let the ones on screen start before checking contrast.
 	await own.waitForFunction(() => [...document.querySelectorAll('.lp')].every((e) => { const r = e.getBoundingClientRect(); return e.classList.contains('shown') || !e.getClientRects().length || r.top > innerHeight || r.bottom < 0 || r.left > innerWidth || r.right < 0; }), undefined, { timeout: 5_000 }).catch(() => undefined);
-	await axe(own, 'library with shows');
+	await axe(own, 'watchlist with shows');
 });
 
 test('a member asks for two seasons of a show from a phone', async ({ browser }) => {
@@ -178,7 +178,7 @@ test('a member asks for two seasons of a show from a phone', async ({ browser })
 	// A show already in the Library opens as a Library title for a member (no Add, no tools):
 	// More holds only Report a problem.
 	await openFromSearch(max, 'harbour', 'Harbour Lights', 'show');
-	await expect(max.getByTestId('hero-library')).toBeVisible();
+	await expect(max.getByTestId('hero-watchlist')).toBeVisible();
 	const more = max.getByRole('button', { name: 'More actions', exact: true });
 	if (await more.count()) {
 		await more.click();

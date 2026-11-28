@@ -73,7 +73,7 @@
 	"core.plain.approvedBy": "Approved by {who}",
 	"core.settings.cantReach": "Can't reach that address. Check it and that the app is running.",
 	"core.settings.tryHttp": "That address doesn't answer on https. Try http:// instead.",
-	"core.settings.groupLibrary.label": "Library",
+	"core.settings.groupLibrary.label": "Watchlist",
 	"core.settings.groupLibrary.line": "Where titles live",
 	"core.settings.groupLibrary.about": "Folders, parts, defaults, subtitles, file names and importing.",
 	"core.settings.groupDownloads.label": "Downloads",

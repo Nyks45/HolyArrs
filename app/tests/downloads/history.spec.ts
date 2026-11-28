@@ -173,7 +173,7 @@ test('a sparse linked calendar stays in its date range until asked for more week
 	}
 });
 
-test('alerts: add a webhook with Library moments, send a test, the receiver gets a signed message', async () => {
+test('alerts: add a webhook with Watchlist moments, send a test, the receiver gets a signed message', async () => {
 	await page.goto('/settings/alerts');
 	await page.getByRole('button', { name: 'Add an alert' }).first().click();
 	await page.getByLabel('Name', { exact: true }).fill('Home server hook');
@@ -183,12 +183,12 @@ test('alerts: add a webhook with Library moments, send a test, the receiver gets
 	await expect(page.getByLabel('What the secret does')).toHaveValue('sign');
 	await page.getByTestId('moments-requests').getByRole('button', { name: 'None of these' }).click();
 	await expect(page.getByTestId('moments-requests').getByRole('checkbox', { name: /New request/ })).not.toBeChecked();
-	await expect(page.getByTestId('moments-library').getByRole('checkbox', { name: /Sent to download/ })).toBeChecked();
+	await expect(page.getByTestId('moments-watchlist').getByRole('checkbox', { name: /Sent to download/ })).toBeChecked();
 	await page.getByRole('checkbox', { name: /Reach the local network/ }).check();
 	await page.locator('form.sc-form').getByRole('button', { name: 'Save', exact: true }).click();
 	const card = page.getByTestId('alert').filter({ hasText: 'Home server hook' });
 	await expect(card).toContainText('Webhook');
-	await expect(card).toContainText('Sent to download · Downloaded · Download failed · In the Library · Renamed');
+	await expect(card).toContainText('Sent to download · Downloaded · Download failed · In the Watchlist · Renamed');
 	await expect(card).not.toContainText('New request');
 	await card.getByRole('button', { name: 'Send a test' }).click();
 	await expect(card.getByTestId('alert-test')).toHaveText('Webhook');

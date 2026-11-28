@@ -10,7 +10,7 @@ function title(name: string, ...states: string[]): TitleView {
 	};
 }
 
-describe('library filters', () => {
+describe('watchlist filters', () => {
 	const ts = [title('Dune', 'wanted'), title('Lantern', 'not_out_yet'), title('Harbour', 'better_wanted'), title('Kept', 'in_library'), title('Busy', 'downloading')];
 	it('sorts titles into filters', () => {
 		expect(ts.filter((t) => matches(t, 'missing')).map((t) => t.name)).toEqual(['Dune', 'Busy']);
@@ -104,7 +104,7 @@ describe('slotNotes', () => {
 	});
 });
 
-describe('library letters and quiet states', () => {
+describe('watchlist letters and quiet states', () => {
 	it('files names under a letter, accents and numbers included', () => {
 		expect(letterOf('Élan')).toBe('E');
 		expect(letterOf(' quiet Orchard')).toBe('Q');
@@ -116,7 +116,7 @@ describe('library letters and quiet states', () => {
 	});
 
 	it('drops the state a view already says, keeps counts and other states', () => {
-		const have = { kind: 'in_library', label: 'In your Library' } as const;
+		const have = { kind: 'in_library', label: 'In your Watchlist' } as const;
 		expect(exceptionChip('all', have)).toBeNull();
 		expect(exceptionChip('have', have)).toBeNull();
 		expect(exceptionChip('better', have)).toBeNull();
@@ -132,7 +132,7 @@ describe('library letters and quiet states', () => {
 		const show = (s: Partial<NonNullable<TitleView['show']>>): TitleView => ({ ...title('Harbour Lights'), kind: 'show', slots: [], show: { details_source: '', episode_order: '', new_seasons: '', status: '', seasons: [{ aired: 6 } as never], episodes: 6, missing: 0, not_out_yet: 0, in_library: 0, better_wanted: 0, ...s } });
 
 		it('gives a movie one status in the shared words', () => {
-			expect(posterStatus(title('A', 'in_library', 'wanted'), 'staff')).toEqual({ kind: 'in_library', label: 'In library' });
+			expect(posterStatus(title('A', 'in_library', 'wanted'), 'staff')).toEqual({ kind: 'in_library', label: 'In watchlist' });
 			expect(posterStatus(title('A', 'in_library'), 'member')).toEqual({ kind: 'in_library', label: 'Ready to watch' });
 			expect(posterStatus(title('A', 'wanted'), 'staff')).toEqual({ kind: 'missing', label: 'Missing' });
 			expect(posterStatus(title('A', 'not_out_yet'), 'staff')?.kind).toBe('coming_soon');

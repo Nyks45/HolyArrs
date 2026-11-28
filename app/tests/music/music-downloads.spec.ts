@@ -84,7 +84,7 @@ test('stuck tracks on a phone', async ({ browser }) => {
 	await ctx.close();
 });
 
-test('Stop looking for one track settles it; the rest of the album stays in the library', async () => {
+test('Stop looking for one track settles it; the rest of the album stays in the watchlist', async () => {
 	const card = details().getByTestId('decision').filter({ hasText: 'Track 04' });
 	await card.getByRole('button', { name: /^More/ }).click();
 	await page.getByRole('menuitem', { name: 'Stop looking', exact: true }).click();

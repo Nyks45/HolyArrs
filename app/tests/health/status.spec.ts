@@ -93,7 +93,7 @@ test('status: a member never gets the support bundle, even with Status open', as
 	// Run the Library opens Status, but the bundle stays with the owner and admins.
 	await own.goto('/settings/users');
 	await own.getByRole('button', { name: 'Change uma' }).click();
-	await own.getByRole('dialog').getByLabel('Run the Library').check();
+	await own.getByRole('dialog').getByLabel('Run the Watchlist').check();
 	await own.getByRole('dialog').getByRole('button', { name: 'Save' }).click();
 	await expect(own.getByText('uma saved')).toBeVisible();
 	await open(uma, '/health?tab=about');

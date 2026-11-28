@@ -40,7 +40,7 @@ describe('WatchedMark', () => {
 describe('LibraryPoster watched mark', () => {
 	it('says Watched in the poster link and shows the badge', () => {
 		const { body } = render(LibraryPoster, { props: poster({ state: 'watched', seen: 8, of: 8 }) });
-		expect(body).toMatch(/aria-label="Glasshouse, 2016, In the Library, Watched"/);
+		expect(body).toMatch(/aria-label="Glasshouse, 2016, In the Watchlist, Watched"/);
 		expect(body).toContain('class="wm done');
 	});
 	it('says how much is watched for a partly watched show', () => {

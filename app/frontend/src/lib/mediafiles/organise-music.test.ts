@@ -18,7 +18,7 @@ import {
 	type RenameStep
 } from './organise.ts';
 
-describe('music library import', () => {
+describe('music watchlist import', () => {
 	const album: AdoptAlbum = {
 		folder: 'Old Days (2010)',
 		parsed_name: 'Old Days',
@@ -114,7 +114,7 @@ describe('music rename and delete', () => {
 		const s = deleteSummary(p, 'artist');
 		expect(s[0]).toBe('Old Days: 2 tracks stop being kept up to date');
 		expect(s[1]).toMatch(/^1 file to the holding folder/);
-		expect(deleteSummary({ ...p, scope: 'title' }, 'artist')[0]).toMatch(/^Leaves your Library/);
+		expect(deleteSummary({ ...p, scope: 'title' }, 'artist')[0]).toMatch(/^Leaves your Watchlist/);
 	});
 
 	it('lists the music examples in order', () => {

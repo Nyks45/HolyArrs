@@ -465,7 +465,7 @@ func (h *Handlers) searchBrowseCategory(w http.ResponseWriter, r *http.Request) 
 	scope := hubBrowseScope(q.Get("hub"))
 	scope.Page, _ = strconv.Atoi(q.Get("page"))
 	if scope.Page > 500 {
-		webserver.Fail(w, http.StatusBadRequest, "page must be 500 or less")
+		webserver.Fail(w, http.StatusBadRequest, "page must be 1 to 500")
 		return
 	}
 	items, err := h.browseItems(r.Context(), h.LiveExplore(r.Context()), c, sw, kid, h.KidMax(r), scope)

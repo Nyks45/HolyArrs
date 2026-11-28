@@ -31,7 +31,7 @@ describe('owned matching', () => {
 
 describe('ownedMark', () => {
 	it('all files: available', () => {
-		expect(ownedMark(card(), title({ slots: [slot('in_library', true)] } as Partial<TitleView>), 'member')).toEqual({ state: 'available', label: 'In your library' });
+		expect(ownedMark(card(), title({ slots: [slot('in_library', true)] } as Partial<TitleView>), 'member')).toEqual({ state: 'available', label: 'In your watchlist' });
 	});
 	it('some files or missing episodes: partial', () => {
 		expect(ownedMark(card(), title({ slots: [slot('in_library', true), slot('wanted')] } as Partial<TitleView>), 'member')?.state).toBe('partial');

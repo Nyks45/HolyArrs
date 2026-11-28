@@ -40,7 +40,7 @@ describe('fitTags', () => {
 
 describe('context line', () => {
 	it('prefers the household status', () => {
-		expect(contextLine({ state: 'available' }, { streaming: { name: 'Netflix', rank: 3 } })).toEqual({ text: 'In your Library · up to date', kind: 'house' });
+		expect(contextLine({ state: 'available' }, { streaming: { name: 'Netflix', rank: 3 } })).toEqual({ text: 'In your Watchlist · up to date', kind: 'house' });
 		expect(houseLine({ state: 'downloading', label: 'Season 6 downloading' })).toBe('Season 6 downloading');
 		expect(houseLine({ state: 'requested', askers: ['Mia'] })).toBe('Asked by Mia');
 		expect(houseLine({ state: 'requested', mine: true })).toBe('You asked for it');

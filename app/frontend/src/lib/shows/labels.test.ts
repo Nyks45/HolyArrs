@@ -43,16 +43,16 @@ describe('show words', () => {
 		expect(label(seasonChoices, 'latest')).toBe('The latest season');
 	});
 	it('sums up a season and a show', () => {
-		expect(seasonLine(season(1, { in_library: 2, missing: 1 }))).toBe('2 of 3 aired in the Library · 1 missing');
+		expect(seasonLine(season(1, { in_library: 2, missing: 1 }))).toBe('2 of 3 aired in the Watchlist · 1 missing');
 		const s = info([season(1, { in_library: 3 }), season(2, { aired: 1, episodes: 2, missing: 1, not_out_yet: 1 })]);
-		expect(showProgress(s)).toBe('3 of 4 aired episodes in the Library');
+		expect(showProgress(s)).toBe('3 of 4 aired episodes in the Watchlist');
 	});
 	it('counts aired episodes the same way in the list, its tooltip and the show page', () => {
 		// Specials not kept up to date count nowhere; an episode not aired yet (one with no Slot too) is not counted.
 		const s = info([season(0, { keep_up_to_date: false, aired: 80, episodes: 80 }), season(1, { aired: 3 }), season(2, { aired: 1, episodes: 3, not_out_yet: 1 })]);
 		expect(airedEpisodes(s)).toBe(4);
 		expect(progressOf({ kind: 'show', show: s } as TitleView).total).toBe(4);
-		expect(showProgress(s)).toBe('0 of 4 aired episodes in the Library');
+		expect(showProgress(s)).toBe('0 of 4 aired episodes in the Watchlist');
 	});
 	it('says why an episode is or is not looked for', () => {
 		expect(episodeWhy(ep(), true, false)).toBe('Keep up to date is off for the show.');
@@ -71,7 +71,7 @@ describe('show words', () => {
 	});
 });
 
-describe('shows in the Library filters', () => {
+describe('shows in the Watchlist filters', () => {
 	const a = show('Harbour Lights', info([season(1, { in_library: 3 }), season(2, { missing: 1, not_out_yet: 1 })]));
 	const b = show('Moss Parade', info([season(1, { in_library: 3, better_wanted: 1 })]));
 	it('counts a show when any kept episode is in that state', () => {

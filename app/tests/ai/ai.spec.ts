@@ -20,7 +20,7 @@ test.beforeAll(async ({ browser }) => {
 	if (!(await page.locator('[data-testid="library-card"], [data-testid="library-row"]', { hasText: 'Driftwood Moon' }).count())) {
 		const dialog = await addFromSearch(page, 'Driftwood Moon', 'Driftwood Moon');
 		await dialog.getByLabel('Search when added').uncheck();
-		await dialog.getByRole('button', { name: 'Add to Library' }).click();
+		await dialog.getByRole('button', { name: 'Add to Watchlist' }).click();
 		await expect(page).toHaveURL(/\/library\/\d+/);
 	}
 });

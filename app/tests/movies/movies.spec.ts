@@ -32,7 +32,7 @@ test('add a movie by name with folder, Pick rules and Release gate in under a mi
 	await dialog.getByLabel('Release gate').selectOption('in_cinemas');
 	await expect(dialog.getByText('Look from the cinema date.')).toBeVisible();
 	await dialog.getByLabel('Search when added').uncheck();
-	await dialog.getByRole('button', { name: 'Add to Library' }).click();
+	await dialog.getByRole('button', { name: 'Add to Watchlist' }).click();
 	// Adding opens the movie's Library page.
 	await expect(page).toHaveURL(/\/library\/\d+/);
 	expect(Date.now() - started).toBeLessThan(60_000);
@@ -51,16 +51,16 @@ test('add by tmdb: and imdb: id; the last Release gate is remembered, the rest s
 	await expect(dialog.getByLabel('Search when added')).not.toBeChecked();
 	await dialog.getByLabel('Release gate').selectOption('released');
 	await dialog.getByRole('checkbox', { name: /^Keep up to date/ }).check();
-	await dialog.getByRole('button', { name: 'Add to Library' }).click();
+	await dialog.getByRole('button', { name: 'Add to Watchlist' }).click();
 	await expect(page).toHaveURL(/\/library\/\d+/);
 
 	const orchard = await addFromSearch(page, 'imdb:tt9000030', 'Quiet Orchard');
 	await orchard.getByLabel('Search when added').uncheck();
-	await orchard.getByRole('button', { name: 'Add to Library' }).click();
+	await orchard.getByRole('button', { name: 'Add to Watchlist' }).click();
 	await expect(page).toHaveURL(/\/library\/\d+/);
 });
 
-test('Library filters, find by name, posters and list', async () => {
+test('Watchlist filters, find by name, posters and list', async () => {
 	await page.goto('/library');
 	await libraryView(page, 'Posters');
 	const grid = page.locator('[data-testid="library-card"], [data-testid="library-row"]').filter({ hasText: ours });
@@ -145,7 +145,7 @@ test('a member sees the movie but none of the staff controls', async ({ browser 
 	await expect(m.getByRole('heading', { level: 1 })).toContainText('The Lantern Keepers');
 	// The Library section (gate, Versions, Releases) is for people who manage the Library.
 	await expect(m.getByTestId('gate-reason')).toHaveCount(0);
-	for (const b of ['Search now', 'Keep up to date', 'Edit', 'Library', 'More actions']) await expect(m.getByRole('button', { name: b, exact: true })).toHaveCount(0);
+	for (const b of ['Search now', 'Keep up to date', 'Edit', 'Watchlist', 'More actions']) await expect(m.getByRole('button', { name: b, exact: true })).toHaveCount(0);
 	await expect(m.getByRole('heading', { name: 'Releases' })).toHaveCount(0);
 
 	// Search: a Library movie opens its Library page, with no Add for a member.
@@ -161,7 +161,7 @@ test('add a movie with a second 4K Version; the Movie page shows both and can ad
 	await expect(dialog.getByLabel('Pick rules for this Version').locator('option:checked')).toHaveText('4K');
 	await expect(dialog.getByText('it gets its own folder named with')).toBeVisible();
 	await dialog.getByLabel('Search when added').uncheck();
-	await dialog.getByRole('button', { name: 'Add to Library' }).click();
+	await dialog.getByRole('button', { name: 'Add to Watchlist' }).click();
 	await expect(page).toHaveURL(/\/library\/\d+/);
 	await openLibraryTab(page);
 
@@ -334,7 +334,7 @@ test('on a phone (390) Back keeps the words, the results and the scroll', async 
 	await ctx.close();
 });
 
-test('the top-bar search opens Search with Library results; a movie not in the Library opens its details with Add', async () => {
+test('the top-bar search opens Search with Watchlist results; a movie not in the Watchlist opens its details with Add', async () => {
 	await page.goto('/');
 	// The one search field sits in the top bar; typing opens the Search page with the words.
 	const box = page.getByTestId('search-box');

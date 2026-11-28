@@ -38,8 +38,8 @@ describe('line 2', () => {
 		expect(dayWord(new Date(2026, 9, 20, 9).toISOString(), now)).toBe('on Oct 20');
 	});
 	it('says who added a title', () => {
-		expect(eventText(ev('title_added', { Actor: { kind: 'user', id: 5 }, Data: { why_added: 'by_hand' } }), ctx).line).toBe('Added to the Library by Maya');
-		expect(eventText(ev('title_added', { Actor: { kind: 'user', id: 1 }, Data: { why_added: 'by_hand' } }), ctx).line).toBe('Added to the Library by you');
+		expect(eventText(ev('title_added', { Actor: { kind: 'user', id: 5 }, Data: { why_added: 'by_hand' } }), ctx).line).toBe('Added to the Watchlist by Maya');
+		expect(eventText(ev('title_added', { Actor: { kind: 'user', id: 1 }, Data: { why_added: 'by_hand' } }), ctx).line).toBe('Added to the Watchlist by you');
 	});
 	it('names the list a title came from', () => {
 		expect(eventText(ev('title_added', { Actor: { kind: 'system' }, Data: { why_added: 'list', list_name: 'Weekend picks' } }), ctx).line).toBe('Added from the list Weekend picks');

@@ -101,9 +101,9 @@ describe('what is happening', () => {
 	});
 	it('names the title when there is one, and counts when there are several', () => {
 		const one = new Set(line(facts({ askedArrived: ['Gladiator'] })));
-		expect([...one].some((l) => l.startsWith('Gladiator is in the Library now'))).toBe(true);
+		expect([...one].some((l) => l.startsWith('Gladiator is in the Watchlist now'))).toBe(true);
 		const many = new Set(line(facts({ askedArrived: ['Gladiator', 'Coco', 'Alien'] })));
-		expect([...many].some((l) => l.startsWith('3 of your asks are in the Library now'))).toBe(true);
+		expect([...many].some((l) => l.startsWith('3 of your asks are in the Watchlist now'))).toBe(true);
 		const news = new Set(line(facts({ newToday: { count: 1, title: 'Severance' } })));
 		expect([...news].some((l) => l.startsWith('New today, ') && l.endsWith(': Severance.'))).toBe(true);
 		const lots = new Set(line(facts({ newToday: { count: 5, title: 'Severance' } })));
@@ -112,7 +112,7 @@ describe('what is happening', () => {
 		expect(line(facts({ waiting: 1 })).some((l) => l.includes('1 asks'))).toBe(false);
 		expect(every(line(facts({ finishing: { mine: 0, all: 1 } })), /^A download is almost done/)).toBe(true);
 	});
-	it('never says a date-only title arrived or is in the Library', () => {
+	it('never says a date-only title arrived or is in the Watchlist', () => {
 		for (const count of [1, 2, 5]) for (const l of line(facts({ newToday: { count, title: 'Severance' } }))) expect(l, l).not.toMatch(/landed|arrived|in the Library/);
 	});
 	it('keeps quiet lines from claiming anything is new today', () => {
@@ -166,7 +166,7 @@ describe('the lines themselves', () => {
 	});
 	it('use the glossary words for what they say', () => {
 		const text = homeLineTemplates.join(' ');
-		expect(text).toContain('Library');
+		expect(text).toContain('Watchlist');
 		expect(text).toContain('Requests');
 		expect(text).not.toMatch(/download client|\brequest\b/i);
 	});

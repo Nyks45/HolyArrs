@@ -25,7 +25,7 @@
 	"settings.schedules.ended": "Ended {when}",
 	"settings.schedules.failedWith": "Last run failed: {error}",
 	"settings.schedules.failed": "Last run failed",
-	"settings.schedules.refreshOffNote": "Automatic movie detail updates are off, so names, dates and artwork can become stale. A request already in flight may finish. Manual Library refresh remains available.",
+	"settings.schedules.refreshOffNote": "Automatic movie detail updates are off, so names, dates and artwork can become stale. A request already in flight may finish. Manual Watchlist refresh remains available.",
 	"settings.schedules.rescanOffNote": "Files changed by hand show up only after Run now",
 	"settings.schedules.howOftenRuns": "How often {label} runs",
 	"settings.schedules.every": "Every ({unit})",

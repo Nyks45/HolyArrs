@@ -124,7 +124,7 @@ test('a movie and a show on the Plex watchlist become asks, once; a Library movi
 	const items = card.getByTestId('watchlist-items');
 	await expect(items).toContainText('Rowan Semaphore');
 	await expect(items).toContainText('Larch Ferrymen');
-	await expect(items).toContainText('In the Library');
+	await expect(items).toContainText('In the Watchlist');
 	await expect(items).not.toContainText('Not a movie');
 
 	// One ask each, from the owner, marked as from the watchlist; none for the Library movie.

@@ -79,7 +79,7 @@ test('Anime: a Release named by running number 13 is matched to S02E01, picked, 
 	await expect(dialog).toContainText('For anime: episode 27, counted from the first.');
 	const searchOnAdd = dialog.getByRole('checkbox', { name: /^Search when added/ });
 	if (await searchOnAdd.isChecked()) await searchOnAdd.uncheck();
-	await dialog.getByRole('button', { name: 'Add to Library' }).click();
+	await dialog.getByRole('button', { name: 'Add to Watchlist' }).click();
 	await expect(dialog).toBeHidden();
 	await expect(page.getByRole('status').filter({ hasText: `${show} added` })).toBeVisible();
 	await expect(page).toHaveURL(/\/library\/\d+/);

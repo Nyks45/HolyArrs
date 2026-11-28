@@ -23,9 +23,9 @@ describe('the Quality row on a request sheet', () => {
 		expect(memberRow([{ ...std, name: 'HD' }, { ...uhd, name: 'UHD' }]).pills.map((p) => p.label)).toEqual(['HD', 'UHD']);
 	});
 
-	it('turns off a line whose copy is in the Library and picks the next one', () => {
+	it('turns off a line whose copy is in the Watchlist and picks the next one', () => {
 		const r = memberRow([std, uhd], { inLibrary: true });
-		expect(r.pills[0]).toMatchObject({ disabled: true, note: 'In library' });
+		expect(r.pills[0]).toMatchObject({ disabled: true, note: 'In watchlist' });
 		expect(r.pills[1].disabled).toBe(false);
 		expect(r.selected).toBe('4k');
 		const both = memberRow([std, uhd], { inLibrary: true, has4k: true });

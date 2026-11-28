@@ -126,7 +126,7 @@ test('a movie downloads through qBittorrent; Mark failed sends the next Release 
 	// Add a movie and let it search now.
 	const dialog = await addFromSearch(page, 'iron lullaby', 'Iron Lullaby');
 	await dialog.getByLabel('Search when added').check();
-	await dialog.getByRole('button', { name: 'Add to Library' }).click();
+	await dialog.getByRole('button', { name: 'Add to Watchlist' }).click();
 	await expect(page).toHaveURL(/\/library\/\d+/);
 	await expect(page.getByRole('heading', { level: 1 })).toContainText('Iron Lullaby');
 	ironPage = page.url();
@@ -235,7 +235,7 @@ test('tags are set on a Downloader and on a title, and shown where they are kept
 		expect(tagged.ok(), await tagged.text()).toBe(true);
 		expect(((await (await call('GET', `/titles/${titleId}`)).json()) as { tags: string[] }).tags).toEqual(['kids']);
 		await page.goto(ironPage);
-		await page.getByTestId('own-tabs').getByRole('tab', { name: 'Library' }).click();
+		await page.getByTestId('own-tabs').getByRole('tab', { name: 'Watchlist' }).click();
 		await expect(page.getByTestId('tags-row')).toHaveCount(0);
 		const cleared = await call('PUT', `/titles/${titleId}`, { tags: [] });
 		expect(cleared.ok(), await cleared.text()).toBe(true);

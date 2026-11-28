@@ -254,25 +254,25 @@ describe('removeFilesWords', () => {
 
 describe('removing a finished download', () => {
 	const done = { phase: 'done', state: 'seeding', protocol: 'torrent', downloader: 'qBittorrent', client_item: false };
-	it('says a seeding torrent stops seeding and the library copy stays', () => {
-		expect(doneLine(done)).toBe('Already in your library. Removing stops seeding in qBittorrent; your library copy stays.');
+	it('says a seeding torrent stops seeding and the watchlist copy stays', () => {
+		expect(doneLine(done)).toBe('Already in your watchlist. Removing stops seeding in qBittorrent; your watchlist copy stays.');
 	});
 	it('says a finished torrent the server marks still seeding (qBittorrent uploading or stalledUP) stops seeding', () => {
-		expect(doneLine({ ...done, state: 'finished', seeding: true })).toBe('Already in your library. Removing stops seeding in qBittorrent; your library copy stays.');
+		expect(doneLine({ ...done, state: 'finished', seeding: true })).toBe('Already in your watchlist. Removing stops seeding in qBittorrent; your watchlist copy stays.');
 		expect(doneLine({ ...done, state: 'finished', seeding: false })).toMatch(/clears it from/);
 	});
 	it('says a torrent that stopped seeding (goal met) or a Usenet job is only cleared, with no seeding words', () => {
-		expect(doneLine({ ...done, state: 'finished' })).toBe('Already in your library. Removing clears it from qBittorrent; your library copy stays.');
+		expect(doneLine({ ...done, state: 'finished' })).toBe('Already in your watchlist. Removing clears it from qBittorrent; your watchlist copy stays.');
 		const nzb = doneLine({ ...done, state: 'finished', protocol: 'usenet', downloader: 'SABnzbd' });
-		expect(nzb).toBe('Already in your library. Removing clears it from SABnzbd; your library copy stays.');
+		expect(nzb).toBe('Already in your watchlist. Removing clears it from SABnzbd; your watchlist copy stays.');
 		expect(nzb).not.toMatch(/seed/i);
 	});
-	it('says only part is in the library for a pack with episodes that did not go in', () => {
+	it('says only part is in the watchlist for a pack with episodes that did not go in', () => {
 		const eps = [{ slot_id: 1, season: 1, episode: 1, label: 'S01E01', state: 'in_library' }, { slot_id: 2, season: 1, episode: 2, label: 'S01E02', state: 'wanted' }];
-		expect(doneLine({ ...done, episodes: eps })).toBe('Part of it is in your library. Removing stops seeding in qBittorrent; what is in your library stays.');
-		expect(doneLine({ ...done, episodes: eps.map((e) => ({ ...e, state: 'in_library' })) })).toMatch(/^Already in your library/);
+		expect(doneLine({ ...done, episodes: eps })).toBe('Part of it is in your watchlist. Removing stops seeding in qBittorrent; what is in your watchlist stays.');
+		expect(doneLine({ ...done, episodes: eps.map((e) => ({ ...e, state: 'in_library' })) })).toMatch(/^Already in your watchlist/);
 	});
-	it('never says "in your library" when the import failed, waits for a person, or for a torrent HolyArrs did not send', () => {
+	it('never says "in your watchlist" when the import failed, waits for a person, or for a torrent HolyArrs did not send', () => {
 		for (const phase of ['needs_a_decision', 'import_refused', 'waiting_to_import', 'importing', 'failed']) {
 			expect(doneLine({ ...done, phase })).toBe('');
 			expect(doneInLibrary({ ...done, phase })).toBe(false);

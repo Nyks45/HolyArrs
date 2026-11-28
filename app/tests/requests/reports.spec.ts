@@ -36,7 +36,7 @@ test.beforeAll(async ({ browser }) => {
 	if (!(await own.locator('[data-testid="library-card"], [data-testid="library-row"]', { hasText: movie }).count())) {
 		const dialog = await addFromSearch(own, movie, movie);
 		await dialog.getByLabel('Search when added').uncheck();
-		await dialog.getByRole('button', { name: 'Add to Library' }).click();
+		await dialog.getByRole('button', { name: 'Add to Watchlist' }).click();
 		await expect(own).toHaveURL(/\/library\/\d+/);
 	}
 	const call = await api(own);

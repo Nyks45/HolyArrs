@@ -110,13 +110,13 @@ test('a member links their Plex account from My account for the watchlist, and u
 	await expect(mine).toHaveCount(0);
 });
 
-test('a member sees Home, the Library, Search, Requests and My account only', async () => {
+test('a member sees Home, the Watchlist, Search, Requests and My account only', async () => {
 	const nav = ana.getByRole('navigation', { name: 'Main' }).first();
 	for (const label of ['Home', 'Explore', 'Movies', 'Requests']) await expect(nav.getByRole('link', { name: label, exact: true })).toBeVisible();
 	await expect(ana.getByTestId('search-box')).toBeVisible();
 	// A member follows the downloads and dates of what they asked for, but not the manager pages.
 	for (const label of ['Downloads', 'Calendar']) await expect(nav.getByRole('link', { name: label, exact: true })).toBeVisible();
-	for (const label of ['History', 'Library tools', 'Status']) await expect(nav.getByRole('link', { name: label })).toHaveCount(0);
+	for (const label of ['History', 'Watchlist tools', 'Status']) await expect(nav.getByRole('link', { name: label })).toHaveCount(0);
 	await expect(ana.getByRole('link', { name: 'Settings' })).toHaveCount(0);
 	await ana.getByRole('button', { name: 'Account and appearance' }).click();
 	await expect(ana.getByRole('menuitem', { name: 'Account', exact: true })).toBeVisible();
@@ -173,7 +173,7 @@ test('the owner changes what a member may do, and can turn them off', async () =
 	await own.goto('/settings/users');
 	await own.getByRole('button', { name: 'Change ana' }).click();
 	const dlg = own.getByRole('dialog');
-	await dlg.getByLabel('Run the Library').check();
+	await dlg.getByLabel('Run the Watchlist').check();
 	await dlg.getByRole('button', { name: 'Save' }).click();
 	await expect(own.getByText('ana saved')).toBeVisible();
 	await ana.reload();

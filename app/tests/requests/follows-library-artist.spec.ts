@@ -56,7 +56,7 @@ async function musicFolder(call: Call): Promise<number> {
 
 // In the full run this test is its own project after the music ones (playwright.config.ts), so
 // it uses music.spec's folder and never adds a second one before music.spec counts its folders.
-test('a member follows a Library artist: Following stays after a reload and nothing is asked for', async ({ browser }) => {
+test('a member follows a Watchlist artist: Following stays after a reload and nothing is asked for', async ({ browser }) => {
 	test.setTimeout(120_000);
 	const ownCall = await api(own);
 	const { titles } = (await (await ownCall('GET', '/titles')).json()) as { titles: { id: number; name: string; kind: string; state?: string }[] };

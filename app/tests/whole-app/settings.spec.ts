@@ -21,7 +21,7 @@ test('Settings home: a group card opens its section links and Back returns', asy
 	await page.goto('/settings');
 	await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
 	await expect(page.getByTestId('settings-group').getByRole('heading', { level: 2 })).toHaveText([
-		'Library', 'Downloads', 'Streaming', 'People', 'Linked apps', 'Server'
+		'Watchlist', 'Downloads', 'Streaming', 'People', 'Linked apps', 'Server'
 	]);
 	await expect(page.getByTestId('settings-group').filter({ hasText: 'Downloads' })).toContainText('How titles arrive');
 	await page.getByTestId('settings-group').filter({ hasText: 'Downloads' }).click();
@@ -49,7 +49,7 @@ test('search finds one setting, and its link scrolls to it, opens Advanced and h
 	await page.goto('/settings');
 	await page.getByTestId('search-box').fill('free space');
 	const result = page.getByTestId('setting-result').filter({ hasText: 'Always leave this much free space' });
-	await expect(result).toContainText('Library › Naming and files › Advanced');
+	await expect(result).toContainText('Watchlist › Naming and files › Advanced');
 	await result.click();
 	await expect(page).toHaveURL(/\/settings\/naming#min-free$/);
 	const field = page.locator('#min-free');

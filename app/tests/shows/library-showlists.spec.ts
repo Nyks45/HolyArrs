@@ -142,7 +142,7 @@ test('a Trakt show list adds a show by its TVDB id with the latest season kept, 
 	await page.goto('/settings/outside-lists');
 	await addList('Trakt picks', 'trakt_list', 'https://trakt.tv/users/lab/lists/tv-picks', 'latest', false);
 	const row = page.getByTestId('outside-list').filter({ hasText: 'Trakt picks' });
-	await expect(row.getByTestId('list-result')).toContainText('2 on the list, 1 added, 1 already in the Library', { timeout: 20_000 });
+	await expect(row.getByTestId('list-result')).toContainText('2 on the list, 1 added, 1 already in the Watchlist', { timeout: 20_000 });
 
 	const rookery = await show(call, 'Rookery Dial');
 	expect(rookery?.why_added).toBe('list');

@@ -1,4 +1,8 @@
 {
+	"discover.titlePage.download": "Download",
+	"discover.titlePage.downloadName": "Download {name}",
+	"discover.titlePage.retryDownload": "Retry download",
+	"discover.titlePage.addedToWatchlist": "{name} added to your watchlist",
 	"discover.calEmpty.nothingComingUpHere": "Здесь ничего не ожидается",
 	"discover.calListRows.today": "Сегодня",
 	"discover.calTile.inTheLibrary": "· В Медиатеке",

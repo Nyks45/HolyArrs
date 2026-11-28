@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "Netko je pogledao",
 	"mediafiles.watched.part": "Pogledano {seen} od {of}",
 	"mediafiles.watched.partly": "Djelomično pogledano",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "Nije potraženo",
 	"mediafiles.releaseSheet.showPickPart": "Za pretraživanje koristite {choose} na sezoni ili epizodi.",
 	"mediafiles.held.one": "1 ranija kopija je u Nedavno obrisano",

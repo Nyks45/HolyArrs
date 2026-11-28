@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "Дивився будь-хто",
 	"mediafiles.watched.part": "Переглянуто {seen} із {of}",
 	"mediafiles.watched.partly": "Переглянуто частково",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "Не перевірено",
 	"mediafiles.releaseSheet.showPickPart": "Щоб шукати, використайте «{choose}» біля сезону чи серії.",
 	"mediafiles.held.one": "1 попередня копія в розділі Нещодавно видалені",

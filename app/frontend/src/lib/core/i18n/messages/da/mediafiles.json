@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "Set af nogen",
 	"mediafiles.watched.part": "Set {seen} af {of}",
 	"mediafiles.watched.partly": "Delvist set",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "Ikke slået op",
 	"mediafiles.releaseSheet.showPickPart": "For at søge skal du bruge {choose} på en sæson eller et afsnit.",
 	"mediafiles.held.one": "1 tidligere kopi er i Slettet for nylig",

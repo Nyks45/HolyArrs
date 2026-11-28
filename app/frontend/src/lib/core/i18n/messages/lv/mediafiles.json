@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "Kāds ir skatījies",
 	"mediafiles.watched.part": "Noskatīts {seen} no {of}",
 	"mediafiles.watched.partly": "Daļēji noskatīts",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "Nav meklēts",
 	"mediafiles.releaseSheet.showPickPart": "Lai meklētu, izmantojiet {choose} pie sezonas vai sērijas.",
 	"mediafiles.held.one": "1 iepriekšēja kopija ir sadaļā Nesen dzēstie",

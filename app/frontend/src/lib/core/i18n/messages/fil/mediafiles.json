@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "Napanood ng kahit sino",
 	"mediafiles.watched.part": "Napanood ang {seen} sa {of}",
 	"mediafiles.watched.partly": "Bahagyang napanood",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "Hindi nahanap",
 	"mediafiles.releaseSheet.showPickPart": "Para maghanap, gamitin ang {choose} sa isang season o episode.",
 	"mediafiles.held.one": "1 naunang kopya ang nasa Kamakailang na-delete",

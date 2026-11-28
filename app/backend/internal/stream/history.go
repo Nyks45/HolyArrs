@@ -71,7 +71,7 @@ type HistoryStore struct {
 	mu      sync.Mutex
 	path    string
 	entries map[string]WatchEntry // keyed by fmt.Sprintf("%d:%s", userID, entryKey)
-	// OnWatchTitle fires outside mu when a key is newly watched or completes.
+	// OnWatchTitle fires outside mu when a key is newly watched, completes or is removed.
 	OnWatchTitle func(userID int64, kind, tmdb string)
 }
 
@@ -169,16 +169,29 @@ func (s *HistoryStore) Upsert(userID int64, in WatchEntry) (WatchEntry, error) {
 func (s *HistoryStore) BatchUpdate(userID int64, upserts []WatchEntry, deleteKeys []string) ([]WatchEntry, error) {
 	s.mu.Lock()
 	previous := maps.Clone(s.entries)
+	var notified [][2]string
+	seenNotify := map[string]bool{}
+	addNotify := func(kind, tmdb string) {
+		tk := kind + ":" + tmdb
+		if !seenNotify[tk] {
+			seenNotify[tk] = true
+			notified = append(notified, [2]string{kind, tmdb})
+		}
+	}
 	for _, dk := range deleteKeys {
 		trimmed := strings.TrimSpace(dk)
-		if trimmed != "" {
-			delete(s.entries, storeMapKey(userID, trimmed))
+		if trimmed == "" {
+			continue
+		}
+		mk := storeMapKey(userID, trimmed)
+		// An unmarked title changes what recommendations read, so it notifies like a newly watched one.
+		if gone, ok := s.entries[mk]; ok {
+			delete(s.entries, mk)
+			addNotify(gone.Kind, gone.TMDB)
 		}
 	}
 	now := time.Now().UTC()
 	updated := make([]WatchEntry, 0, len(upserts))
-	var notified [][2]string
-	seenNotify := map[string]bool{}
 	for _, in := range upserts {
 		merged, notify, err := s.upsertEntryLocked(userID, in, now)
 		if err != nil {
@@ -188,11 +201,7 @@ func (s *HistoryStore) BatchUpdate(userID int64, upserts []WatchEntry, deleteKey
 		}
 		updated = append(updated, merged)
 		if notify {
-			tk := merged.Kind + ":" + merged.TMDB
-			if !seenNotify[tk] {
-				seenNotify[tk] = true
-				notified = append(notified, [2]string{merged.Kind, merged.TMDB})
-			}
+			addNotify(merged.Kind, merged.TMDB)
 		}
 	}
 	s.capUserEntriesLocked(userID, 2000)
@@ -452,16 +461,22 @@ func (s *HistoryStore) ForTitle(userID int64, kind, tmdb string) (latest *WatchE
 // Delete removes one watch history entry for userID.
 func (s *HistoryStore) Delete(userID int64, key string) error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	k := storeMapKey(userID, strings.TrimSpace(key))
 	entry, ok := s.entries[k]
 	if !ok {
+		s.mu.Unlock()
 		return nil
 	}
 	delete(s.entries, k)
 	if err := s.saveLocked(); err != nil {
 		s.entries[k] = entry
+		s.mu.Unlock()
 		return err
+	}
+	cb := s.OnWatchTitle
+	s.mu.Unlock()
+	if cb != nil {
+		cb(userID, entry.Kind, entry.TMDB)
 	}
 	return nil
 }

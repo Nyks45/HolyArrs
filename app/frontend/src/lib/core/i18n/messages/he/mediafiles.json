@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "נצפה על ידי מישהו",
 	"mediafiles.watched.part": "נצפו {seen} מתוך {of}",
 	"mediafiles.watched.partly": "נצפה חלקית",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "לא נבדק",
 	"mediafiles.releaseSheet.showPickPart": "כדי לחפש, השתמש ב-{choose} בעונה או בפרק.",
 	"mediafiles.held.one": "עותק קודם אחד נמצא בנמחקו לאחרונה",

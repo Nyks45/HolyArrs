@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "Bárki megnézte",
 	"mediafiles.watched.part": "{seen} / {of} megnézve",
 	"mediafiles.watched.partly": "Részben megnézve",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "Nincs kikeresve",
 	"mediafiles.releaseSheet.showPickPart": "Kereséshez egy évadnál vagy epizódnál használd ezt: {choose}.",
 	"mediafiles.held.one": "1 korábbi példány van itt: Nemrég törölt",

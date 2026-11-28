@@ -40,6 +40,8 @@
 	import { t } from '#lib/core/i18n/i18n.svelte.ts';
 	import WatchedMark from './WatchedMark.svelte';
 	import { watchedWords, type WatchedMark as WatchedMarkT } from './watched.ts';
+	import { watchList } from './watch-list.svelte.ts';
+	import type { TitleView } from '../core/types.ts';
 
 	let {
 		title,
@@ -64,7 +66,8 @@
 		onseen,
 		onsearch,
 		onkeep,
-		watched = null
+		watched = null,
+		item
 	}: {
 		title: string;
 		year?: number | string;
@@ -96,6 +99,8 @@
 		onkeep?: (keep: boolean) => void;
 		// What the signed-in person has watched of this title.
 		watched?: WatchedMarkT | null;
+		// The Library record, for the Watchlist's Play and Mark watched actions.
+		item?: TitleView;
 	} = $props();
 
 	let root = $state<HTMLElement>();
@@ -109,6 +114,11 @@
 	const pic = $derived(sized(image, 'poster', cw || 200));
 	const kindIcon = $derived<IconName>(kind === 'show' ? 'tv' : kind === 'artist' ? 'music' : 'film');
 	const words = $derived(ls?.label ?? (bar.tone === 'ok' ? t('mediafiles.poster.inLibrary') : ''));
+	const acts = $derived(item && !selecting && (item.kind === 'movie' || item.kind === 'show') ? watchList.acts : null);
+	const play = $derived(item && acts ? acts.play(item) : null);
+	const marked = $derived(item && acts ? acts.marked(item) : false);
+	const markBusy = $derived(!!item && watchList.busy.includes(item.id));
+	const toggleMark = () => item && acts?.toggle(item, !marked);
 	const name = $derived([title, year, note, words, score && `${t('mediafiles.col.score')} ${score}`, watched && watchedWords(watched, t)].filter(Boolean).join(', '));
 
 	$effect(() => {
@@ -164,11 +174,14 @@
 			<WatchedMark mark={watched} />
 			<span class="line {bar.tone}" aria-hidden="true"><i style="transform: scaleX({bar.fill})"></i></span>
 		</a>
+		{#if play && !touch}<a class="lp-play" href={play.href} tabindex="-1" aria-label={t(`library.watch.${play.how}Name`, { name: title })} data-testid="poster-play"><Icon name="play" size={22} /><span>{t(`library.watch.${play.how}`)}</span></a>{/if}
+		{#if acts && touch}<button type="button" class="lp-mark" class:on={marked} disabled={markBusy} aria-pressed={marked} aria-label={t(marked ? 'library.watch.unmarkName' : 'library.watch.markName', { name: title })} onclick={toggleMark} data-testid="poster-mark"><Icon name="check" size={14} stroke={2.75} /></button>{/if}
 		{#if !touch}
 		<div class="glass" aria-label={t('mediafiles.poster.details', { title })} role="group">
 			<p class="g-state {bar.tone}">{words || t('mediafiles.poster.inLibrary')}</p>
 			{#each facts.filter(Boolean) as f (f)}<p class="g-fact"><PersonText text={f} /></p>{/each}
 			<div class="g-acts">
+				{#if acts}<button type="button" class="g-btn g-mark" class:on={marked} aria-pressed={marked} disabled={markBusy} onclick={toggleMark} aria-label={t(marked ? 'library.watch.unmarkName' : 'library.watch.markName', { name: title })} title={t(marked ? 'library.watch.unmark' : 'library.watch.mark')} data-testid="poster-mark"><Icon name={marked ? 'eyeOff' : 'check'} size={15} /></button>{/if}
 				{#if canManage}
 					<button type="button" class="g-btn" onclick={() => onsearch?.()} aria-label={t('mediafiles.poster.searchFor', { title })} title={t('mediafiles.select.searchNow')}><Icon name="search" size={15} /></button>
 					<button type="button" class="g-btn" class:on={kept} aria-pressed={kept} onclick={() => onkeep?.(!kept)} aria-label={t('mediafiles.poster.keepFor', { title })} title={kept ? t('mediafiles.poster.kept') : t('mediafiles.poster.notKept')}><Icon name={kept ? 'bellOn' : 'bell'} size={15} /></button>
@@ -247,8 +260,22 @@
 		.frame:hover .glass, .frame:focus-within .glass { opacity: 1; pointer-events: none; transition: opacity var(--dur) var(--ease-out); -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%); }
 		/* Only the panel's buttons take the pointer; a click on its words reaches the card's link under it and opens the title. */
 		.frame:hover .glass :is(a, button), .frame:focus-within .glass :is(a, button) { pointer-events: auto; }
+		.frame:hover .lp-play, .frame:focus-within .lp-play { opacity: 1; scale: 1; pointer-events: auto; transition: opacity var(--dur) var(--ease-out), scale var(--dur) var(--ease-spring, var(--ease-out)); }
 		.frame:hover .badge, .frame:focus-within .badge, .frame:hover :global(.wm), .frame:focus-within :global(.wm) { opacity: 0; transition: opacity var(--dur-fast) var(--ease-out); }
 	}
+
+	/* The Watchlist's Play, centred on the art while the card is hovered. */
+	.lp-play { position: absolute; left: 50%; top: 31%; z-index: 3; display: inline-flex; flex-direction: column; align-items: center; gap: 6px; translate: -50% -50%; color: #fff; text-decoration: none; opacity: 0; scale: .86; pointer-events: none; transition: opacity var(--dur-fast) var(--ease-out), scale var(--dur-fast) var(--ease-out); }
+	.lp-play :global(svg) { box-sizing: content-box; padding: clamp(10px, 9cqi, 15px); border-radius: 99px; background: rgb(255 255 255 / 18%); box-shadow: inset 0 0 0 1px rgb(255 255 255 / 35%), 0 10px 30px rgb(0 0 0 / 45%); -webkit-backdrop-filter: blur(14px) saturate(170%); backdrop-filter: blur(14px) saturate(170%); transition: background var(--dur-fast) var(--ease-out); }
+	.lp-play span { font-weight: 700; font-size: clamp(10px, 7.4cqi, 12.5px); letter-spacing: .04em; text-shadow: 0 1px 8px rgb(0 0 0 / 80%); }
+	.lp-play:hover :global(svg) { background: var(--accent); box-shadow: 0 10px 30px color-mix(in srgb, var(--accent) 45%, transparent); }
+	.lp-play:focus-visible { outline: none; }
+	.lp-play:focus-visible :global(svg) { box-shadow: var(--focus-ring); }
+	.g-btn.g-mark.on { color: var(--ok-text); }
+	.lp-mark { position: absolute; left: 7px; bottom: 10px; z-index: 2; width: 28px; height: 28px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 99px; color: #fff; background: rgb(20 20 22 / 62%); box-shadow: inset 0 0 0 1.5px rgb(255 255 255 / 45%); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); cursor: pointer; }
+	.lp-mark.on { background: var(--ok-on-art); box-shadow: 0 1px 4px rgb(0 0 0 / 35%); }
+	.lp-mark:disabled { opacity: .6; }
+	.lp.selecting .lp-mark { display: none; }
 
 	/* Keyboard focus should not leave the card tilted. */
 	.frame:focus-within:not(:hover) { --rx: 0deg !important; --ry: 0deg !important; }

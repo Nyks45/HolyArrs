@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "Videl ktokoľvek",
 	"mediafiles.watched.part": "Pozreté {seen} z {of}",
 	"mediafiles.watched.partly": "Čiastočne pozreté",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "Nevyhľadané",
 	"mediafiles.releaseSheet.showPickPart": "Ak chcete hľadať, použite {choose} pri sérii alebo epizóde.",
 	"mediafiles.held.one": "1 staršia kópia je v Nedávno odstránené",

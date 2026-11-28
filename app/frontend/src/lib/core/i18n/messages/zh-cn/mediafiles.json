@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "有人看过",
 	"mediafiles.watched.part": "已观看 {seen} / {of}",
 	"mediafiles.watched.partly": "已观看部分",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "未查找",
 	"mediafiles.releaseSheet.showPickPart": "要搜索，请在某一季或某一集上使用“{choose}”。",
 	"mediafiles.held.one": "1 个旧副本在最近删除中",

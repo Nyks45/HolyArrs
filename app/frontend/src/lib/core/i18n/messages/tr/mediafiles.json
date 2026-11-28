@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "Herhangi biri izledi",
 	"mediafiles.watched.part": "{seen} / {of} izlendi",
 	"mediafiles.watched.partly": "Kısmen izlendi",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "Aranmadı",
 	"mediafiles.releaseSheet.showPickPart": "Aramak için bir sezon veya bölümde {choose} kullan.",
 	"mediafiles.held.one": "1 önceki kopya Yakında silinenler içinde",

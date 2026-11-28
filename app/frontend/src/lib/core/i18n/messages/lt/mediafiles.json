@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "Kas nors žiūrėjo",
 	"mediafiles.watched.part": "Žiūrėta {seen} iš {of}",
 	"mediafiles.watched.partly": "Iš dalies žiūrėta",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "Neieškota",
 	"mediafiles.releaseSheet.showPickPart": "Norėdami ieškoti, naudokite {choose} prie sezono ar epizodo.",
 	"mediafiles.held.one": "1 ankstesnė kopija yra skiltyje Neseniai ištrinta",

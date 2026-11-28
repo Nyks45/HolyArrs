@@ -32,7 +32,7 @@
 	import TitleLibrary from './TitleLibrary.svelte';
 	import TitleOwnedSheets from './TitleOwnedSheets.svelte';
 	import { addInstantly, SearchOutcomeLine, keptSeasons, completeSeasons, seasonsToAsk, QuickAsk, AddMovieDialog, AddShowDialog, AskShowDialog, AskMovieDialog, fourKReady } from '#lib/requests/index.ts';
-	import { pickDefaultSeason, resolveShowResumeTarget, seasonWords, SeasonFolds, syncEpisodeWatchedState, syncSeasonWatchedState, toEpisodeProgressMap } from '#lib/shows/index.ts';
+	import { pickDefaultSeason, resolveShowResumeTarget, seasonWords, SeasonFolds, setMovieWatched, syncEpisodeWatchedState, syncSeasonWatchedState, toEpisodeProgressMap } from '#lib/shows/index.ts';
 	import { detailPath, fourKOffer, isDetailKind, loadDetails, remembered, type TitleDetails } from '#lib/metadata/index.ts';
 	import type { GateDefaults } from '#lib/mediafiles/index.ts';
 	import type { ShowSettings } from '#lib/shows/index.ts';
@@ -172,6 +172,15 @@
 		return to(`/watch/movie/${encodeURIComponent(tmdb)}?resume=${resume ? '1' : '0'}&from=${encodeURIComponent(back)}${extra}`);
 	}
 	const applyHistory = (eps: WatchEntry[], lat: WatchEntry | null) => { watchEpisodes = eps; watchLatest = lat; };
+	// Mark watched or unwatched for a movie; a finished movie counts for recommendations.
+	let markBusy = $state(false);
+	async function toggleMovieWatched() {
+		if (!watchMeta || markBusy) return;
+		markBusy = true;
+		const saved = await setMovieWatched(watchMeta, !watchLatest?.completed);
+		if (saved !== undefined) watchLatest = saved;
+		markBusy = false;
+	}
 	const toggleEpisodeWatched = (s: number, e: number, epName: string, watched: boolean) => watchMeta && kind === 'show' ? syncEpisodeWatchedState(watchMeta, watchEpisodes, s, e, epName, watched, applyHistory) : undefined;
 	const markSeasonWatched = (s: number, eps: { number: number; name?: string }[], watched: boolean) => watchMeta && kind === 'show' ? syncSeasonWatchedState(watchMeta, watchEpisodes, s, eps, watched, applyHistory) : undefined;
 	$effect(() => {
@@ -568,6 +577,7 @@
 						<ActionButton icon="play" primary label={`Watch ${d.name}`} caption="Watch" href={watchHref(false)} data-testid="hero-stream" />
 						<ActionButton icon="source" pill label={`Pick stream source for ${d.name}`} caption="Sources" href={watchHref(false, undefined, undefined, 'sources')} data-testid="hero-sources" />
 					{/if}
+					<ActionButton icon={watchLatest?.completed ? 'eyeOff' : 'check'} pressed={!!watchLatest?.completed} busy={markBusy} label={t(watchLatest?.completed ? 'library.watch.unmarkName' : 'library.watch.markName', { name: d.name })} caption={t(watchLatest?.completed ? 'library.watch.unmark' : 'library.watch.mark')} onclick={() => void toggleMovieWatched()} data-testid="hero-mark-watched" />
 				{/if}
 				{#if owned}
 					<ActionButton icon={ownState.kind === 'have' ? 'check' : 'download'} pill label={manage && ownState.kind === 'missing' ? t('discover.titlePage.downloadName', { name: d.name }) : ownState.label} caption={ownState.kind === 'failed' && manage ? t('discover.titlePage.retryDownload') : ownState.kind === 'missing' && manage ? t('discover.titlePage.download') : ownState.label} onclick={() => (manage && (ownState.kind === 'failed' || ownState.kind === 'missing') ? own.ownRun('search') : own.setTab('library'))} data-testid="hero-library" />

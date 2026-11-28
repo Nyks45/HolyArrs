@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "Keegi on vaadanud",
 	"mediafiles.watched.part": "Vaadatud {seen} / {of}",
 	"mediafiles.watched.partly": "Osaliselt vaadatud",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "Otsimata",
 	"mediafiles.releaseSheet.showPickPart": "Otsimiseks kasuta hooaja või osa juures {choose}.",
 	"mediafiles.held.one": "1 varasem koopia on kaustas Hiljuti kustutatud",

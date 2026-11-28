@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "Sett av noen",
 	"mediafiles.watched.part": "Sett {seen} av {of}",
 	"mediafiles.watched.partly": "Delvis sett",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "Ikke slått opp",
 	"mediafiles.releaseSheet.showPickPart": "For å søke, bruk {choose} på en sesong eller episode.",
 	"mediafiles.held.one": "1 tidligere kopi er i Nylig slettet",

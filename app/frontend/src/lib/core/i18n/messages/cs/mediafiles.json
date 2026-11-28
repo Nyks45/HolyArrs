@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "Viděl kdokoli",
 	"mediafiles.watched.part": "Zhlédnuto {seen} z {of}",
 	"mediafiles.watched.partly": "Částečně zhlédnuto",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "Nevyhledáno",
 	"mediafiles.releaseSheet.showPickPart": "Chcete-li hledat, použijte {choose} u řady nebo epizody.",
 	"mediafiles.held.one": "1 starší kopie je v Nedávno smazané",

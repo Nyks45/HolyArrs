@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "Joku on katsonut",
 	"mediafiles.watched.part": "Katsottu {seen} / {of}",
 	"mediafiles.watched.partly": "Osittain katsottu",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "Ei haettu",
 	"mediafiles.releaseSheet.showPickPart": "Hae käyttämällä toimintoa {choose} kaudella tai jaksolla.",
 	"mediafiles.held.one": "1 aiempi kopio on kohteessa Äskettäin poistetut",

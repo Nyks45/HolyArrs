@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "มีคนดูแล้ว",
 	"mediafiles.watched.part": "ดูแล้ว {seen} จาก {of}",
 	"mediafiles.watched.partly": "ดูแล้วบางส่วน",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "ยังไม่ได้ค้นหา",
 	"mediafiles.releaseSheet.showPickPart": "หากต้องการค้นหา ให้ใช้ {choose} ที่ซีซันหรือตอน",
 	"mediafiles.held.one": "สำเนาก่อนหน้า 1 รายการอยู่ใน ลบล่าสุด",

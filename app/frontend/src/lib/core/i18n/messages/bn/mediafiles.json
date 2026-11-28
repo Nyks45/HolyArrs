@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "যে কেউ দেখেছে",
 	"mediafiles.watched.part": "{of}টির মধ্যে {seen}টি দেখা হয়েছে",
 	"mediafiles.watched.partly": "আংশিক দেখা হয়েছে",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "খোঁজা হয়নি",
 	"mediafiles.releaseSheet.showPickPart": "খুঁজতে, কোনো সিজন বা পর্বে {choose} ব্যবহার করুন।",
 	"mediafiles.held.one": "১টি আগের কপি সম্প্রতি মোছা-এ আছে",

@@ -4,7 +4,8 @@
 export type MyWatched = { enabled: boolean; linked: boolean; movies: number[]; shows: Record<string, Record<string, number>> };
 
 // seen of the of episodes in the Library (aired ones when that is not known) (1 of 1 for a movie); of is 0 when nothing is known to have aired.
-export type WatchedMark = { state: 'watched' | 'partly'; seen: number; of: number };
+// pct, when set, is how far playback got (a movie stopped part way), shown instead of the episode share.
+export type WatchedMark = { state: 'watched' | 'partly'; seen: number; of: number; pct?: number };
 
 export type WatchedIndex = { movies: Set<number>; shows: MyWatched['shows'] };
 
@@ -54,5 +55,6 @@ export function seasonWatched(titleId: number, s: SeasonLike, ix: WatchedIndex):
 // "Watched" for a movie or a finished show or season, "Watched 3 of 8" for a part of one.
 export function watchedWords(m: WatchedMark, t: (key: string, vars?: Record<string, string | number>) => string): string {
 	if (m.state === 'watched') return t('mediafiles.watched.all');
+	if (m.pct !== undefined && m.of === 0) return t('mediafiles.watched.pct', { pct: Math.round(m.pct) });
 	return m.of > 0 ? t('mediafiles.watched.part', { seen: m.seen, of: m.of }) : t('mediafiles.watched.partly');
 }

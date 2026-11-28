@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "دیده‌شده توسط هر کسی",
 	"mediafiles.watched.part": "{seen} از {of} دیده شده",
 	"mediafiles.watched.partly": "تا حدی دیده‌شده",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "جست‌وجو نشد",
 	"mediafiles.releaseSheet.showPickPart": "برای جست‌وجو، از {choose} روی یک فصل یا قسمت استفاده کنید.",
 	"mediafiles.held.one": "۱ نسخهٔ قبلی در اخیراً حذف‌شده است",

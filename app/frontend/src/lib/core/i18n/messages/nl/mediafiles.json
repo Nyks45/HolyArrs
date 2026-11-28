@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "Door iemand gekeken",
 	"mediafiles.watched.part": "{seen} van {of} bekeken",
 	"mediafiles.watched.partly": "Deels bekeken",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "Niet opgezocht",
 	"mediafiles.releaseSheet.showPickPart": "Om te zoeken, gebruik {choose} bij een seizoen of aflevering.",
 	"mediafiles.held.one": "1 eerdere kopie staat in Onlangs verwijderd",

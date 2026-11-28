@@ -561,6 +561,7 @@
 	"mediafiles.watched.byAnyone": "Vist per algú",
 	"mediafiles.watched.part": "Vistos {seen} de {of}",
 	"mediafiles.watched.partly": "Vist en part",
+	"mediafiles.watched.pct": "{pct}% watched",
 	"mediafiles.adopt.not_looked_up": "No cercat",
 	"mediafiles.releaseSheet.showPickPart": "Per cercar, fes servir {choose} en una temporada o un episodi.",
 	"mediafiles.held.one": "1 còpia anterior és a Suprimits recentment",

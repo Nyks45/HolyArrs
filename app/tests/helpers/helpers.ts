@@ -179,7 +179,7 @@ export async function titleAction(page: Page, _menu: 'Watchlist' | 'More actions
 /** openLibraryTab opens an owned title's Library tab: status, seasons or files,
  *  history and settings, then downloads, Versions, copies and subtitles. */
 export async function openLibraryTab(page: Page): Promise<Locator> {
-	const tab = page.getByTestId('own-tabs').getByRole('tab', { name: /^Library/ });
+	const tab = page.getByTestId('own-tabs').getByRole('tab', { name: /^Watchlist/ });
 	await tab.click();
 	await expect(tab).toHaveAttribute('aria-selected', 'true');
 	await expect(page.getByTestId('lib-pane')).toBeVisible();
@@ -361,7 +361,9 @@ export async function openFromSearch(page: Page, words: string, name: string, ki
 /** addFromSearch opens a movie or show from Search and opens its Add dialog. */
 export async function addFromSearch(page: Page, words: string, name: string, kind?: 'movie' | 'show') {
 	await openFromSearch(page, words, name, kind);
-	await page.getByRole('button', { name: `Add ${name}` }).click();
+	// The Add button adds at once with the saved defaults; the full sheet is under More actions.
+	await page.getByTestId('title-detail').getByRole('button', { name: 'More actions', exact: true }).first().click();
+	await page.getByRole('menuitem', { name: 'Add with options…' }).click();
 	return page.getByRole('dialog');
 }
 

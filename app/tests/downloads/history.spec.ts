@@ -65,7 +65,7 @@ test('history on the movie page links to the movie in History', async () => {
 	await page.goto('/library');
 	await page.getByRole('link', { name: /Cinder Waltz/ }).first().click();
 	// The movie's History sits in its Library tab; a row opens History kept to the movie.
-	await page.getByRole('tab', { name: /^Library/ }).click();
+	await page.getByRole('tab', { name: /^Watchlist/ }).click();
 	await expect(page.getByRole('heading', { name: 'History', exact: true })).toBeVisible();
 	const row = page.getByTestId('history-row').first();
 	await expect(row).toBeVisible();
@@ -183,7 +183,7 @@ test('alerts: add a webhook with Watchlist moments, send a test, the receiver ge
 	await expect(page.getByLabel('What the secret does')).toHaveValue('sign');
 	await page.getByTestId('moments-requests').getByRole('button', { name: 'None of these' }).click();
 	await expect(page.getByTestId('moments-requests').getByRole('checkbox', { name: /New request/ })).not.toBeChecked();
-	await expect(page.getByTestId('moments-watchlist').getByRole('checkbox', { name: /Sent to download/ })).toBeChecked();
+	await expect(page.getByTestId('moments-library').getByRole('checkbox', { name: /Sent to download/ })).toBeChecked();
 	await page.getByRole('checkbox', { name: /Reach the local network/ }).check();
 	await page.locator('form.sc-form').getByRole('button', { name: 'Save', exact: true }).click();
 	const card = page.getByTestId('alert').filter({ hasText: 'Home server hook' });

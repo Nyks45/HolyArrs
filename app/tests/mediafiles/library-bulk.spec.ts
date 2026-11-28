@@ -212,7 +212,7 @@ test('Remove: two ticked movies leave the Watchlist and their files stay on disk
 	const bar = await selectTitles(page, gone);
 	await bar.getByTestId('select-delete').click();
 	const dialog = page.getByRole('dialog', { name: 'Remove 2 titles?' });
-	await expect(dialog).toContainText('All 2 leave the Library. Files stay on disk.');
+	await expect(dialog).toContainText('All 2 leave the Watchlist. Files stay on disk.');
 	// Nothing changes until the remove is confirmed.
 	for (const t of titles) await titleOf(call, t.id);
 	await dialog.getByTestId('bulk-delete-confirm').click();

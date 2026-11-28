@@ -45,7 +45,7 @@ async function libraryTab(p: Page) {
 	const tab = p.getByTestId('artist-tabs').getByRole('tab', { name: 'Watchlist' });
 	await tab.click();
 	await expect(tab).toHaveAttribute('aria-selected', 'true');
-	return p.getByTestId('artist-watchlist');
+	return p.getByTestId('artist-library');
 }
 
 test.beforeAll(async ({ browser }) => {
@@ -109,9 +109,9 @@ test('the owner finds an artist and adds it from Search', async () => {
 	await expect(own.getByTestId('album')).toHaveCount(0);
 	await expect(own.getByRole('button', { name: 'More actions', exact: true })).toHaveCount(0);
 	// The hero's In Watchlist button opens the Watchlist tab (the last copy is the one under the artist's name).
-	await own.getByTestId('hero-watchlist').last().click();
+	await own.getByTestId('hero-library').last().click();
 	await expect(own.getByTestId('artist-tabs').getByRole('tab', { name: 'Watchlist' })).toHaveAttribute('aria-selected', 'true');
-	const lib = own.getByTestId('artist-watchlist');
+	const lib = own.getByTestId('artist-library');
 	await expect(lib.getByRole('button', { name: 'Get all missing' })).toBeVisible(slow);
 	const albums = own.getByTestId('album');
 	await expect(albums).toHaveCount(3, slow);

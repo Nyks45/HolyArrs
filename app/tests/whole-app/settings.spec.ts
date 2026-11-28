@@ -41,7 +41,7 @@ test('leaving My account for Settings shows the cards, with no sheet left over t
 	await expect(page.locator('#profile-me')).toBeVisible();
 	await page.getByTestId('settings-back').click();
 	await expect(page).toHaveURL(/\/settings$/);
-	await expect(page.getByTestId('settings-group')).toHaveCount(5);
+	await expect(page.getByTestId('settings-group')).toHaveCount(6);
 	await expect(page.locator('.sx-ghost')).toHaveCount(0);
 });
 

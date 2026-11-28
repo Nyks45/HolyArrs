@@ -309,7 +309,7 @@ test('search, add a movie, and the Watchlist updates live', async ({ browser }) 
 	await expect(watcher.locator('[data-testid="library-card"], [data-testid="library-row"]').first()).toBeVisible();
 	await watcher.close();
 
-	await expect(page.getByTestId('hero-watchlist')).toBeVisible();
+	await expect(page.getByTestId('hero-library')).toBeVisible();
 	await page.getByRole('button', { name: 'More actions', exact: true }).click();
 	// A movie is added kept up to date, so the menu offers to stop that.
 	await expect(page.getByRole('menuitem', { name: 'Stop keeping up to date' })).toBeVisible();

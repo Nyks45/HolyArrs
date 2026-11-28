@@ -150,7 +150,7 @@ test('delete: the plan shows first, changes with each choice, and files go to th
 	// The title page stays, no longer in the Library: no Library tab or status.
 	await expect(dialog).toBeHidden();
 	await expect(page.getByTestId('own-tabs')).toHaveCount(0);
-	await expect(page.getByTestId('hero-watchlist')).toHaveCount(0);
+	await expect(page.getByTestId('hero-library')).toHaveCount(0);
 	expect(existsSync(join(oldLib, 'Willow Signal {tmdb-900013}', 'willow signal.mkv'))).toBe(false);
 	expect(existsSync(join(oldLib, '.holyarrs-replaced'))).toBe(true);
 });

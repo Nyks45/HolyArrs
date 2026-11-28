@@ -28,7 +28,7 @@ const wrenFiles = {
 /** artistSetting opens an artist's Library tab and presses one of its Settings rows. */
 async function artistSetting(p: Page, name: RegExp) {
 	await p.getByTestId('artist-tabs').getByRole('tab', { name: 'Watchlist' }).click();
-	await p.getByTestId('artist-watchlist').getByRole('button', { name }).click();
+	await p.getByTestId('artist-library').getByRole('button', { name }).click();
 }
 
 async function openAlbum(p: Page, artist: string, album: string) {
@@ -93,8 +93,8 @@ test('Rename files on the album page renames its tracks into the new album folde
 	await openInLibrary(page);
 	// The Rename files row only shows while something needs renaming.
 	await page.getByTestId('artist-tabs').getByRole('tab', { name: 'Watchlist' }).click();
-	await expect(page.getByTestId('artist-watchlist').getByRole('button', { name: /^Delete artist/ })).toBeVisible();
-	await expect(page.getByTestId('artist-watchlist').getByRole('button', { name: /^Rename files/ })).toHaveCount(0);
+	await expect(page.getByTestId('artist-library').getByRole('button', { name: /^Delete artist/ })).toBeVisible();
+	await expect(page.getByTestId('artist-library').getByRole('button', { name: /^Rename files/ })).toHaveCount(0);
 	// Back to the default album folder pattern for the tests after this one.
 	await page.goto('/settings/naming');
 	await page.getByTestId('music-naming').getByRole('textbox', { name: 'Album folder pattern', exact: true }).fill('{album} ({year})');
@@ -123,7 +123,7 @@ test('Import a watchlist scans the music folder, matches albums and tracks, and 
 	await axe(page, 'import a music watchlist');
 	await page.getByRole('button', { name: 'Adopt 1 artist' }).click();
 	const done = page.getByTestId('adopt-results');
-	await expect(done).toContainText('1 artist is now in the Library.', { timeout: 30_000 });
+	await expect(done).toContainText('1 artist is now in the Watchlist.', { timeout: 30_000 });
 	await expect(done).toContainText('2 tracks, 2 files left alone');
 	for (const f of Object.values(wrenFiles)) expect(existsSync(f), f).toBe(true);
 	await done.getByRole('link', { name: 'Open the artist' }).click();

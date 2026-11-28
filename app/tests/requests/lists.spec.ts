@@ -85,7 +85,7 @@ test('an MDBList list adds its movie without a key, then reads through the API o
 	await expect(page.locator('body')).not.toContainText(mdblistKey);
 	const before = await hits();
 	await row.getByRole('button', { name: 'Read now' }).click();
-	await expect(row.getByTestId('list-result')).toContainText('1 already in the Watchlist', { timeout: 15_000 });
+	await expect(row.getByTestId('list-result')).toContainText('1 already in the Library', { timeout: 15_000 });
 	const after = await hits();
 	expect(after.api).toBeGreaterThan(before.api);
 	expect(after.site).toBe(before.site);

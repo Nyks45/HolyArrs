@@ -240,12 +240,12 @@ for (const viewport of viewports) {
 			// Cast and crew loads by itself on the new title page.
 			// The side facts and the Cast row both link the director.
 			await expect(page.getByRole('link', { name: /^Alex Kim/ }).first()).toHaveAttribute('href', '/people/202');
-			// Links out sit near the top as chips, above the story and the Information facts.
+			// Links out sit as chips at the top of the Relations tab, above the Cast row.
 			const links = page.getByTestId('title-links');
 			await expect(links.getByRole('link', { name: /^TMDB/ })).toHaveAttribute('href', 'https://www.themoviedb.org/movie/601');
 			await expect(links.getByRole('link', { name: /^Letterboxd/ })).toBeVisible();
 			const linksTop = (await links.boundingBox())!.y;
-			expect(linksTop).toBeLessThan((await page.getByRole('heading', { name: 'Information' }).boundingBox())!.y);
+			expect(linksTop).toBeLessThan((await page.getByRole('heading', { name: /^Cast/ }).first().boundingBox())!.y);
 			expect((await links.getByRole('link').first().boundingBox())!.height).toBeGreaterThanOrEqual(28);
 			await verifyPage(page, testInfo, `${viewport.name}-people-and-credits`);
 		});
@@ -265,7 +265,7 @@ for (const viewport of viewports) {
 			await page.getByRole('button', { name: 'Review 3 selected' }).click();
 			await page.getByRole('button', { name: 'Remove reviewed movies' }).click();
 			await expect(page.getByRole('heading', { name: 'Collection removed' })).toBeVisible();
-			await expect(page.getByText('North Star was removed from the Library.')).toBeVisible();
+			await expect(page.getByText('North Star was removed from the Watchlist.')).toBeVisible();
 			await expect(page.getByText('North Star II stayed in the Watchlist: the protected file changed after review.')).toBeVisible();
 			await expect(page.getByText('North Star III could not be removed: the Watchlist row changed after review.')).toBeVisible();
 			await verifyPage(page, testInfo, `${viewport.name}-series-results`);

@@ -54,7 +54,7 @@ test('Import a watchlist scans the show folder, lists each file with its episode
 	}
 	await page.getByRole('button', { name: 'Adopt 1 show' }).click();
 	const done = page.getByTestId('adopt-results');
-	await expect(done).toContainText('1 show is now in the Library.', { timeout: 30_000 });
+	await expect(done).toContainText('1 show is now in the Watchlist.', { timeout: 30_000 });
 	await expect(done).toContainText('3 episodes, 1 file left alone');
 	for (const f of Object.values(files)) expect(existsSync(f), f).toBe(true);
 	await done.getByRole('link', { name: 'Open the show' }).click();

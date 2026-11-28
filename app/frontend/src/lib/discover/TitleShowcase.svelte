@@ -67,7 +67,7 @@
 	<div class="sc-in">
 		<aside class="sc-side">
 			<div class="sc-poster">{#if poster}<img src={sized(poster, 'poster', 500)} alt="" />{:else}<span>{name}</span>{/if}</div>
-			{#if trailer}<button type="button" class="sc-trailer" onclick={playTrailer}><Icon name="play" size={15} />Watch Trailer</button>{/if}
+			{#if trailer}<button type="button" class="sc-trailer" data-testid="hero-trailer" onclick={playTrailer}><Icon name="play" size={15} />Watch Trailer</button>{/if}
 			{#if countdown}
 				<div class="sc-next" data-testid="next-episode"><span>Next episode{nextAir ? ` · S${nextAir.season} E${nextAir.episode}` : ''}</span><b>{countdown}</b></div>
 			{/if}

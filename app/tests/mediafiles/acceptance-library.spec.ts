@@ -68,13 +68,13 @@ test('music adoption and rename stay on one fixture and prove the exact disk res
 	await page.getByRole('button', { name: /^Save/ }).click();
 	await expect(page.getByText('Naming settings saved')).toBeVisible();
 
-	await adopt('Music: ', 'Copper Wren', 'Adopt 1 artist', '1 artist is now in the Library.');
+	await adopt('Music: ', 'Copper Wren', 'Adopt 1 artist', '1 artist is now in the Watchlist.');
 	for (const file of Object.values(musicFiles)) expect(existsSync(file), `adoption moved ${file}`).toBe(true);
 
 	await page.getByTestId('adopt-results').getByRole('link', { name: 'Open the artist' }).click();
 	// The album page opens from the artist's Library tab (its album rows).
 	await page.getByTestId('artist-tabs').getByRole('tab', { name: 'Watchlist' }).click();
-	const row = page.getByTestId('artist-watchlist').getByTestId('album').filter({ hasText: 'Low Orbit' });
+	const row = page.getByTestId('artist-library').getByTestId('album').filter({ hasText: 'Low Orbit' });
 	await row.getByRole('button', { expanded: false }).click();
 	await row.getByRole('link', { name: 'Open the album page of Low Orbit' }).click();
 	await expect(page.getByRole('heading', { level: 1, name: 'Low Orbit' })).toBeVisible();

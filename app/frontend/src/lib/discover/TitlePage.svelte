@@ -593,7 +593,7 @@
 					{/if}
 				{/if}
 				{#if d.kind === 'show' || d.kind === 'movie'}<FollowButton titleId={owned?.id} tmdb={d.tmdb} kind={d.kind} />{/if}
-				{#if mayHide && !owned}<ActionMenu label={t('discover.titlePage.moreActions')} caption={t('discover.titlePage.more')} icon="more" items={[hideItem]} />{/if}
+				{#if !owned && (mayHide || (manage && !d.neverAdd))}<ActionMenu label={t('discover.titlePage.moreActions')} caption={t('discover.titlePage.more')} icon="more" items={[...(manage && !d.neverAdd && (d.movie || d.show) ? [{ label: t('discover.titlePage.addWithOptions'), icon: 'plus' as const, onselect: () => (d.kind === 'movie' ? addMovie?.open(d.movie as LookupMovie) : addShow?.open(d.show as LookupShow)) }] : []), ...(mayHide ? [hideItem] : [])]} />{/if}
 			{/snippet}
 			{#snippet scores()}{#if topScores.length || topTmdb}<TitleScores scores={topScores} tmdb={topTmdb} variant="mono" />{/if}{/snippet}
 			{#snippet library()}

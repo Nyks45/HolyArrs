@@ -102,17 +102,18 @@ test.afterAll(async () => {
 
 test('a title not looked up yet plays in the YouTube player', async () => {
 	expect(await readerCalls()).not.toContain('pumiceBel01');
-	const asked = page.waitForResponse((r) => r.url().includes(`/api/v1/trailer/movie/${belfry}?`));
 	await page.goto(`/title/movie/${belfry}`);
 	await expect(page.getByTestId('title-detail').getByRole('heading', { level: 1, name: 'Pumice Belfry' })).toBeVisible();
-	// The page only asks for what was kept: nothing yet, so no reason and no address.
+	// Watch Trailer asks for what was kept: nothing yet, so no reason and no address.
+	const asked = page.waitForResponse((r) => r.url().includes(`/api/v1/trailer/movie/${belfry}?`));
+	await page.getByTestId('hero-trailer').click();
 	const first = await asked;
 	expect(first.status()).toBe(404);
 	const miss = await first.json();
 	expect(miss.reason).toBeUndefined();
 	expect(miss.url).toBeUndefined();
-	// The hero's muted trailer falls back to YouTube's player, on the title's own trailer.
-	const frame = page.getByTestId('title-hero').locator('iframe[title="Pumice Belfry trailer"]');
+	// The big player falls back to YouTube's player, on the title's own trailer.
+	const frame = page.getByTestId('theater').locator('iframe');
 	await expect(frame).toHaveAttribute('src', /^https:\/\/www\.youtube-nocookie\.com\/embed\/pumiceBel01\?/, { timeout: 15_000 });
 	await expect.poll(() => embedAsks.includes('pumiceBel01')).toBe(true);
 	expect(videoAsks.some((u) => u.includes('id=pumiceBel01'))).toBe(false);
@@ -122,7 +123,7 @@ test('a title not looked up yet plays in the YouTube player', async () => {
 	expect(await readerCalls()).toContain('pumiceBel01');
 });
 
-test('the pass keeps a stream and the title hero plays its direct address', async () => {
+test('the pass keeps a stream and Watch Trailer plays its direct address', async () => {
 	const kept = await waitForPass(lumen, (a) => a.status === 200);
 	expect(kept.body).toMatchObject({ type: 'mp4', key: 'lumenCist01', audio: true });
 	const url = kept.body.url ?? '';
@@ -131,8 +132,9 @@ test('the pass keeps a stream and the title hero plays its direct address', asyn
 
 	await page.goto(`/title/movie/${lumen}`);
 	await expect(page.getByTestId('title-detail').getByRole('heading', { level: 1, name: 'Lumen Cistern' })).toBeVisible();
-	// The hero's muted trailer is HolyArrs's own player on the kept address, asked straight from YouTube's video servers.
-	const video = page.getByTestId('title-hero').locator('video[aria-label="Lumen Cistern trailer"]').first();
+	// Watch Trailer plays HolyArrs's own player on the kept address, asked straight from YouTube's video servers.
+	await page.getByTestId('hero-trailer').click();
+	const video = page.getByTestId('theater').locator('video').first();
 	await expect(video).toHaveAttribute('src', url, { timeout: 15_000 });
 	await expect.poll(() => videoAsks.includes(url)).toBe(true);
 });

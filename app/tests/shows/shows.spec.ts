@@ -178,7 +178,7 @@ test('a member asks for two seasons of a show from a phone', async ({ browser })
 	// A show already in the Library opens as a Library title for a member (no Add, no tools):
 	// More holds only Report a problem.
 	await openFromSearch(max, 'harbour', 'Harbour Lights', 'show');
-	await expect(max.getByTestId('hero-watchlist')).toBeVisible();
+	await expect(max.getByTestId('hero-library')).toBeVisible();
 	const more = max.getByRole('button', { name: 'More actions', exact: true });
 	if (await more.count()) {
 		await more.click();

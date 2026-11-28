@@ -330,8 +330,8 @@ test('Remove a movie series: grouped by series, Open series, review both movies,
 
 	await confirm.getByRole('button', { name: 'Remove reviewed movies' }).click();
 	const done = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Collection removed' }) });
-	await expect(done).toContainText('Brumwick Gate was removed from the Library.');
-	await expect(done).toContainText('Brumwick Gate Again was removed from the Library.');
+	await expect(done).toContainText('Brumwick Gate was removed from the Watchlist.');
+	await expect(done).toContainText('Brumwick Gate Again was removed from the Watchlist.');
 
 	// Both are gone from the Library; the file went to the holding folder.
 	const { titles: left } = (await (await call('GET', '/titles')).json()) as { titles: { id: number }[] };

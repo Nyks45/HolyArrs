@@ -16,13 +16,20 @@ import (
 const MemberBudget = 30
 
 // PoolVersion is the row set a pool was built with; an older pool is rebuilt.
-const PoolVersion = 3
+const PoolVersion = 4
 
 // maxCollections caps how many collections one pool looks up.
 const maxCollections = 8
 
 // poolItems is how many items a pool keeps per row.
 const poolItems = 40
+
+// SeedRows is how many seeds get a because row in the pool; LaterSeeds more
+// wait in Pool.Later for the endless tail, which reads them when it gets there.
+const (
+	SeedRows   = 12
+	LaterSeeds = 36
+)
 
 // coldGenres fill in when the trending lists name too few genres.
 var coldGenres = []string{"Drama", "Comedy", "Action", "Thriller", "Animation", "Documentary", "Crime", "Family"}
@@ -48,41 +55,9 @@ type Pool struct {
 	// hero's genre exclusions skip them.
 	Leans []string  `json:"leans,omitempty"`
 	Built time.Time `json:"built"`
-}
-
-// Request is one outside list the pool build asks for. It carries only
-// title ids, genres, dates, services and the region, never anything about
-// a member.
-type Request struct {
-	// List is the kind of list: similar (recommendations and similar of Ref),
-	// trending, upcoming (movies coming out, shows airing now), best, discover,
-	// person (credits of the person named Ref) or collection (the movies of
-	// TMDB collection Ref).
-	List  string
-	Kind  string
-	Ref   string
-	Genre string
-	// From and To are release dates, YYYY-MM-DD.
-	From, To         string
-	Services, Region string
-	MinVote          float64
-	MinVotes         int
-	MaxVotes         int
-	// Sort is popularity (default), rating or recent (newest out first).
-	Sort string
-	// AirFrom and AirTo keep shows with an episode airing in that window.
-	// Types reads From and To as release dates of those TMDB release types
-	// ("4|3" is digital or cinema) in Region, for movies.
-	AirFrom, AirTo, Types string
-	// Keywords are TMDB keyword names joined by "|", any of them.
-	Keywords string
-	// Genres and Without are raw TMDB genre ids, "|" for any of and "," for
-	// all of. Lang is an original language and Cert the highest US movie
-	// certification.
-	Genres, Without, Lang, Cert string
-	// Scope is ScopeShared for region-wide lists. It is left out of the cache
-	// key so it never splits a shared list.
-	Scope string
+	// Later are because rows past SeedRows, with their lists but no items
+	// yet: the endless tail reads them on its way down.
+	Later []Row `json:"later,omitempty"`
 }
 
 // Input is everything one pool build knows about a member. It never goes
@@ -189,6 +164,23 @@ func Build(ctx context.Context, src Source, in Input) (Pool, error) {
 		}
 		return interleave(lists), nil
 	}
+	// specs are the per-kind lists fetch asks for, kept on the row so later
+	// pages of it can be read.
+	specs := func(q Request) []Request {
+		if q.List == "person" || q.List == "collection" {
+			return nil
+		}
+		var out []Request
+		for _, k := range kinds {
+			if q.Kind != "" && q.Kind != k {
+				continue
+			}
+			qq := q
+			qq.Kind, qq.Scope = k, ScopeShared
+			out = append(out, qq)
+		}
+		return out
+	}
 	// spend keeps member lists inside MemberBudget. Cached lists cost nothing.
 	// Callers ask in priority order, so the rows dropped are the least wanted.
 	cached, _ := src.(CacheChecker)
@@ -250,15 +242,17 @@ func Build(ctx context.Context, src Source, in Input) (Pool, error) {
 	}
 
 	// Shared rows.
-	trending, err := fetch(Request{List: "trending", Scope: ScopeShared})
+	trendQ := Request{List: "trending", Scope: ScopeShared}
+	trending, err := fetch(trendQ)
 	if !soft(err) && ctx.Err() != nil {
 		return pool, ctx.Err()
 	}
-	addRow(Row{ID: TypeTrending, Type: TypeTrending, Items: trending})
+	addRow(Row{ID: TypeTrending, Type: TypeTrending, Items: trending, Specs: specs(trendQ)})
 	if in.Services != "" {
-		items, err := fetch(Request{List: "discover", Services: in.Services, Region: in.Region, From: Day(in.Now.AddDate(0, 0, -30)), Scope: ScopeShared})
+		q := Request{List: "discover", Services: in.Services, Region: in.Region, From: Day(in.Now.AddDate(0, 0, -30)), Scope: ScopeShared}
+		items, err := fetch(q)
 		soft(err)
-		addRow(Row{ID: TypeNewServices, Type: TypeNewServices, Items: items})
+		addRow(Row{ID: TypeNewServices, Type: TypeNewServices, Items: items, Specs: specs(q)})
 	}
 	switch in.Switch {
 	case "movies":
@@ -308,12 +302,14 @@ func Build(ctx context.Context, src Source, in Input) (Pool, error) {
 		addRow(Row{ID: TypeNewSeasons, Type: TypeNewSeasons, Items: seasons})
 		addRow(Row{ID: TypeReturning, Type: TypeReturning, Items: allow(in.Returning)})
 	}
-	best, err := fetch(Request{List: "best", Scope: ScopeShared})
+	bestQ := Request{List: "best", Scope: ScopeShared}
+	best, err := fetch(bestQ)
 	soft(err)
-	addRow(Row{ID: TypeBest, Type: TypeBest, Items: best})
-	hidden, err := fetch(Request{List: "discover", MinVote: 7.3, MinVotes: 100, MaxVotes: 1500, Sort: "rating", Services: in.Services, Region: in.Region, Scope: ScopeShared})
+	addRow(Row{ID: TypeBest, Type: TypeBest, Items: best, Specs: specs(bestQ)})
+	hiddenQ := Request{List: "discover", MinVote: 7.3, MinVotes: 100, MaxVotes: 1500, Sort: "rating", Services: in.Services, Region: in.Region, Scope: ScopeShared}
+	hidden, err := fetch(hiddenQ)
 	soft(err)
-	addRow(Row{ID: TypeHidden, Type: TypeHidden, Items: hidden})
+	addRow(Row{ID: TypeHidden, Type: TypeHidden, Items: hidden, Specs: specs(hiddenQ)})
 
 	// The household row needs at least 2 members; a Kid only gets it when every item passes.
 	if in.Members >= 2 && len(in.Household) > 0 {
@@ -336,20 +332,23 @@ func Build(ctx context.Context, src Source, in Input) (Pool, error) {
 		// Cold start: popular rows that need no member data.
 		genres := regionGenres(trending, 6)
 		for _, g := range genres {
-			items, err := fetch(Request{List: "discover", Genre: g, MinVotes: 200, Scope: ScopeShared})
+			q := Request{List: "discover", Genre: g, MinVotes: 200, Scope: ScopeShared}
+			items, err := fetch(q)
 			soft(err)
-			addRow(Row{ID: TypePopularGenre + ":" + g, Type: TypePopularGenre, Genre: g, Title: RowTitle(TypePopularGenre, g), Items: items})
+			addRow(Row{ID: TypePopularGenre + ":" + g, Type: TypePopularGenre, Genre: g, Title: RowTitle(TypePopularGenre, g), Items: items, Specs: specs(q)})
 		}
 		for i, dec := range coldDecades {
 			g := genres[min(i, len(genres)-1)]
-			items, err := fetch(Request{List: "discover", Genre: g, From: fmt.Sprintf("%d-01-01", dec), To: fmt.Sprintf("%d-12-31", dec+9), MinVotes: 200, Scope: ScopeShared})
+			q := Request{List: "discover", Genre: g, From: fmt.Sprintf("%d-01-01", dec), To: fmt.Sprintf("%d-12-31", dec+9), MinVotes: 200, Scope: ScopeShared}
+			items, err := fetch(q)
 			soft(err)
 			label := fmt.Sprintf("Popular %ds %s", dec, strings.ToLower(g))
-			addRow(Row{ID: fmt.Sprintf("%s:%d|%s", TypePopularDecade, dec, g), Type: TypePopularDecade, Genre: g, Decade: dec, Title: label, Items: items})
+			addRow(Row{ID: fmt.Sprintf("%s:%d|%s", TypePopularDecade, dec, g), Type: TypePopularDecade, Genre: g, Decade: dec, Title: label, Items: items, Specs: specs(q)})
 		}
-		items, err := fetch(Request{List: "discover", To: Day(in.Now.AddDate(-20, 0, 0)), MinVotes: 1000, Sort: "rating", Scope: ScopeShared})
+		classicQ := Request{List: "discover", To: Day(in.Now.AddDate(-20, 0, 0)), MinVotes: 1000, Sort: "rating", Scope: ScopeShared}
+		items, err := fetch(classicQ)
 		soft(err)
-		addRow(Row{ID: TypeClassics, Type: TypeClassics, Items: items})
+		addRow(Row{ID: TypeClassics, Type: TypeClassics, Items: items, Specs: specs(classicQ)})
 	}
 	if in.Kid {
 		for _, g := range KidGenres {
@@ -357,9 +356,10 @@ func Build(ctx context.Context, src Source, in Input) (Pool, error) {
 			if hasRow(rows, id) {
 				continue
 			}
-			items, err := fetch(Request{List: "discover", Genre: g, MinVotes: 200, Scope: ScopeShared})
+			q := Request{List: "discover", Genre: g, MinVotes: 200, Scope: ScopeShared}
+			items, err := fetch(q)
 			soft(err)
-			addRow(Row{ID: id, Type: TypePopularGenre, Genre: g, Title: RowTitle(TypePopularGenre, g), Items: items})
+			addRow(Row{ID: id, Type: TypePopularGenre, Genre: g, Title: RowTitle(TypePopularGenre, g), Items: items, Specs: specs(q)})
 		}
 	}
 
@@ -373,7 +373,7 @@ func Build(ctx context.Context, src Source, in Input) (Pool, error) {
 		}
 	}
 	for _, s := range seeds {
-		if nSeedRows == 12 || s.Weight <= 0 {
+		if nSeedRows == SeedRows || s.Weight <= 0 {
 			break
 		}
 		if !s.Recent {
@@ -401,7 +401,7 @@ func Build(ctx context.Context, src Source, in Input) (Pool, error) {
 		case "opened":
 			t = TypeBecauseOpened
 		}
-		addRow(Row{ID: t + ":" + s.Key(), Type: t, Seed: s.Key(), SeedWeight: s.Weight, SeedName: s.Name, Title: RowTitle(t, s.Name), Items: dropKey(items, s.Key())})
+		addRow(Row{ID: t + ":" + s.Key(), Type: t, Seed: s.Key(), SeedWeight: s.Weight, SeedName: s.Name, Title: RowTitle(t, s.Name), Items: dropKey(items, s.Key()), Specs: specs(q)})
 	}
 	// Because you asked for: the member's two newest open asks.
 	nAsked := 0
@@ -423,15 +423,18 @@ func Build(ctx context.Context, src Source, in Input) (Pool, error) {
 		}
 		seed := Seed{TMDBID: ask.TMDBID, Kind: ask.Kind, Name: ask.Name, Genres: ask.Genres}
 		t := TypeBecauseAsked
-		addRow(Row{ID: t + ":" + ask.Key(), Type: t, Seed: ask.Key(), SeedName: ask.Name, Title: RowTitle(t, ask.Name), Items: dropKey(similarity(seed, items), ask.Key())})
+		addRow(Row{ID: t + ":" + ask.Key(), Type: t, Seed: ask.Key(), SeedName: ask.Name, Title: RowTitle(t, ask.Name), Items: dropKey(similarity(seed, items), ask.Key()), Specs: specs(q)})
 	}
+	pool.Later = laterSeedRows(seeds, rows, perFranchise, specs)
 	if nSeeds >= 1 {
 		for _, c := range MatchTasteCategories(profile.KeywordWeights(), profile.GenreWeights(), in.Switch, in.Kid, in.Now, 3) {
 			var subLists [][]Item
+			var subSpecs []Request
 			for _, rq := range c.Requests(in.Switch, in.Kid) {
 				if !spend(rq) {
 					continue
 				}
+				subSpecs = append(subSpecs, specs(rq)...)
 				got, err := src.List(ctx, rq)
 				if !soft(err) {
 					continue
@@ -439,7 +442,7 @@ func Build(ctx context.Context, src Source, in Input) (Pool, error) {
 				subLists = append(subLists, allow(got))
 			}
 			merged := uniq(interleave(subLists))
-			addRow(Row{ID: TypeSubcategory + ":" + c.ID, Type: TypeSubcategory, Category: c.ID, Genre: c.Name, Title: RowTitle(TypeSubcategory, c.Name), Items: merged})
+			addRow(Row{ID: TypeSubcategory + ":" + c.ID, Type: TypeSubcategory, Category: c.ID, Genre: c.Name, Title: RowTitle(TypeSubcategory, c.Name), Items: merged, Specs: subSpecs})
 		}
 	}
 	if nSeeds >= 3 {
@@ -450,7 +453,7 @@ func Build(ctx context.Context, src Source, in Input) (Pool, error) {
 			}
 			items, err := fetch(q)
 			soft(err)
-			addRow(Row{ID: TypeGenre + ":" + g, Type: TypeGenre, Genre: g, Title: RowTitle(TypeGenre, g), Items: items})
+			addRow(Row{ID: TypeGenre + ":" + g, Type: TypeGenre, Genre: g, Title: RowTitle(TypeGenre, g), Items: items, Specs: specs(q)})
 		}
 	}
 	for _, p := range topCounts(in.OwnedPeople, 2, 3) {
@@ -473,7 +476,7 @@ func Build(ctx context.Context, src Source, in Input) (Pool, error) {
 		}
 		items, err := fetch(q)
 		soft(err)
-		addRow(Row{ID: TypeDecade + ":" + dg, Type: TypeDecade, Genre: g, Decade: y, Title: fmt.Sprintf("%s %s", dec, strings.ToLower(g)), Items: items})
+		addRow(Row{ID: TypeDecade + ":" + dg, Type: TypeDecade, Genre: g, Decade: y, Title: fmt.Sprintf("%s %s", dec, strings.ToLower(g)), Items: items, Specs: specs(q)})
 	}
 	if ctx.Err() != nil {
 		return pool, ctx.Err()
@@ -538,21 +541,6 @@ func Kinds(sw string) []string {
 		return []string{"show"}
 	}
 	return []string{"movie", "show"}
-}
-
-// String is the cache key of the Request. It leaves out Scope, so a shared
-// list is never split from an identical member one.
-func (q Request) String() string {
-	if q.AirFrom != "" || q.AirTo != "" || q.Types != "" {
-		return fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s|%.1f|%d|%d|%s|%s|a=%s-%s|t=%s", q.List, q.Kind, q.Ref, q.Genre, q.From, q.To, q.Services, q.Region, q.MinVote, q.MinVotes, q.MaxVotes, q.Sort, q.Keywords, q.AirFrom, q.AirTo, q.Types)
-	}
-	if q.Genres != "" || q.Without != "" || q.Lang != "" || q.Cert != "" {
-		return fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s|%.1f|%d|%d|%s|%s|g=%s|w=%s|l=%s|c=%s", q.List, q.Kind, q.Ref, q.Genre, q.From, q.To, q.Services, q.Region, q.MinVote, q.MinVotes, q.MaxVotes, q.Sort, q.Keywords, q.Genres, q.Without, q.Lang, q.Cert)
-	}
-	if q.Keywords != "" {
-		return fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s|%.1f|%d|%d|%s|%s", q.List, q.Kind, q.Ref, q.Genre, q.From, q.To, q.Services, q.Region, q.MinVote, q.MinVotes, q.MaxVotes, q.Sort, q.Keywords)
-	}
-	return fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s|%.1f|%d|%d|%s", q.List, q.Kind, q.Ref, q.Genre, q.From, q.To, q.Services, q.Region, q.MinVote, q.MinVotes, q.MaxVotes, q.Sort)
 }
 
 // freshness is 1 when the row changed since the previous day's pool or there
@@ -734,4 +722,38 @@ func maxf(a, b float64) float64 {
 		return b
 	}
 	return a
+}
+
+// laterSeedRows are the because rows of the recent seeds that got no row in
+// the pool (past SeedRows or the budget), at most 2 per franchise, with their
+// lists but no items.
+func laterSeedRows(seeds []Seed, rows []Row, perFranchise map[string]int, specs func(Request) []Request) []Row {
+	var out []Row
+	for _, s := range seeds {
+		if len(out) == LaterSeeds {
+			break
+		}
+		if s.Weight <= 0 || !s.Recent {
+			continue
+		}
+		t := TypeBecauseHave
+		switch s.Source {
+		case "watched":
+			t = TypeBecauseWatched
+		case "opened":
+			t = TypeBecauseOpened
+		}
+		id := t + ":" + s.Key()
+		if hasRow(rows, id) {
+			continue
+		}
+		f := Item{TMDBID: s.TMDBID, Kind: s.Kind, Name: s.Name}.Franchise()
+		if perFranchise[f] >= 2 {
+			continue
+		}
+		perFranchise[f]++
+		q := Request{List: "similar", Kind: s.Kind, Ref: s.TMDBID}
+		out = append(out, Row{ID: id, Type: t, Seed: s.Key(), SeedName: s.Name, Title: RowTitle(t, s.Name), Specs: specs(q)})
+	}
+	return out
 }

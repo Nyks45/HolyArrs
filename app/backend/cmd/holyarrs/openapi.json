@@ -17647,6 +17647,23 @@
         "x-holyarrs-scope": "write"
       }
     },
+    "/api/v1/explore/row": {
+      "get": {
+        "description": "Page n (from 2) of one Explore row, read from the lists its more word names (head, tail and hub rows carry one). The cards pass the same Kid and hidden filters as the row; more says another page may follow.",
+        "responses": {
+          "200": {
+            "description": "page, more and items."
+          },
+          "400": {
+            "description": "A parameter is not valid."
+          }
+        },
+        "summary": "One Explore row's next page",
+        "x-holyarrs-part": "media",
+        "x-holyarrs-permission": "signed_in",
+        "x-holyarrs-scope": "read"
+      }
+    },
     "/api/v1/explore/row-stats": {
       "get": {
         "description": "Owner and admins. For the last 30 days: how often each Explore row was shown, had a card opened and had a request started, summed over everyone, busiest first. Counts stay on this server and never say who did what.",

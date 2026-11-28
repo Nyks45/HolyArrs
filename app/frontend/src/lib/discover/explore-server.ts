@@ -1,6 +1,6 @@
 // The server-built Explore page: the head in one request, the tail by pages.
 
-import { discoverCard, type ExploreRow, type ProviderItem } from '#lib/ui/title-cards.ts';
+import { discoverCard, type ExploreCard, type ExploreRow, type ProviderItem } from '#lib/ui/title-cards.ts';
 import { type ExploreType } from './explore-type.ts';
 
 export interface ServerRow {
@@ -13,6 +13,8 @@ export interface ServerRow {
 	title_layer?: string;
 	wide?: boolean;
 	items: ProviderItem[];
+	/** The word GET /explore/row takes for this row's next page; none when it cannot page. */
+	more?: string;
 }
 
 export interface HeadAnswer {
@@ -60,6 +62,7 @@ export function headPath(q: HeadQuery): string {
 
 export function tailPath(q: HeadQuery, page: number): string {
 	const p = headParams(q);
+	if (q.region) p.set('region', q.region);
 	p.set('page', String(page));
 	return `/explore/tail?${p.toString()}`;
 }
@@ -71,7 +74,13 @@ export function factualBadges(badges: string[]): string[] {
 	return badges.filter((b) => FACTUAL_BADGES.test(b));
 }
 
-/** Turns a server row into an Explore row; Coming soon keeps its wide pictures. */
+/** One server card of a row: every movie and show row draws wide title cards, so the card keeps its backdrop. */
+export function serverCard(d: ProviderItem, row: string): ExploreCard {
+	const c = { ...discoverCard(d, row), wide: d.backdrop ?? null };
+	return { ...c, badges: factualBadges(c.badges) };
+}
+
+/** Turns a server row into an Explore row; Coming soon keeps its wide pictures. The server already left out rows under their type's minimum, so every row it sends is kept. */
 export function serverRow(r: ServerRow): ExploreRow & { wide: boolean; type: string } {
 	return {
 		id: r.id,
@@ -81,12 +90,9 @@ export function serverRow(r: ServerRow): ExploreRow & { wide: boolean; type: str
 		...(r.category ? { category: r.category } : {}),
 		...(r.title_layer ? { titleLayer: r.title_layer } : {}),
 		wide: !!r.wide,
-		cards: r.items.map((d) => {
-			// Every movie and show row draws wide title cards, so keep the backdrop on each card.
-			const c = { ...discoverCard(d, r.id), wide: d.backdrop ?? null };
-			return { ...c, badges: factualBadges(c.badges) };
-		}),
-		keep: r.type === 'top_services'
+		...(r.more ? { more: r.more } : {}),
+		cards: r.items.map((d) => serverCard(d, r.id)),
+		keep: true
 	};
 }
 

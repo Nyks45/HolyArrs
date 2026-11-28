@@ -23,6 +23,10 @@ type AddonCatalogDef struct {
 	ID     string   `json:"id"`
 	Name   string   `json:"name"`
 	Genres []string `json:"genres,omitempty"`
+	// Required says the catalog lists nothing without an input (a search);
+	// Pages says it takes skip, so later pages can be read.
+	Required bool `json:"required,omitempty"`
+	Pages    bool `json:"pages,omitempty"`
 }
 
 // StremioAddon persists a configured Stremio manifest and its capabilities.
@@ -64,7 +68,9 @@ type AddonCatalogShelf struct {
 	CatalogID string             `json:"catalog_id"`
 	Type      string             `json:"type"`
 	Name      string             `json:"name"`
-	Items     []AddonCatalogItem `json:"items"`
+	// Pages says later pages can be read with skip.
+	Pages bool               `json:"pages,omitempty"`
+	Items []AddonCatalogItem `json:"items"`
 }
 
 // AddonSubCandidate represents one subtitle match returned by a Stremio addon.
@@ -300,9 +306,13 @@ type stremioManifestRaw struct {
 		ID    string   `json:"id"`
 		Name  string   `json:"name"`
 		Extra []struct {
-			Name    string   `json:"name"`
-			Options []string `json:"options"`
+			Name       string   `json:"name"`
+			Options    []string `json:"options"`
+			IsRequired bool     `json:"isRequired"`
 		} `json:"extra"`
+		// The older manifest form names the extras in two lists.
+		ExtraRequired  []string `json:"extraRequired"`
+		ExtraSupported []string `json:"extraSupported"`
 	} `json:"catalogs"`
 }
 
@@ -349,16 +359,25 @@ func (s *AddonStore) fetchManifest(ctx context.Context, manifestURL string) (Str
 			continue
 		}
 		var genres []string
+		required := len(c.ExtraRequired) > 0
+		pages := false
 		for _, ex := range c.Extra {
 			if ex.Name == "genre" && len(ex.Options) > 0 {
 				genres = ex.Options
 			}
+			required = required || ex.IsRequired
+			pages = pages || ex.Name == "skip"
+		}
+		for _, n := range c.ExtraSupported {
+			pages = pages || n == "skip"
 		}
 		cats = append(cats, AddonCatalogDef{
-			Type:   c.Type,
-			ID:     c.ID,
-			Name:   fallbackString(c.Name, c.ID),
-			Genres: genres,
+			Type:     c.Type,
+			ID:       c.ID,
+			Name:     fallbackString(c.Name, c.ID),
+			Genres:   genres,
+			Required: required,
+			Pages:    pages,
 		})
 	}
 	addonID := sanitizeID(m.ID)

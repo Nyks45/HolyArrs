@@ -6,7 +6,7 @@
 	import { dragScroll } from './drag-scroll.ts';
 	import IconButton from './IconButton.svelte';
 	import { nearView, setShelfNear, whenIdle } from './lazy-art.ts';
-	import { mountNow, nextLimit, ROW_FIRST } from './row-window.ts';
+	import { mountNow, nearEnd, nextLimit, ROW_FIRST } from './row-window.ts';
 	import { rove } from './rove.ts';
 
 	let {
@@ -26,6 +26,8 @@
 		lines = 2,
 		whole = false,
 		centerFew = false,
+		hasMore = false,
+		onmore,
 		children
 	}: {
 		title: string;
@@ -44,6 +46,9 @@
 		lines?: 1 | 2;
 		whole?: boolean;
 		centerFew?: boolean;
+		/** More cards can be read for this row: onmore is called as the row nears its end. */
+		hasMore?: boolean;
+		onmore?: () => void;
 		children?: Snippet;
 	} = $props();
 
@@ -72,6 +77,7 @@
 	$effect(() => {
 		if (!scroller) return;
 		void shown.length;
+		void items?.length;
 		measure();
 		const ro = new ResizeObserver(measure);
 		ro.observe(scroller);
@@ -92,8 +98,12 @@
 		if (!scroller) return;
 		fit();
 		atStart = Math.abs(scroller.scrollLeft) <= 2;
-		atEnd = !more && Math.abs(scroller.scrollLeft) + scroller.clientWidth >= scroller.scrollWidth - 2;
+		const reading = hasMore && !!onmore;
+		atEnd = !more && !reading && Math.abs(scroller.scrollLeft) + scroller.clientWidth >= scroller.scrollWidth - 2;
 		if (items) limit = nextLimit(limit, items.length, scroller);
+		// Every card is out and the end is near: ask for the next page.
+		// Untracked: the read's own state must not re-run the measuring effect.
+		if (items && reading && limit >= items.length && nearEnd(scroller)) untrack(() => onmore?.());
 	}
 	// Mounts the row when it nears the screen, or when the browser is idle.
 	function soon(node: Element) {
@@ -137,6 +147,7 @@
 		{#if whole}<span class="probe" bind:this={probe} aria-hidden="true"></span>{/if}
 		<div class="row" use:dragScroll use:rove bind:this={scroller} onscroll={measure} role="group" aria-labelledby="{id}-t">
 			{#if items && card}{#each shown as it, i (keyOf(it, i))}{@render card(it, i)}{/each}{:else}{@render children?.()}{/if}
+			{#if hasMore && onmore && !more}<div class="more-sk {placeholder}" aria-hidden="true"></div>{/if}
 		</div>
 		<span class="arrow left" class:hide={atStart}><IconButton icon="chevronLeft" label={t('ui.shelf.scrollBack', { title })} variant="tinted" size="lg" tabindex={-1} tooltip={false} onclick={() => page(-1)} /></span>
 		<span class="arrow right" class:hide={atEnd}><IconButton icon="chevronRight" label={t('ui.shelf.scrollForward', { title })} variant="tinted" size="lg" tabindex={-1} tooltip={false} onclick={() => page(1)} /></span>
@@ -175,6 +186,10 @@
 	.sk.wide { --art: calc(var(--w) * 9 / 16); --text-h: 0px; }
 	@media (max-width: 767px) { .sk { --w: calc(var(--item) * .78); } }
 	.row > :global(*) { scroll-snap-align: start; }
+	/* The next page's place while it is read. */
+	.more-sk { border-radius: var(--r-card); background: var(--surface-2); aspect-ratio: 2 / 3; align-self: start; }
+	.more-sk.wide { aspect-ratio: 16 / 9; }
+	.more-sk.square, .more-sk.round { aspect-ratio: 1; }
 	.arrow { position: absolute; z-index: 6; top: calc(50% - 30px); opacity: 0; transition: opacity var(--dur-fast) var(--ease-out); }
 	.arrow :global(.ui-ibtn) { box-shadow: var(--shadow-lift); background: var(--surface-1); color: var(--text); }
 	.left { inset-inline-start: -12px; }

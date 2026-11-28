@@ -48,6 +48,7 @@ var rdpRoutes = map[string][2]string{
 	"GET /api/v1/explore/service-top":                      {"signed_in", "read"},
 	"GET /api/v1/explore/strip":                            {"signed_in", "read"},
 	"GET /api/v1/explore/tail":                             {"signed_in", "read"},
+	"GET /api/v1/explore/row":                              {"signed_in", "read"},
 	"GET /api/v1/explore/title-stats":                      {"owner", "admin"},
 	"GET /api/v1/explore/row-stats":                        {"users", "admin"},
 	"GET /api/v1/explore/top":                              {"signed_in", "read"},

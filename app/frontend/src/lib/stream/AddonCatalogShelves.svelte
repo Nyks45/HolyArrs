@@ -1,12 +1,22 @@
 <script lang="ts">
 	import Shelf from '#lib/ui/Shelf.svelte';
+	import { api } from '#lib/core/api.ts';
 	import { to } from '#lib/core/paths.ts';
 	import { detailPath } from '#lib/metadata/index.ts';
-	import { listAddonCatalogs, type AddonCatalogItem, type AddonCatalogShelf } from './streaming-config-api.ts';
+	import { goto } from '$app/navigation';
+	import { addonCatalogPage, listAddonCatalogs, type AddonCatalogItem, type AddonCatalogShelf } from './streaming-config-api.ts';
+	import { imdbLookupPath, mayPage, newItems, nextHundred, shelfKey } from './addon-pages.ts';
 
 	let { type = 'all' }: { type?: string } = $props();
 
 	let shelves = $state<AddonCatalogShelf[]>([]);
+	// Each shelf's later pages, its next skip and whether it has ended.
+	let extra = $state<Record<string, AddonCatalogItem[]>>({});
+	let ended = $state<Record<string, boolean>>({});
+	const skipAt: Record<string, number> = {};
+	const busy: Record<string, boolean> = {};
+	const gone = new AbortController();
+	$effect(() => () => gone.abort());
 
 	const filterKind = $derived(
 		type === 'movies' || type === 'movie'
@@ -33,8 +43,10 @@
 		listAddonCatalogs(k).then(
 			(res) => {
 				if (!alive) return;
-				const raw = res.shelves ?? [];
-				shelves = k === 'anime' ? raw.filter(isAnimeShelf) : raw.filter((s) => !isAnimeShelf(s));
+				const raw = (res.shelves ?? []).map((sh) => ({ ...sh, items: newItems([], sh.items) }));
+				shelves = k === 'anime' ? raw.filter(isAnimeShelf) : raw.filter((sh) => !isAnimeShelf(sh));
+				extra = {};
+				ended = {};
 			},
 			() => {
 				if (alive) shelves = [];
@@ -43,20 +55,65 @@
 		return () => { alive = false; };
 	});
 
+	const itemsOf = (sh: AddonCatalogShelf): AddonCatalogItem[] => {
+		const more = extra[shelfKey(sh)];
+		return more?.length ? [...sh.items, ...more] : sh.items;
+	};
+
+	/** Reads the shelf's next page by skip; a page that brings nothing new jumps to the next hundred once, then the shelf ends. */
+	async function more(sh: AddonCatalogShelf) {
+		const k = shelfKey(sh);
+		if (busy[k] || ended[k]) return;
+		busy[k] = true;
+		try {
+			for (let tries = 0; tries < 2; tries++) {
+				const have = itemsOf(sh);
+				const skip = skipAt[k] ?? have.length;
+				const a = await addonCatalogPage(sh, skip, gone.signal);
+				const fresh = newItems(have, a.items);
+				if (fresh.length) {
+					extra[k] = [...(extra[k] ?? []), ...fresh];
+					skipAt[k] = skip + (a.items?.length ?? 0);
+					return;
+				}
+				if (!a.items?.length) break;
+				skipAt[k] = nextHundred(skip);
+			}
+			ended[k] = true;
+		} catch {
+			ended[k] = true;
+		} finally {
+			busy[k] = false;
+		}
+	}
+
 	function itemHref(item: AddonCatalogItem): string {
 		if (item.tmdb_id && item.tmdb_id > 0) {
 			return to(detailPath(item.kind, String(item.tmdb_id)));
 		}
 		return to(`/search?q=${encodeURIComponent(item.name)}`);
 	}
+
+	/** An IMDb card finds its TMDB id first and opens the title page; the search stays its link when the lookup finds nothing. */
+	async function open(e: MouseEvent, item: AddonCatalogItem) {
+		if (!item.imdb_id || (item.tmdb_id ?? 0) > 0 || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+		e.preventDefault();
+		try {
+			const a = await api.get<{ movies?: { ids?: { tmdb?: string } }[]; shows?: { ids?: { tmdb?: string } }[] }>(imdbLookupPath(item), gone.signal);
+			const tmdb = (item.kind === 'show' ? a.shows : a.movies)?.[0]?.ids?.tmdb;
+			void goto(tmdb ? to(detailPath(item.kind, tmdb)) : itemHref(item));
+		} catch {
+			void goto(itemHref(item));
+		}
+	}
 </script>
 
 {#if shelves.length > 0}
-	{#each shelves as shelf, sidx (`${shelf.addon_id}:${shelf.type}:${shelf.catalog_id}:${sidx}`)}
+	{#each shelves as shelf (shelfKey(shelf))}
 		<section class="addon-shelf" aria-label={shelf.name}>
-			<Shelf title={`${shelf.name} · ${shelf.addon_name}`}>
-				{#each shelf.items as item, idx (`${item.id}:${idx}`)}
-					<a class="addon-card" href={itemHref(item)}>
+			<Shelf title={`${shelf.name} · ${shelf.addon_name}`} items={itemsOf(shelf)} key={(it) => it.id} item="152px" hasMore={mayPage(shelf) && !ended[shelfKey(shelf)]} onmore={() => void more(shelf)}>
+				{#snippet card(item: AddonCatalogItem)}
+					<a class="addon-card" href={itemHref(item)} onclick={(e) => void open(e, item)}>
 						<div class="poster-wrap">
 							{#if item.poster}
 								<img src={item.poster} alt={item.name} loading="lazy" />
@@ -69,7 +126,7 @@
 							{#if item.year}<span>{item.year}</span>{/if}
 						</div>
 					</a>
-				{/each}
+				{/snippet}
 			</Shelf>
 		</section>
 	{/each}

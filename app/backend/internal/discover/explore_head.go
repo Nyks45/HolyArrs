@@ -28,6 +28,9 @@ type ExploreRowView struct {
 	TitleLayer string     `json:"title_layer,omitempty"`
 	Wide       bool       `json:"wide,omitempty"`
 	Items      []ItemView `json:"items"`
+	// More is the word GET /explore/row takes for the row's next page; none
+	// when the row cannot page.
+	More string `json:"more,omitempty"`
 }
 
 // explorePageFor assembles the member's page: today's pool, else the
@@ -143,7 +146,7 @@ func (h *Handlers) ExploreViews(ctx context.Context, r *http.Request, rows []eng
 			// A {count} title must state the count the row shows.
 			row.Title, row.Subtitle, row.Layer = row.Plain, "", engine.LayerPlain
 		}
-		out = append(out, ExploreRowView{ID: row.ID, Type: row.Type, Title: row.Title, Subtitle: row.Subtitle, Category: row.Category, TitleLayer: row.Layer, Wide: row.Wide, Items: joined})
+		out = append(out, ExploreRowView{ID: row.ID, Type: row.Type, Title: row.Title, Subtitle: row.Subtitle, Category: row.Category, TitleLayer: row.Layer, Wide: row.Wide, Items: joined, More: engine.EncodeSpecs(row.Specs)})
 	}
 	return out, nil
 }
@@ -257,7 +260,7 @@ func (h *Handlers) exploreTail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	n, err := strconv.Atoi(r.URL.Query().Get("page"))
-	if err != nil || n < 0 || n > 100 {
+	if err != nil || n < 0 || n > maxTailPage {
 		webserver.Fail(w, http.StatusBadRequest, "page must be a number from 0")
 		return
 	}
@@ -270,8 +273,17 @@ func (h *Handlers) exploreTail(w http.ResponseWriter, r *http.Request) {
 		webserver.Internal(w, "api", err)
 		return
 	}
-	slice, more := pg.TailSlice(n)
-	rows, err := h.ExploreViews(r.Context(), r, slice)
+	// Past the pool's own pages the endless tail goes on.
+	poolPages := (len(pg.Tail) + engine.TailPage - 1) / engine.TailPage
+	var rows []ExploreRowView
+	more := true
+	if n < poolPages {
+		var slice []engine.Row
+		slice, _ = pg.TailSlice(n)
+		rows, err = h.ExploreViews(r.Context(), r, slice)
+	} else {
+		rows, more, err = h.endlessTail(r, me, sw, pg, n-poolPages)
+	}
 	if err != nil {
 		webserver.Internal(w, "api", err)
 		return

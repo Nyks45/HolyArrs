@@ -1,6 +1,7 @@
 // Dedicated Explore content category hubs (Anime, K-Drama, Turkish, C-Drama & J-Drama, etc.).
 import { discoverCard, type ExploreCard, type ExploreRow } from '#lib/ui/title-cards.ts';
 import { serverRow, type ServerRow } from './explore-server.ts';
+import { addTailRows } from './explore-tail.svelte.ts';
 import type { ExploreType } from './explore-type.ts';
 import { searchAddress } from './search-address.ts';
 import { page } from '$app/state';
@@ -19,6 +20,8 @@ interface HubAnswer {
 	hub: ExploreHubInfo;
 	hero?: Parameters<typeof discoverCard>[0][];
 	rows: ServerRow[];
+	/** The hub's rows go on past these (page 1 on). */
+	more?: boolean;
 }
 
 export const DEFAULT_HUBS: ExploreHubInfo[] = [
@@ -55,6 +58,11 @@ export function createExploreHub(ctx: {
 	let hubLoaded = $state<string>('');
 	let hubFailed = $state(false);
 	let hubAsk = 0;
+	// The hub's own endless rows past its first answer.
+	let tailRows = $state<(ExploreRow & { wide: boolean; type: string })[]>([]);
+	let tailMore = $state(false);
+	let tailNext = 1;
+	let tailBusy = false;
 
 	async function loadHubsList() {
 		try {
@@ -75,6 +83,9 @@ export function createExploreHub(ctx: {
 			hubInfo = res.hub ?? hubs.find((h) => h.id === id) ?? null;
 			hubHero = (res.hero ?? []).map((d) => ({ ...discoverCard(d, 'hero'), wide: d.backdrop ?? null }));
 			hubRows = (res.rows ?? []).map((r) => ({ ...serverRow(r), keep: true }));
+			tailRows = [];
+			tailNext = 1;
+			tailMore = !!res.more;
 			hubLoaded = id;
 			ctx.heroAt = 0;
 		} catch {
@@ -85,12 +96,35 @@ export function createExploreHub(ctx: {
 		}
 	}
 
+	/** Reads the hub's next page of rows (the Anime tab goes on as it scrolls); says whether it read one. */
+	async function loadTail(): Promise<boolean> {
+		const id = hubId;
+		if (tailBusy || !tailMore || !id || hubLoaded !== id) return false;
+		tailBusy = true;
+		const n = hubAsk;
+		try {
+			const res = await api.get<HubAnswer>(`/explore/hub?hub=${encodeURIComponent(id)}&page=${tailNext}`, ctx.gone.signal);
+			if (n !== hubAsk) return false;
+			tailRows = addTailRows(hubRows, tailRows, (res.rows ?? []).map((r) => ({ ...serverRow(r), keep: true })));
+			tailNext++;
+			tailMore = !!res.more;
+			return true;
+		} catch {
+			if (n === hubAsk) tailMore = false;
+			return false;
+		} finally {
+			tailBusy = false;
+		}
+	}
+
 	$effect(() => {
 		const id = hubId;
 		if (!id) {
 			hubInfo = null;
 			hubHero = [];
 			hubRows = [];
+			tailRows = [];
+			tailMore = false;
 			hubFailed = false;
 			return;
 		}
@@ -142,8 +176,16 @@ export function createExploreHub(ctx: {
 			return hubHero;
 		},
 		get rows() {
-			return hubRows;
+			return tailRows.length ? [...hubRows, ...tailRows] : hubRows;
 		},
+		get tailMore() {
+			return tailMore;
+		},
+		/** The ids of the rows read past the hub's own. */
+		get tailIds() {
+			return tailRows.map((r) => r.id);
+		},
+		loadTail,
 		get failed() {
 			return hubFailed;
 		},

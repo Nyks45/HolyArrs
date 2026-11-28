@@ -42,6 +42,14 @@ const (
 	// only on a genre page.
 	TypeMood     = "mood"
 	TypeClassics = "classics"
+	// The endless tail's rows past the pool: a chart (popular, top rated,
+	// airing), a network's shows, a studio's titles, one language or country,
+	// and one watch service in the region.
+	TypeChart    = "chart"
+	TypeNetwork  = "network"
+	TypeStudio   = "studio"
+	TypeLanguage = "language"
+	TypeProvider = "provider"
 )
 
 // RowMax is the most cards a row shows.
@@ -77,6 +85,11 @@ var catalog = map[string]rowKind{
 	TypeReturning:     {4, 0.7, false},
 	TypeMood:          {8, 0.5, false},
 	TypeClassics:      {8, 0.45, false},
+	TypeChart:         {6, 0.4, false},
+	TypeNetwork:       {6, 0.4, false},
+	TypeStudio:        {6, 0.4, false},
+	TypeLanguage:      {6, 0.4, false},
+	TypeProvider:      {6, 0.4, false},
 }
 
 // dropsOwned are the row types that leave out Library titles.
@@ -118,6 +131,9 @@ type Row struct {
 	Genre      string  `json:"genre,omitempty"`
 	Category   string  `json:"category,omitempty"`
 	Items      []Item  `json:"items"`
+	// Specs are the lists the row was read from, so a later page of each can
+	// be asked for; none when the row cannot page (a merged or Library row).
+	Specs []Request `json:"specs,omitempty"`
 	// Score is the row score before the daily jitter. Fresh is its type freshness.
 	Score float64 `json:"score"`
 	Fresh float64 `json:"fresh"`

@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -34,6 +35,8 @@ type hubRowSpec struct {
 	RecentMo int
 	MinVote  float64
 	MinVotes int
+	// Companies are TMDB company ids; From and To release dates.
+	Companies, From, To string
 }
 
 type exploreHubDef struct {
@@ -72,11 +75,11 @@ var exploreHubs = []exploreHubDef{
 		},
 		Rows: func(now time.Time) []hubRowSpec {
 			return []hubRowSpec{
-				{ID: "kdrama_trending", Title: "Trending K-Dramas", Subtitle: "Popular Korean TV shows right now", Kind: "show", Lang: "ko", Without: "16,10763,10767", MinVotes: 15},
-				{ID: "kdrama_new", Title: "New K-Dramas", Subtitle: "Latest Korean shows from the past year", Kind: "show", Lang: "ko", Without: "16,10763,10767", RecentMo: 14, MinVotes: 3},
-				{ID: "kdrama_top", Title: "Top-rated K-Dramas", Subtitle: "Acclaimed Korean TV shows", Kind: "show", Lang: "ko", Without: "16,10763,10767", Sort: "rating", MinVote: 7.8, MinVotes: 80},
-				{ID: "kdrama_romance", Title: "Romance & comedy K-Dramas", Subtitle: "Love stories and lighthearted hits", Kind: "show", Genres: "18|35", Without: "16,10763,10767", Lang: "ko", MinVotes: 10},
-				{ID: "kdrama_thriller", Title: "Crime, mystery & action K-Dramas", Subtitle: "Tense Korean thrillers and action", Kind: "show", Genres: "80|9648|10759", Without: "16,10763,10767", Lang: "ko", MinVotes: 10},
+				{ID: "kdrama_trending", Title: "Trending K-Dramas", Subtitle: "Popular Korean TV shows right now", Kind: "show", Lang: "ko", Without: "16|10763|10767", MinVotes: 15},
+				{ID: "kdrama_new", Title: "New K-Dramas", Subtitle: "Latest Korean shows from the past year", Kind: "show", Lang: "ko", Without: "16|10763|10767", RecentMo: 14, MinVotes: 3},
+				{ID: "kdrama_top", Title: "Top-rated K-Dramas", Subtitle: "Acclaimed Korean TV shows", Kind: "show", Lang: "ko", Without: "16|10763|10767", Sort: "rating", MinVote: 7.8, MinVotes: 80},
+				{ID: "kdrama_romance", Title: "Romance & comedy K-Dramas", Subtitle: "Love stories and lighthearted hits", Kind: "show", Genres: "18|35", Without: "16|10763|10767", Lang: "ko", MinVotes: 10},
+				{ID: "kdrama_thriller", Title: "Crime, mystery & action K-Dramas", Subtitle: "Tense Korean thrillers and action", Kind: "show", Genres: "80|9648|10759", Without: "16|10763|10767", Lang: "ko", MinVotes: 10},
 				{ID: "kdrama_movies", Title: "Korean movies", Subtitle: "Critically acclaimed cinema from South Korea", Kind: "movie", Without: "16", Lang: "ko", MinVotes: 30},
 			}
 		},
@@ -91,9 +94,9 @@ var exploreHubs = []exploreHubDef{
 		},
 		Rows: func(now time.Time) []hubRowSpec {
 			return []hubRowSpec{
-				{ID: "tr_shows", Title: "Popular Turkish shows", Subtitle: "Top Turkish dizi and dramas", Kind: "show", Lang: "tr", Without: "10763,10767", MinVotes: 5},
-				{ID: "tr_new", Title: "New Turkish shows", Subtitle: "Recently premiered Turkish shows", Kind: "show", Lang: "tr", Without: "10763,10767", RecentMo: 18, MinVotes: 2},
-				{ID: "tr_top", Title: "Top-rated Turkish shows", Subtitle: "Highest rated Turkish dramas and comedies", Kind: "show", Lang: "tr", Without: "10763,10767", Sort: "rating", MinVote: 7.0, MinVotes: 15},
+				{ID: "tr_shows", Title: "Popular Turkish shows", Subtitle: "Top Turkish dizi and dramas", Kind: "show", Lang: "tr", Without: "10763|10767", MinVotes: 5},
+				{ID: "tr_new", Title: "New Turkish shows", Subtitle: "Recently premiered Turkish shows", Kind: "show", Lang: "tr", Without: "10763|10767", RecentMo: 18, MinVotes: 2},
+				{ID: "tr_top", Title: "Top-rated Turkish shows", Subtitle: "Highest rated Turkish dramas and comedies", Kind: "show", Lang: "tr", Without: "10763|10767", Sort: "rating", MinVote: 7.0, MinVotes: 15},
 				{ID: "tr_movies", Title: "Turkish movies", Subtitle: "Popular films from Turkey", Kind: "movie", Lang: "tr", MinVotes: 15},
 			}
 		},
@@ -108,9 +111,9 @@ var exploreHubs = []exploreHubDef{
 		},
 		Rows: func(now time.Time) []hubRowSpec {
 			return []hubRowSpec{
-				{ID: "cdrama_shows", Title: "Popular C-Dramas", Subtitle: "Chinese dramas, historicals and romance", Kind: "show", Lang: "zh", Without: "16,10763,10767", MinVotes: 5},
-				{ID: "jdrama_shows", Title: "Popular J-Dramas", Subtitle: "Japanese live-action dramas and thrillers", Kind: "show", Lang: "ja", Without: "16,10763,10767", MinVotes: 10},
-				{ID: "thai_shows", Title: "Thai & Southeast Asian shows", Subtitle: "Popular dramas from Thailand", Kind: "show", Lang: "th", Without: "16,10763,10767", MinVotes: 3},
+				{ID: "cdrama_shows", Title: "Popular C-Dramas", Subtitle: "Chinese dramas, historicals and romance", Kind: "show", Lang: "zh", Without: "16|10763|10767", MinVotes: 5},
+				{ID: "jdrama_shows", Title: "Popular J-Dramas", Subtitle: "Japanese live-action dramas and thrillers", Kind: "show", Lang: "ja", Without: "16|10763|10767", MinVotes: 10},
+				{ID: "thai_shows", Title: "Thai & Southeast Asian shows", Subtitle: "Popular dramas from Thailand", Kind: "show", Lang: "th", Without: "16|10763|10767", MinVotes: 3},
 				{ID: "asian_movies_zh", Title: "Chinese cinema", Subtitle: "Action, wuxia and drama films", Kind: "movie", Lang: "zh", Without: "16", MinVotes: 25},
 				{ID: "asian_movies_ja", Title: "Japanese live-action cinema", Subtitle: "Drama, thriller and award-winning films", Kind: "movie", Lang: "ja", Without: "16", MinVotes: 35},
 			}
@@ -162,7 +165,7 @@ var exploreHubs = []exploreHubDef{
 			return []hubRowSpec{
 				{ID: "in_hindi_movies", Title: "Popular Bollywood & Hindi movies", Subtitle: "Top Hindi language films", Kind: "movie", Lang: "hi", MinVotes: 25},
 				{ID: "in_new_movies", Title: "New Indian releases", Subtitle: "Recent hits from India", Kind: "movie", Lang: "hi", RecentMo: 18, MinVotes: 10},
-				{ID: "in_shows", Title: "Indian web shows", Subtitle: "Crime, drama and thriller shows", Kind: "show", Lang: "hi", Without: "10763,10767", MinVotes: 10},
+				{ID: "in_shows", Title: "Indian web shows", Subtitle: "Crime, drama and thriller shows", Kind: "show", Lang: "hi", Without: "10763|10767", MinVotes: 10},
 				{ID: "in_tamil", Title: "Tamil cinema", Subtitle: "Popular Tamil language films", Kind: "movie", Lang: "ta", MinVotes: 15},
 				{ID: "in_telugu", Title: "Telugu cinema", Subtitle: "Popular Telugu language films", Kind: "movie", Lang: "te", MinVotes: 15},
 			}
@@ -230,7 +233,7 @@ var exploreHubs = []exploreHubDef{
 		Rows: func(now time.Time) []hubRowSpec {
 			return []hubRowSpec{
 				{ID: "com_movies", Title: "Popular comedy movies", Kind: "movie", Genres: "35", Without: "16", MinVotes: 80},
-				{ID: "com_shows", Title: "Comedy shows & sitcoms", Kind: "show", Genres: "35", Without: "16,10762", MinVotes: 40},
+				{ID: "com_shows", Title: "Comedy shows & sitcoms", Kind: "show", Genres: "35", Without: "16|10762", MinVotes: 40},
 				{ID: "com_rom", Title: "Romantic comedies", Kind: "movie", Genres: "35,10749", MinVotes: 60},
 				{ID: "com_top", Title: "Top-rated comedies", Kind: "movie", Genres: "35", Sort: "rating", MinVote: 7.4, MinVotes: 400},
 			}
@@ -296,6 +299,19 @@ func (h *Handlers) exploreHub(w http.ResponseWriter, r *http.Request) {
 	if h.KidLimited(w, r) {
 		return
 	}
+	page := 0
+	if v := r.URL.Query().Get("page"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 || n > maxTailPage {
+			webserver.Fail(w, http.StatusBadRequest, "page must be a number from 0")
+			return
+		}
+		page = n
+	}
+	if page > 0 {
+		h.hubTailPage(w, r, def, page)
+		return
+	}
 	if h.Cache != nil && !h.Cache.Allow(h.UserID(r), time.Now()) {
 		w.Header().Set("Retry-After", "60")
 		webserver.Fail(w, http.StatusTooManyRequests, "too many Explore requests; try again in a minute")
@@ -311,6 +327,7 @@ func (h *Handlers) exploreHub(w http.ResponseWriter, r *http.Request) {
 	rawRows := h.loadHubRows(r.Context(), def, kid, now)
 
 	// Deduplicate titles across shelves within the hub (first row wins), capping each row at RowMax.
+	// A row that would fall under hubFresh titles takes repeats back, so later rows stay full.
 	seen := map[string]bool{}
 	deduped := make([]engine.Row, 0, len(rawRows))
 	for _, row := range rawRows {
@@ -323,6 +340,14 @@ func (h *Handlers) exploreHub(w http.ResponseWriter, r *http.Request) {
 			keep = append(keep, it)
 			if len(keep) >= engine.RowMax {
 				break
+			}
+		}
+		for _, it := range row.Items {
+			if len(keep) >= hubFresh {
+				break
+			}
+			if seen[it.Key()] {
+				keep = append(keep, it)
 			}
 		}
 		for _, it := range keep {
@@ -379,6 +404,7 @@ func (h *Handlers) exploreHub(w http.ResponseWriter, r *http.Request) {
 		"hub":  def.Info,
 		"hero": hero,
 		"rows": views,
+		"more": hubHasTail(def.Info.ID),
 	})
 }
 
@@ -395,7 +421,8 @@ func (h *Handlers) loadHubRows(ctx context.Context, def exploreHubDef, kid bool,
 	}
 	hubCacheMu.Unlock()
 
-	specs := def.Rows(now)
+	rowSpecs := def.Rows(now)
+	specs := make([]engine.Request, len(rowSpecs))
 	var listFn func(context.Context, engine.Request) ([]engine.Item, error)
 	if h.Explore != nil {
 		src := h.LiveExplore(ctx)
@@ -406,38 +433,14 @@ func (h *Handlers) loadHubRows(ctx context.Context, def exploreHubDef, kid bool,
 	} else {
 		return nil
 	}
-	results := make([][]engine.Item, len(specs))
+	results := make([][]engine.Item, len(rowSpecs))
 
 	var wg sync.WaitGroup
-	for i, sp := range specs {
+	for i, sp := range rowSpecs {
 		wg.Add(1)
 		go func(idx int, spec hubRowSpec) {
 			defer wg.Done()
-			q := engine.Request{
-				List:     "discover",
-				Kind:     spec.Kind,
-				Genres:   spec.Genres,
-				Without:  spec.Without,
-				Lang:     spec.Lang,
-				Sort:     spec.Sort,
-				MinVote:  spec.MinVote,
-				MinVotes: spec.MinVotes,
-				Scope:    engine.ScopeShared,
-			}
-			if spec.RecentMo > 0 {
-				q.From = now.AddDate(0, -spec.RecentMo, 0).Format("2006-01-02")
-			}
-			if kid {
-				const kw = "27|80|53|10752|10768"
-				if q.Without == "" {
-					q.Without = kw
-				} else {
-					q.Without = q.Without + "|" + kw
-				}
-				if q.Kind == "movie" {
-					q.Cert = "PG"
-				}
-			}
+			q := hubRequest(spec, now, kid)
 			items, err := listFn(ctx, q)
 			if err != nil {
 				return
@@ -450,6 +453,7 @@ func (h *Handlers) loadHubRows(ctx context.Context, def exploreHubDef, kid bool,
 					items = retry
 				}
 			}
+			specs[idx] = q
 			sort.SliceStable(items, func(a, b int) bool {
 				if spec.Sort == "rating" {
 					if items[a].Vote != items[b].Vote {
@@ -463,8 +467,8 @@ func (h *Handlers) loadHubRows(ctx context.Context, def exploreHubDef, kid bool,
 	}
 	wg.Wait()
 
-	rows := make([]engine.Row, 0, len(specs))
-	for i, sp := range specs {
+	rows := make([]engine.Row, 0, len(rowSpecs))
+	for i, sp := range rowSpecs {
 		if len(results[i]) == 0 {
 			continue
 		}
@@ -475,6 +479,7 @@ func (h *Handlers) loadHubRows(ctx context.Context, def exploreHubDef, kid bool,
 			Subtitle: sp.Subtitle,
 			Wide:     true,
 			Items:    results[i],
+			Specs:    []engine.Request{specs[i]},
 		})
 	}
 	if len(rows) > 0 {

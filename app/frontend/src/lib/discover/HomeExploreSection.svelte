@@ -1,97 +1,114 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { api } from '#lib/core/api.ts';
 	import { t } from '#lib/core/i18n/i18n.svelte.ts';
-	import { serverWords } from '#lib/core/i18n/server-words.ts';
 	import { to } from '#lib/core/paths.ts';
 	import { session } from '#lib/core/session.svelte.ts';
 	import type { TitleView } from '#lib/core/types.ts';
 	import { ownedLibrary } from '#lib/mediafiles/index.ts';
 	import { QuickAsk } from '#lib/requests/index.ts';
 	import Icon from '#lib/ui/Icon.svelte';
-	import IconButton from '#lib/ui/IconButton.svelte';
-	import Shelf from '#lib/ui/Shelf.svelte';
 	import { SkRail } from '#lib/ui/sk/index.ts';
-	import WideCard from '#lib/ui/WideCard.svelte';
-	import { contextLine } from '#lib/ui/grow-lines.ts';
-	import { cardAction, cardTmdb, ownedIndex, ownedMark, ownedTitle, type ExploreCard, type ExploreRow } from '#lib/ui/title-cards.ts';
+	import { EAGER_ROWS } from '#lib/ui/row-window.ts';
+	import { ownedIndex, type ExploreCard } from '#lib/ui/title-cards.ts';
 	import { audienceOf } from '#lib/ui/title-status.ts';
-	import { headPath, poolRetryDelay, serverRow, type HeadAnswer } from './explore-server.ts';
+	import ExploreRowShelf from './ExploreRowShelf.svelte';
+	import { headPath, poolRetryDelay, serverRow, type HeadAnswer, type HeadQuery } from './explore-server.ts';
+	import { createExploreTail, tailSentinel, type TailRow } from './explore-tail.svelte.ts';
 	import { typeHref } from './explore-type.ts';
 	import { categoryTitleHref, fetchSubcategories, type CategorySummary } from './subcategories.ts';
 
 	let {
-		welcome = false
+		welcome = false,
+		head: given
 	}: {
 		welcome?: boolean;
+		/** The head Home already read (the welcome picks); the section then reads none of its own. */
+		head?: HeadAnswer | null;
 	} = $props();
 
-	let rows = $state<(ExploreRow & { type: string })[]>([]);
+	let headRows = $state<TailRow[]>([]);
 	let subcats = $state<CategorySummary[]>([]);
 	let titles = $state<TitleView[]>([]);
 	let loaded = $state(false);
 	let flow: ReturnType<typeof QuickAsk> | undefined = $state();
 	let timer: ReturnType<typeof setTimeout> | undefined;
+	const gone = new AbortController();
 
 	const manage = $derived(session.can('manage_library'));
 	const mayAsk = $derived(session.can('ask'));
 	const who = $derived(audienceOf(session.can));
 	const owned = $derived(ownedIndex(titles));
-	const visibleRows = $derived((welcome
-		? rows.filter((r) => r.type === 'because_watched' || r.type === 'because_opened' || r.type === 'subcategory')
-		: rows).slice(0, 8));
-
-	function liveCard(c: ExploreCard): ExploreCard {
-		return flow?.live(c) ?? c;
-	}
-
-	function quick(c: ExploreCard, act: 'add' | 'ask') {
-		void (act === 'ask' ? flow?.askNow(c) : flow?.open(c, act));
-	}
-
-	function rowHref(r: ExploreRow & { type: string }): string | undefined {
-		if (r.category) return to(`/explore?cat=${encodeURIComponent(r.category)}`);
-		return typeHref(r.href, 'all');
-	}
-
-	async function loadHomeExplore(tries = 0, signal?: AbortSignal) {
+	const tz = (() => {
 		try {
-			const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
-			const ans = await api.get<HeadAnswer>(headPath({ type: 'all', tz }), signal);
-			const nextRows = (ans.head ?? [])
-				.map(serverRow)
-				.filter((r) => r.type !== 'top_services' && r.cards.length > 0);
-			rows = nextRows;
-			const retry = ans.building ? poolRetryDelay(tries) : undefined;
+			return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+		} catch {
+			return undefined;
+		}
+	})();
+	const query = (): HeadQuery => ({ type: 'all', tz });
+
+	// A fresh install shows the rows picked for the person first; everyone gets the whole head, then the endless tail.
+	const shown = $derived(welcome ? headRows.filter((r) => r.type === 'because_watched' || r.type === 'because_opened' || r.type === 'subcategory') : headRows);
+	let sentinel = $state<HTMLElement>();
+	const tail = createExploreTail({ query, signal: gone.signal, head: () => headRows, near: () => !!sentinel && sentinel.getBoundingClientRect().top < innerHeight * 2.5 });
+	const rows = $derived([...shown, ...tail.rows]);
+
+	function useHead(a: HeadAnswer) {
+		const next = (a.head ?? []).map(serverRow).filter((r) => r.type !== 'top_services' && r.cards.length > 0);
+		const same = loaded && next.length === headRows.length && next.every((r, i) => r.id === headRows[i].id);
+		headRows = next;
+		if (!same) tail.reset(true);
+		loaded = true;
+	}
+
+	$effect(() => {
+		const g = given;
+		if (g) untrack(() => useHead(g));
+	});
+
+	async function loadHead(tries = 0) {
+		try {
+			const a = await api.get<HeadAnswer>(headPath(query()), gone.signal);
+			useHead(a);
+			const retry = a.building ? poolRetryDelay(tries) : undefined;
 			if (retry !== undefined) {
 				clearTimeout(timer);
-				timer = setTimeout(() => void loadHomeExplore(tries + 1, signal), retry);
+				timer = setTimeout(() => void loadHead(tries + 1), retry);
 			}
 		} catch {
-			/* Home stays clean even if Explore is warming up. */
-		} finally {
+			// Home stays clean while Explore warms up.
 			loaded = true;
 		}
 	}
 
+	function cardHref(c: ExploreCard): string | undefined {
+		if (c.titleId !== undefined) return to(`/library/${c.titleId}`);
+		return categoryTitleHref(c);
+	}
+
+	function rowHref(r: TailRow): string | undefined {
+		if (r.category) return to(`/explore?cat=${encodeURIComponent(r.category)}`);
+		return typeHref(r.href, 'all');
+	}
+
 	onMount(() => {
-		const ac = new AbortController();
-		void loadHomeExplore(0, ac.signal);
-		void fetchSubcategories('all', '', '', ac.signal).then((list) => {
+		if (!welcome && !given) void loadHead();
+		void fetchSubcategories('all', '', '', gone.signal).then((list) => {
 			subcats = list.slice(0, 12);
 		}).catch(() => {});
-		void ownedLibrary(api, ac.signal).then((list) => {
+		void ownedLibrary(api, gone.signal).then((list) => {
 			titles = list.titles;
 		}).catch(() => {});
 		return () => {
 			clearTimeout(timer);
-			ac.abort();
+			gone.abort();
 		};
 	});
 </script>
 
 {#if subcats.length > 0}
-	<div class="subcat-jumps" aria-label="Quick categories">
+	<div class="subcat-jumps" aria-label={t('discover.categoryStrip.categories')}>
 		{#each [
 			{ id: 'anime', name: 'Anime', href: '/explore?type=anime', spotlight: true },
 			{ id: 'kdrama', name: 'K-Drama', href: '/explore?hub=kdrama', spotlight: false },
@@ -104,67 +121,20 @@
 		{/each}
 		<a class="jump-pill all" href={to('/explore')}>
 			<Icon name="compass" size={13} />
-			<span>Explore all</span>
+			<span>{t('home.explore')}</span>
 		</a>
 	</div>
 {/if}
 
-{#if !welcome && !loaded && rows.length === 0}
+{#if !welcome && !loaded && headRows.length === 0}
 	<div class="home-sk"><SkRail kind="wide" item="var(--title-item)" count={5} titleWidth="180px" /></div>
 {:else}
-	{#each visibleRows as row (row.id)}
-		<div class="wide-row" data-testid={`home-explore-${row.type}`}>
-			<Shelf
-				title={serverWords(row.title)}
-				subtitle={row.subtitle ? serverWords(row.subtitle) : undefined}
-				href={rowHref(row)}
-				item="var(--title-item)"
-				items={row.cards}
-				key={(c) => c.key}
-				placeholder="wide"
-				lines={row.cards.some((c) => c.subtitle) ? 2 : 1}
-			>
-				{#snippet card(raw: ExploreCard)}
-					{@const c = liveCard(raw)}
-					{@const act = cardAction(c, { manage, ask: mayAsk })}
-					{@const mark = ownedMark(c, ownedTitle(c, owned), who)}
-					{@const tmdb = cardTmdb(c)}
-					<WideCard
-						cover
-						title={c.name}
-						href={categoryTitleHref(c)}
-						image={c.wide ?? c.image}
-						art={c.art}
-						kind={c.kind}
-						subtitle={c.subtitle}
-						badges={c.badges}
-						badgesAt="bottom"
-						vtName={c.vtName}
-						fresh={c.fresh}
-						owned={mark}
-						typed
-						row={row.type}
-						preview={tmdb && (c.kind === 'movie' || c.kind === 'show') ? { kind: c.kind, tmdb, year: c.year, titleId: c.titleId } : undefined}
-						growContext={contextLine({ state: mark?.state, label: mark?.label, mine: c.mine, fresh: c.fresh }, { rowType: row.type, rowTitle: row.title, fresh: c.fresh, streaming: c.streaming })}
-					>
-						{#snippet growAction()}
-							{#if act && tmdb}
-								<IconButton
-									icon="plus"
-									label={act === 'add' ? t('discover.explore.add', { name: c.name }) : t('discover.explore.askFor', { name: c.name })}
-									variant="glass"
-									size="lg"
-									aria-haspopup="dialog"
-									aria-busy={flow?.busy(c) || undefined}
-									onclick={() => quick(c, act)}
-								/>
-							{/if}
-						{/snippet}
-					</WideCard>
-				{/snippet}
-			</Shelf>
-		</div>
+	{#each rows as row, ri (row.id)}
+		<ExploreRowShelf {row} cards={row.cards} href={rowHref(row)} live={(c) => flow?.live(c) ?? c} {cardHref} {manage} {mayAsk} {who} {owned}
+			busy={(c) => flow?.busy(c) ?? false} onquick={(c, act) => void (act === 'ask' ? flow?.askNow(c) : flow?.open(c, act))}
+			defer={ri >= EAGER_ROWS} testid={`home-explore-${row.type}`} />
 	{/each}
+	{#if loaded && tail.more}<div class="sentinel" bind:this={sentinel} use:tailSentinel={() => void tail.load()} aria-hidden="true"></div>{/if}
 {/if}
 
 <QuickAsk bind:this={flow} />
@@ -181,7 +151,6 @@
 	.jump-pill:hover { color: var(--text); border-color: var(--text-faint); background: var(--surface-2); }
 	.jump-pill.spotlight { color: var(--text); border-color: color-mix(in srgb, #f43f5e 45%, var(--line)); background: color-mix(in srgb, #f43f5e 10%, var(--surface-1)); }
 	.jump-pill.all { color: var(--text); border-style: dashed; }
-	.wide-row { display: contents; }
-	@media (min-width: 768px) { .wide-row { --shelf-gap: 5px; } }
 	.home-sk { min-width: 0; }
+	.sentinel { height: 1px; }
 </style>

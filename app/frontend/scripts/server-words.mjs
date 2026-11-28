@@ -37,7 +37,7 @@ const notWords = new Set(['dash', 'each', 'range', 'smart', 'remove', 'normal', 
 	// migrate errNotChecked: a dry run's own marker, never shown (the page says how many shows are still being checked).
 	'still being checked',
 	// Direct stream API validation lines.
-	'stream session not found', 'subtitle content is empty', 'subtitle file exceeds 5 MB limit', 'subtitle service is unavailable', 'watch history is unavailable', 'unknown explore category hub',
+	'more must be the word a row was sent with', 'stream session not found', 'subtitle content is empty', 'subtitle file exceeds 5 MB limit', 'subtitle service is unavailable', 'watch history is unavailable', 'unknown explore category hub',
 	'stream candidate expired; search again', 'library storage unavailable', 'addon subtitle store unavailable', 'upstream stream request failed', 'upstream stream read failed', 'failed to read HLS manifest', 'HLS manifest exceeds limit', 'upstream returned web page instead of media']);
 // Lines the scan cannot put together: a control's Event starts with the person's name (setup ControlEvent)
 // and takes its verb from a map; a removal's reason may name who removed it.

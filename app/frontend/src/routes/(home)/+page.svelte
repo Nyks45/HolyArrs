@@ -57,6 +57,8 @@
 	let asks = $state<Ask[]>([]);
 	// Before setup: Explore's first picture rows (from the metadata server, no setup needed), read before Home shows.
 	let picks = $state<(ExploreRow & { wide: boolean; type: string })[]>([]);
+	/** The Explore head read for the welcome picks; the Explore rows below reuse it instead of reading it again. */
+	let pickHead = $state<HeadAnswer | null>(null);
 	// Art for the New & Popular and Calendar tiles, from New & Popular's first page (the same Kid-limited answer that page reads): its first new backdrop and the next releases' posters.
 	// building: New & Popular's first list is still being fetched (true until the first answer says otherwise).
 	let tileArt = $state<{ pop: string[]; soon: string[]; week: { count: number; posters: string[] }; building: boolean }>({ pop: [], soon: [], week: { count: 0, posters: [] }, building: true });
@@ -251,9 +253,12 @@
 		picksTried = true;
 		const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 		await untilFull(
-			() => read<HeadAnswer>(headPath({ type: 'all', tz })).then((a) => ({ building: !!a.building, rows: welcomeRows(a.head ?? []) })),
+			() => read<HeadAnswer>(headPath({ type: 'all', tz })).then((a) => ({ building: !!a.building, rows: welcomeRows(a.head ?? []), head: a })),
 			(r) => r.rows.length > 0,
-			(r) => (picks = r.rows)
+			(r) => {
+				picks = r.rows;
+				pickHead = r.head;
+			}
 		);
 	}
 
@@ -482,10 +487,12 @@
 		{#if welcomeOn && (owner || !joinedOn)}{@render welcomeCard()}{/if}
 		<HomeOverview {overview} {disk} {admin} {settled} {attentionView} {uncheckedParts} {retrying} {retry} {approver} {kid} {uncheckedAsks} {downloading} {mineOpen} {mineDeclined} {fetchingAll} {home} {uncheckedDl} {now} {uncheckedHealth} {health} {picTile} {tileArt} />
 		<PluginCards cards={pluginCards} testid="home-plugin-cards" />
-		<HomeExploreSection welcome={welcomeOn} />
 		{#if welcomeOn}{#each picks as r (r.id)}{@render pickRow(r)}{/each}{/if}
 		{#each rows as row (row)}
-			{#if row === 'arrived'}
+			{#if row === 'following'}
+				<!-- My list: the shows and artists this person follows. -->
+				{@render wideRow(overview.below(home?.following), 'home_following', { title: t('home.following') })}
+			{:else if row === 'arrived'}
 				{@render wideRow(overview.below(home?.arrived), 'home_arrived', { ...arrivedHead(home?.arrived ?? [], now.getTime()), href: to(overview.kindHref(home?.arrived?.[0])) })}
 			{:else if row === overview.upAt && overview.comingUp.length}
 				<section class="up" aria-labelledby="h-up" data-testid="home_coming_up">
@@ -510,6 +517,8 @@
 				</section>
 			{/if}
 		{/each}
+		<!-- Explore's rows close Home: the head, then more rows as the page scrolls, without end. -->
+		<HomeExploreSection welcome={welcomeOn} head={welcomeOn ? pickHead : undefined} />
 		</PageLoader>
 	{/if}
 </div>

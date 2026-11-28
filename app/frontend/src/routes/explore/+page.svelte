@@ -13,6 +13,7 @@
 	import { createExploreServices } from '#lib/discover/index.ts';
 	import { cardAction, followsByTmdb, cardTmdb, discoverCard, matchOwned, ownedIndex, ownedMark, ownedTitle, cardIdentity, type ExploreCard, type ExploreRow } from '#lib/ui/title-cards.ts';
 	import { contextLine } from '#lib/ui/grow-lines.ts';
+	import { createExploreTail, ExploreRowShelf, tailSentinel, type TailKept } from '#lib/discover/index.ts';
 	import { audienceOf } from '#lib/ui/title-status.ts';
 	import Shelf from '#lib/ui/Shelf.svelte';
 	import PosterCard from '#lib/ui/PosterCard.svelte';
@@ -26,7 +27,7 @@
 	import { EAGER_ROWS, stableRows } from '#lib/ui/row-window.ts';
 	import { artistSheets } from '#lib/requests/index.ts';
 	import { libraryTitles, ownedLibrary, partOff, partOn } from '#lib/mediafiles/index.ts';
-	import { anchorDelta, canReturn, putOffsets, readAnchor, readOffsets, type ExploreReturn, headPath, poolRetryDelay, serverRow, tailPath, type HeadAnswer, type TailAnswer, markTransitions, dedupeTop, filterRows, parseType, searchAddress, typeHref, enoughCards, genreRowPath, genreCardHref, genreRowAfter, GENRE_ROW_MAX, ROW_MIN, type GenreRowCard, type ExploreType, TopServicesRow, ExploreHero, ExploreFilterBar, SubcategorySheet, ExploreSubcategoryView, fetchSubcategories, type CategorySummary, createExploreHub, heroFallback, CategoryStrip, GenreBanner, leaveOut, newHref, newServicesPath, type NewServicesAnswer, whyShown } from '#lib/discover/index.ts';
+	import { anchorDelta, canReturn, putOffsets, readAnchor, readOffsets, type ExploreReturn, headPath, poolRetryDelay, serverRow, type HeadAnswer, markTransitions, dedupeTop, filterRows, parseType, searchAddress, typeHref, enoughCards, genreRowPath, genreCardHref, genreRowAfter, GENRE_ROW_MAX, ROW_MIN, type GenreRowCard, type ExploreType, TopServicesRow, ExploreHero, ExploreFilterBar, SubcategorySheet, ExploreSubcategoryView, fetchSubcategories, type CategorySummary, createExploreHub, heroFallback, CategoryStrip, GenreBanner, leaveOut, newHref, newServicesPath, type NewServicesAnswer, whyShown } from '#lib/discover/index.ts';
 	import { detailPath, remember } from '#lib/metadata/index.ts';
 	import { QuickAsk } from '#lib/requests/index.ts';
 	import { MusicTrendingRows, musicCardHref } from '#lib/music/index.ts';
@@ -47,16 +48,22 @@
 	let titles = $state<TitleView[]>([]);
 	/** The server-built page: the head in one answer, then tail pages as the page scrolls. */
 	let head = $state<(ExploreRow & { wide: boolean; type: string })[]>([]);
-	let tail = $state<(ExploreRow & { wide: boolean; type: string })[]>([]);
 	let hero = $state<ExploreCard[]>([]);
 	let heroAt = $state(0);
 	// First visit: the server may still be fetching the hero's pictures, so the page keeps a same-size placeholder and asks again a few times.
 	let heroWait = $state(0);
 	const HERO_TRIES = 24;
 	let headLoaded = $state(false);
-	let tailPageNext = 0;
-	let tailMore = $state(false);
-	let tailBusy = false;
+	// The tail loads when its sentinel comes within 1.5 screens, and goes on while the end is still that near.
+	let sentinel = $state<HTMLElement>();
+	const nearEnd = () => !!sentinel && sentinel.getBoundingClientRect().top < innerHeight * 2.5;
+	const tailView = createExploreTail({ query: () => query(), get signal() { return gone.signal; }, head: () => head, near: nearEnd });
+	function loadMore() {
+		// A hub page that leaves the end in reach reads the next one too.
+		if (hubView.hubOn) void hubView.loadTail().then((read) => read && requestAnimationFrame(() => hubView.hubOn && hubView.tailMore && nearEnd() && loadMore()));
+		else if (type !== 'music' && type !== 'anime') void tailView.load();
+	}
+
 	/** The Add and Ask sheets, and the cards asked for or added on this page. */
 	let flow: ReturnType<typeof QuickAsk> | undefined = $state();
 
@@ -180,9 +187,9 @@
 		void rows.length;
 		void tick().then(() => {
 			if (back !== v) return;
-			const more = tailMore && backTries++ < 12;
+			const more = tailView.more && backTries++ < 12;
 			if (!canReturn(document.documentElement.scrollHeight, v.y, innerHeight, more)) {
-				void loadTail();
+				void tailView.load();
 				return;
 			}
 			back = null;
@@ -285,7 +292,12 @@
 		const c = newServices && !genreView.genreOn ? leaveOut(newServices.cards, taken) : [];
 		return c.length >= ROW_MIN ? c : [];
 	});
-	const rows = $derived(type === 'music' ? [] : markTransitions(enoughCards(dedupeTop(hubView.hubOn ? hubView.rows : genreView.genreOn ? (genreView.genreLoaded === genreView.genre?.id ? genreView.genreRows : []) : filterRows([...head, ...tail], type), taken))));
+	const rows = $derived(type === 'music' ? [] : markTransitions(enoughCards(dedupeTop(hubView.hubOn ? hubView.rows : genreView.genreOn ? (genreView.genreLoaded === genreView.genre?.id ? genreView.genreRows : []) : filterRows([...head, ...tailView.rows], type), taken))));
+	/** The add-on catalogs follow the head (the tail under them goes on without end): the last row that is not a tail row. */
+	const addonAt = $derived.by(() => {
+		const tailIds = new Set([...tailView.rows.map((r) => r.id), ...hubView.tailIds]);
+		return rows.findLastIndex((r) => !tailIds.has(r.id));
+	});
 	/** Where Browse by genre goes: after this row index (-1: not shown). */
 	const genreAt = $derived(hubView.hubOn || genreView.genreOn ? -1 : genreRowAfter(rows));
 	// Browse by genre: read once per tab after the head (the page the server already built).
@@ -332,9 +344,8 @@
 			heroGenres = Object.fromEntries((a.hero ?? []).map((d) => [`${d.kind}:${d.tmdb_id}`, d.genres ?? []]));
 			taste = a.taste ?? [];
 			heroAt = 0;
-			tail = [];
-			tailPageNext = 0;
-			tailMore = a.tail_rows > 0;
+			// The tail goes on past the pool's own rows, so there is always more to read.
+			tailView.reset(true);
 			failed = false;
 			okOnce = true;
 			heroWait = !a.building && hero.length === 0 && head.length > 0 && tries < HERO_TRIES ? tries + 1 : 0;
@@ -356,44 +367,13 @@
 		const k = kept;
 		kept = null;
 		if (!k || Date.now() - k.at > 600_000 || k.key !== JSON.stringify(query())) return false;
-		const r = k.rows as { head: typeof head; tail: typeof tail; hero: typeof hero; heroAt: number; tailPageNext: number; tailMore: boolean; headOrder: string[] };
-		({ head, tail, hero, heroAt, tailPageNext, tailMore, headOrder } = r);
+		const r = k.rows as { head: typeof head; tail: TailKept; hero: typeof hero; heroAt: number; headOrder: string[] };
+		({ head, hero, heroAt, headOrder } = r);
+		tailView.restore(r.tail);
 		okOnce = true;
 		headLoaded = true;
 		return true;
 	}
-
-	async function loadTail() {
-		if (tailBusy || !tailMore || type === 'music' || type === 'anime') return;
-		tailBusy = true;
-		const n = headAsk;
-		try {
-			const a = await api.get<TailAnswer>(tailPath(query(), tailPageNext), gone.signal);
-			if (n !== headAsk) return;
-			// A page laid out again between two asks may repeat a row: keep the first.
-			const have = new Set([...head, ...tail].map((r) => r.id));
-			tail = [...tail, ...a.rows.map(serverRow).filter((r) => !have.has(r.id))];
-			tailPageNext++;
-			tailMore = a.more;
-		} catch {
-			tailMore = false;
-		} finally {
-			tailBusy = false;
-		}
-		// Still within 1.5 screens of the end (a tall screen): the next page too.
-		requestAnimationFrame(() => {
-			if (tailMore && sentinel && sentinel.getBoundingClientRect().top < innerHeight * 2.5) void loadTail();
-		});
-	}
-
-	// The tail loads when its sentinel comes within 1.5 screens.
-	let sentinel = $state<HTMLElement>();
-	$effect(() => {
-		if (!sentinel) return;
-		const io = new IntersectionObserver(([e]) => e.isIntersecting && void loadTail(), { rootMargin: '150% 0px' });
-		io.observe(sentinel);
-		return () => io.disconnect();
-	});
 
 	function opened(e: MouseEvent) {
 		const el = e.target as Element | null;
@@ -432,8 +412,6 @@
 	// Ask is one tap (no sheet); Add opens its sheet (folder and Pick rules).
 	const quick = (c: ExploreCard, act: 'add' | 'ask') => void (act === 'ask' ? flow?.askNow(c) : flow?.open(c, act));
 
-	/** Movies and shows draw wide title cards; artists keep their square cards. */
-	const wideKind = (k: string): boolean => k === 'movie' || k === 'show';
 
 	/** A row shows at most this many cards. */
 	const rowCap = 20;
@@ -482,7 +460,7 @@
 			clearTimeout(poll);
 			stripView.stripShown.flush();
 			gone.abort();
-			if (headLoaded && !failed && type !== 'music' && type !== 'anime' && hero.length > 0) kept = { key: JSON.stringify(query()), at: Date.now(), rows: $state.snapshot({ head, tail, hero, heroAt, tailPageNext, tailMore, headOrder }) };
+			if (headLoaded && !failed && type !== 'music' && type !== 'anime' && hero.length > 0) kept = { key: JSON.stringify(query()), at: Date.now(), rows: { ...$state.snapshot({ head, hero, heroAt, headOrder }), tail: tailView.keep() } };
 		};
 	});
 	$effect(() => {
@@ -697,55 +675,11 @@
 					<TopServicesRow {type} region={servicesView.region} genre={genreView.genreOn ? genreView.genre : null} {owned} {who} used={servicesView.usedServices} bind:shown={servicesShown} seeAll={genreView.genreOn ? undefined : to(newHref(type))} ask={rowAsk} />
 					{#if newServices && newCards.length}{@render newServicesRow(newServices, newCards)}{/if}
 				{:else}
-				<div class="row-wrap" class:wide-row={row.wide || row.cards.some((c) => wideKind(c.kind))} data-row={hubView.hubOn ? undefined : (row.type ?? row.id)} data-row-id={row.id} data-title-layer={row.titleLayer}>
-				<Shelf title={serverWords(row.title)} subtitle={serverWords(row.subtitle)} href={row.category ? to(`/explore?cat=${encodeURIComponent(row.category)}`) : typeHref(row.href, type)} item={row.cards.some((c) => wideKind(c.kind)) ? 'var(--title-item)' : 'var(--explore-item)'}
-					items={row.cards} key={(c) => c.key} defer={ri >= EAGER_ROWS && !back} placeholder={row.wide || row.cards.some((c) => wideKind(c.kind)) ? 'wide' : 'poster'} lines={row.cards.some((c) => c.subtitle) ? 2 : 1}>
-					{#snippet card(raw: ExploreCard)}
-						{@const c = live(raw)}
-						{@const act = cardAction(c, { manage, ask: mayAsk })}
-						{@const mark = ownedMark(c, ownedTitle(c, owned), who)}
-						{#if row.wide || wideKind(c.kind)}
-							<WideCard cover title={c.name} href={cardHref(c)} image={c.wide ?? c.image} art={c.art} kind={c.kind} subtitle={c.subtitle} badges={c.badges} badgesAt="bottom" vtName={c.vtName} fresh={c.fresh} owned={mark} typed row={row.type} preview={cardTmdb(c) && (c.kind === 'movie' || c.kind === 'show') ? { kind: c.kind, tmdb: cardTmdb(c), year: c.year, titleId: c.titleId } : undefined}
-									growService={c.streaming ? { name: c.streaming.name, logo: servicesView.services.find((s) => s.id === c.streaming?.service)?.logo } : null}
-									growContext={contextLine({ state: mark?.state, label: mark?.label, mine: c.mine, fresh: c.fresh }, { rowType: row.type, rowTitle: row.title, fresh: c.fresh, streaming: c.streaming })}
-									followTmdb={followsByTmdb(c)}>
-								{#snippet growAction()}
-									{#if act && cardTmdb(c)}
-										<IconButton icon="plus" label={act === 'add' ? t('discover.explore.add', { name: c.name }) : t('discover.explore.askFor', { name: c.name })} variant="glass" size="lg" aria-haspopup="dialog" aria-busy={flow?.busy(c) || undefined} onclick={() => { count(row.type ?? row.id, 'ask', row.titleLayer); void quick(c, act); }} />
-									{/if}
-								{/snippet}
-							</WideCard>
-						{:else}
-						<PosterCard
-							title={c.name}
-							href={cardHref(c)}
-							image={c.image}
-							kind={c.kind}
-							subtitle={c.subtitle}
-							badges={c.badges}
-							typed
-							row={row.type}
-							owned={mark}
-							fresh={c.fresh}
-							needsArt={c.kind === 'artist'}
-							actionOnHover
-							vtName={c.vtName}
-							preview={cardTmdb(c) && (c.kind === 'movie' || c.kind === 'show') ? { kind: c.kind, tmdb: cardTmdb(c), year: c.year, titleId: c.titleId } : undefined}
-							followTmdb={followsByTmdb(c)}
-						>
-							{#snippet action()}
-								{#if act && cardTmdb(c)}
-									<IconButton icon="plus" label={act === 'add' ? t('discover.explore.add', { name: c.name }) : t('discover.explore.askFor', { name: c.name })} variant="glass" size="lg" aria-haspopup="dialog" aria-busy={flow?.busy(c) || undefined} onclick={() => { count(row.type ?? row.id, 'ask', row.titleLayer); void quick(c, act); }} />
-								{:else if act}
-									<IconButton icon="plus" label={act === 'add' ? t('discover.explore.add', { name: c.name }) : t('discover.explore.askFor', { name: c.name })} variant="glass" size="lg" href={searchHref(c)} />
-								{/if}
-							{/snippet}
-						</PosterCard>
-						{/if}
-					{/snippet}
-				</Shelf>
-				</div>
+				<ExploreRowShelf {row} cards={row.cards} href={row.category ? to(`/explore?cat=${encodeURIComponent(row.category)}`) : typeHref(row.href, type)} {live} {cardHref} {searchHref} {manage} {mayAsk} {who} {owned}
+					busy={(c) => flow?.busy(c) ?? false} onquick={(c, act) => void quick(c, act)} oncount={count} serviceLogo={(id) => servicesView.services.find((sv) => sv.id === id)?.logo}
+					defer={ri >= EAGER_ROWS && !back} dataRow={hubView.hubOn ? undefined : (row.type ?? row.id)} />
 				{/if}
+				{#if ri === addonAt && !session.kid && !genreView.genreOn && (!hubView.hubOn || type === 'anime')}<AddonCatalogShelves {type} />{/if}
 				{#if ri === genreAt && genreCards.length >= ROW_MIN}
 					<div class="row-wrap wide-row" data-row="genre_browse" data-row-id="genre_browse">
 						<Shelf title={t('discover.explore.browseByGenre')} item="var(--title-item)" items={genreCards} key={(g) => `${g.kind}:${g.id}`} defer={!back} placeholder="wide" lines={1}>
@@ -756,8 +690,7 @@
 					</div>
 				{/if}
 			{/each}
-			{#if !session.kid && !genreView.genreOn && (!hubView.hubOn || type === 'anime')}<AddonCatalogShelves {type} />{/if}
-			{#if tailMore && !genreView.genreOn && !hubView.hubOn}<div class="sentinel" bind:this={sentinel} aria-hidden="true"></div>{/if}
+			{#if (tailView.more && !genreView.genreOn && !hubView.hubOn && type !== 'anime') || (hubView.hubOn && hubView.tailMore)}<div class="sentinel" bind:this={sentinel} use:tailSentinel={loadMore} aria-hidden="true"></div>{/if}
 		{/if}
 		</PageLoader>
 	{/if}

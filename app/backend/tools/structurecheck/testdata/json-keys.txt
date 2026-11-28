@@ -718,6 +718,8 @@ external_id
 external_ids
 externals
 extra
+extraRequired
+extraSupported
 extra_folders
 extract
 f
@@ -998,6 +1000,7 @@ interval
 intro
 ip
 isAvailable
+isRequired
 isUpgrade
 is_finished
 is_pack

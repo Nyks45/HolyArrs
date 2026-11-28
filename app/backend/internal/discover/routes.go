@@ -132,6 +132,7 @@ func (h *Handlers) Routes(m *http.ServeMux) {
 	m.HandleFunc("GET /api/v1/calendar", h.calendar)
 	m.HandleFunc("GET /api/v1/explore/head", h.exploreHead)
 	m.HandleFunc("GET /api/v1/explore/tail", h.exploreTail)
+	m.HandleFunc("GET /api/v1/explore/row", h.exploreRow)
 	m.HandleFunc("POST /api/v1/explore/counts", h.exploreCounts)
 	m.HandleFunc("POST /api/v1/explore/opened", h.exploreOpened)
 	m.HandleFunc("GET /api/v1/explore/subcategories", h.exploreSubcategories)

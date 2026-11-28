@@ -35,6 +35,16 @@ test('Settings home: a group card opens its section links and Back returns', asy
 	await expect(page.locator('.sx-ghost')).toHaveCount(0);
 });
 
+test('leaving My account for Settings shows the cards, with no sheet left over the page', async () => {
+	// My account is not one of the home's cards, so the sheet that covers the page for the move back has nothing to shrink into.
+	await page.goto('/settings/account');
+	await expect(page.locator('#profile-me')).toBeVisible();
+	await page.getByTestId('settings-back').click();
+	await expect(page).toHaveURL(/\/settings$/);
+	await expect(page.getByTestId('settings-group')).toHaveCount(5);
+	await expect(page.locator('.sx-ghost')).toHaveCount(0);
+});
+
 test('search finds one setting, and its link scrolls to it, opens Advanced and highlights it', async () => {
 	await page.goto('/settings');
 	await page.getByTestId('search-box').fill('free space');

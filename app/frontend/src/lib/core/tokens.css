@@ -265,7 +265,10 @@
 ::view-transition-group(page) { animation: none; }
 ::view-transition-old(page), ::view-transition-new(page) { width: 100%; height: auto; object-fit: none; object-position: top; }
 ::view-transition-old(page) { animation: vt-out var(--dur-fast) var(--ease-in) both; }
-::view-transition-new(page) { animation: vt-in var(--dur-page) var(--ease-out) both; }
+/* Art with nothing to grow into on the next page leaves with the old page instead of lingering. */
+::view-transition-old(*):only-child { animation-duration: var(--dur-fast); }
+/* The new page waits for the old one to fade out, so two different pages are never drawn over each other. */
+::view-transition-new(page) { animation: vt-in var(--dur-page) var(--ease-out) var(--dur-fast) both; }
 @keyframes vt-out { to { opacity: 0; } }
 @keyframes vt-in { from { opacity: 0; transform: translateY(var(--rise)); } }
 
